@@ -22,5 +22,9 @@ pgo-data.profdata
 .vscode
 .idea
 
+# Python
+__pycache__
+
 # Generated
 program/elf
+temp
