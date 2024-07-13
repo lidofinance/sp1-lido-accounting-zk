@@ -1,5 +1,8 @@
 use eth_consensus_layer_ssz::BeaconState;
 use log;
+use ssz::{Decode, Encode};
+use std::fs::File;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -106,13 +109,14 @@ impl SyntheticBeaconStateReader {
 
         log::debug!("Built command {:?}", command);
         command
-            .spawn()
+            .status()
             .expect("Failed to execute beacon state generator");
     }
 
     async fn read_beacon_state_from_file(&self, file_path: &Path) -> BeaconState {
         log::info!("Reading from file {:?}", file_path);
-        return BeaconState { slot: 12345678 };
+        let data = read_binary_file(file_path).unwrap();
+        return BeaconState::from_ssz_bytes(&data).unwrap();
     }
 }
 
@@ -122,4 +126,11 @@ impl BeaconStateReader for SyntheticBeaconStateReader {
         self.generate_beacon_state(&file_name, slot).await;
         return self.read_beacon_state_from_file(&file_name).await;
     }
+}
+
+fn read_binary_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
+    let mut file = File::open(path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    Ok(buffer)
 }

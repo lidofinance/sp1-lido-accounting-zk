@@ -96,6 +96,8 @@ class Report:
             validators,
             exited_validators,
         )
+    
+
 
 
 BALANCE_MODES = [mode.value for mode in BalanceMode]
@@ -166,6 +168,7 @@ def main(
 
     with open(file, "wb") as target:
         target.write(ssz.encode(beacon_state))
+        target.flush()
 
     if check:
         with open(file, "rb") as target:

@@ -15,14 +15,20 @@ async fn main() {
     // For now using a "synthetic" generator based on reference implementation (py-ssz)
     let reader = SyntheticBeaconStateReader::new(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp"),
-        2_u64.pow(10),
-        2_u64.pow(5),
-        BalanceGenerationMode::FIXED,
+        2_u64.pow(12),
+        2_u64.pow(6),
+        BalanceGenerationMode::RANDOM,
         true,
         true,
     );
 
-    let slot = 111222333;
+    let slot = 1000000;
     let beacon_state = reader.read_beacon_state(slot).await;
-    println!("Beacon State {:?}", beacon_state);
+    println!(
+        "Beacon State {:?}, validators: {:?}",
+        beacon_state.slot,
+        beacon_state.validators.to_vec().len(),
+    );
+
+    // println!("Balances {:?}", beacon_state.balances.to_vec());
 }
