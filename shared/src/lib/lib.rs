@@ -1,3 +1,4 @@
-pub struct Temp {
-    pub a: i32,
+#[derive(Debug)]
+pub struct BeaconState {
+    pub slot: u64,
 }

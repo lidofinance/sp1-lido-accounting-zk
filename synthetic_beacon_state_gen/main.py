@@ -98,6 +98,8 @@ class Report:
         )
 
 
+BALANCE_MODES = [mode.value for mode in BalanceMode]
+
 @click.command()
 @click.option(
     "-f",
@@ -121,7 +123,7 @@ class Report:
 @click.option(
     "-b",
     "--balances_mode",
-    type=click.Choice(BalanceMode),
+    type=click.Choice(BALANCE_MODES),
     help="Balance generation mode",
     default=BalanceMode.SEQUENTIAL,
 )
@@ -131,15 +133,17 @@ def main(
     file: pathlib.Path,
     validators: int,
     lido_validators: int,
-    balances_mode: BalanceMode,
+    balances_mode: str,
     slot: int,
     check: bool,
 ):
-    if balances_mode == BalanceMode.FIXED:
+    mode = BalanceMode(balances_mode)
+
+    if mode == BalanceMode.FIXED:
         balance_gen = itertools.repeat(FIXED_BALANCE)
-    elif balances_mode == BalanceMode.SEQUENTIAL:
+    elif mode == BalanceMode.SEQUENTIAL:
         balance_gen = itertools.count(1 * GWEI_IN_1_ETH, MILLIETH)
-    elif balances_mode == BalanceMode.RANDOM:
+    elif mode == BalanceMode.RANDOM:
         balance_gen = (
             random.randint(1, 100) * GWEI_IN_1_ETH for _ in itertools.repeat(0)
         )

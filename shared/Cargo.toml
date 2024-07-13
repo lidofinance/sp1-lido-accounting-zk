@@ -21,3 +21,5 @@ anyhow = "1.0.86"
 ethereum_ssz = "0.5.4"
 ethereum_serde_utils = "0.5.2"
 ethereum_ssz_derive = "0.5.4"
+simple_logger = "5.0.0"
+tokio = { version = "1.38.0", features = ["full"] }
