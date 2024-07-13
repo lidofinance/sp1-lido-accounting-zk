@@ -1,0 +1,23 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "sp1-lido-accounting-zk-shared"
+edition = "2021"
+
+[lib]
+name = "eth_consensus_layer_ssz"
+path = "src/lib/lib.rs"
+
+[[bin]]
+name = "eth_consensus_layer_ssz_e2e_test"
+path = "src/bin/main.rs"
+
+[dependencies]
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+alloy-sol-types = "0.7.2"
+log = "0.4.21"
+anyhow = "1.0.86"
+ethereum_ssz = "0.5.4"
+ethereum_serde_utils = "0.5.2"
+ethereum_ssz_derive = "0.5.4"
