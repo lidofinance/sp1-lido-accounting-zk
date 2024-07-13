@@ -23,3 +23,6 @@ ethereum_serde_utils = "0.5.2"
 ethereum_ssz_derive = "0.5.4"
 simple_logger = "5.0.0"
 tokio = { version = "1.38.0", features = ["full"] }
+ssz_types = "0.6.0"
+ethereum-types = "0.14.1"
+serde_derive = "1.0.204"
