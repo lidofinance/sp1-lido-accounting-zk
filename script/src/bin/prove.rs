@@ -12,8 +12,7 @@ use hex;
 use hex_literal::hex as h;
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{
-    HashableKey, ProverClient, SP1CompressedProof, SP1PlonkBn254Proof, SP1ProvingKey, SP1Stdin,
-    SP1VerifyingKey,
+    HashableKey, ProverClient, SP1CompressedProof, SP1PlonkBn254Proof, SP1ProvingKey, SP1Stdin, SP1VerifyingKey,
 };
 use std::path::PathBuf;
 
@@ -35,24 +34,32 @@ struct ProveArgs {
     evm: bool,
 }
 
+struct ProgramInput {
+    slot: u64,
+    beacon_block_hash: [u8; 32],
+}
+
+struct PublicValuesRust {
+    slot: u64,
+    beacon_block_hash: [u8; 32],
+}
+
 /// The public values encoded as a tuple that can be easily deserialized inside Solidity.
 type PublicValuesSolidity = sol! {
     tuple(uint64, bytes32)
 };
 
-trait Script {
-    fn run(&self, slot: u64, block_hash: &[u8; 32]);
-}
+// type PublicValuesSolidityRust = PublicValuesSolidity::RustType;
+// ... but compiler doesn't like it and demands fully-qualified type instead
+type PublicValuesSolidityRust = <(
+    alloy_sol_types::sol_data::Uint<64>,
+    alloy_sol_types::sol_data::FixedBytes<32>,
+) as SolType>::RustType;
 
 trait ScriptSteps<ProofType> {
     fn prove(&self, input: SP1Stdin) -> Result<ProofType>;
     fn verify(&self, proof: &ProofType) -> Result<()>;
-    fn check_public_values(
-        &self,
-        proof: &ProofType,
-        expected_slot: u64,
-        expected_beacon_block_hash: &[u8; 32],
-    ) -> Result<()>;
+    fn extract_public_values(&self, proof: &ProofType) -> Result<PublicValuesSolidityRust>;
     fn post_verify(&self, proof: &ProofType);
 }
 
@@ -79,41 +86,13 @@ impl ScriptSteps<SP1PlonkBn254Proof> for EvmScript {
         self.client.verify_plonk(proof, &self.vk)
     }
 
-    fn check_public_values(
-        &self,
-        proof: &SP1PlonkBn254Proof,
-        expected_slot: u64,
-        expected_beacon_block_hash: &[u8; 32],
-    ) -> Result<()> {
-        let (proof_slot, proof_beacon_block_hash) =
-            PublicValuesSolidity::abi_decode(proof.public_values.as_slice(), false).unwrap();
-
-        assert!(proof_slot == expected_slot);
-        assert!(proof_beacon_block_hash == expected_beacon_block_hash);
-        log::debug!("Expected hash: {}", hex::encode(expected_beacon_block_hash));
-        log::debug!("Computed hash: {}", hex::encode(proof_beacon_block_hash));
-        Ok(())
+    fn extract_public_values(&self, proof: &SP1PlonkBn254Proof) -> Result<PublicValuesSolidityRust> {
+        let res: PublicValuesSolidityRust = PublicValuesSolidity::abi_decode(proof.public_values.as_slice(), false)?;
+        Ok(res)
     }
 
     fn post_verify(&self, proof: &SP1PlonkBn254Proof) {
         create_plonk_fixture(proof, &self.vk);
-    }
-}
-
-impl Script for EvmScript {
-    fn run(&self, slot: u64, beacon_block_hash: &[u8; 32]) {
-        let mut stdin: SP1Stdin = SP1Stdin::new();
-        stdin.write(&slot);
-        stdin.write(&beacon_block_hash);
-
-        let proof = self.prove(stdin).expect("failed to generate proof");
-        log::info!("Successfully generated proof!");
-        self.verify(&proof).expect("failed to verify proof");
-        log::info!("Successfully verified proof!");
-        self.check_public_values(&proof, slot, &beacon_block_hash)
-            .expect("Public values mismatch");
-        log::info!("Public values match!");
-        self.post_verify(&proof);
     }
 }
 
@@ -140,41 +119,43 @@ impl ScriptSteps<SP1CompressedProof> for LocalScript {
         self.client.verify_compressed(proof, &self.vk)
     }
 
-    fn check_public_values(
-        &self,
-        proof: &SP1CompressedProof,
-        expected_slot: u64,
-        expected_beacon_block_hash: &[u8; 32],
-    ) -> Result<()> {
-        let (proof_slot, proof_beacon_block_hash) =
-            PublicValuesSolidity::abi_decode(proof.public_values.as_slice(), false).unwrap();
-
-        assert!(proof_slot == expected_slot);
-        assert!(proof_beacon_block_hash == expected_beacon_block_hash);
-        log::debug!("Expected hash: {}", hex::encode(expected_beacon_block_hash));
-        log::debug!("Computed hash: {}", hex::encode(proof_beacon_block_hash));
-        Ok(())
+    fn extract_public_values(&self, proof: &SP1CompressedProof) -> Result<PublicValuesSolidityRust> {
+        let res: PublicValuesSolidityRust = PublicValuesSolidity::abi_decode(proof.public_values.as_slice(), false)?;
+        Ok(res)
     }
 
     fn post_verify(&self, _proof: &SP1CompressedProof) {}
 }
 
-impl Script for LocalScript {
-    fn run(&self, slot: u64, beacon_block_hash: &[u8; 32]) {
-        let mut stdin: SP1Stdin = SP1Stdin::new();
-        stdin.write(&slot);
-        stdin.write(&beacon_block_hash);
+fn run_script<ProofType>(
+    steps: impl ScriptSteps<ProofType>,
+    program_input: &ProgramInput,
+    expected_public_values: &PublicValuesRust,
+) {
+    let mut stdin: SP1Stdin = SP1Stdin::new();
+    stdin.write(&program_input.slot);
+    stdin.write(&program_input.beacon_block_hash);
 
-        let proof = self.prove(stdin).expect("failed to generate proof");
-        log::info!("Successfully generated proof!");
-        self.verify(&proof).expect("failed to verify proof");
-        log::info!("Successfully verified proof!");
-        self.check_public_values(&proof, slot, &beacon_block_hash)
-            .expect("Public values mismatch");
-        log::info!("Public values match!");
-        self.post_verify(&proof);
-    }
+    let proof = steps.prove(stdin).expect("failed to generate proof");
+    log::info!("Successfully generated proof!");
+    steps.verify(&proof).expect("failed to verify proof");
+    log::info!("Successfully verified proof!");
+
+    let (proof_slot, proof_beacon_block_hash) = steps
+        .extract_public_values(&proof)
+        .expect("Failed to extract public values");
+    assert!(proof_slot == expected_public_values.slot);
+    assert!(proof_beacon_block_hash == expected_public_values.beacon_block_hash);
+    log::debug!(
+        "Expected hash: {}",
+        hex::encode(expected_public_values.beacon_block_hash)
+    );
+    log::debug!("Computed hash: {}", hex::encode(proof_beacon_block_hash));
+
+    log::info!("Public values match!");
+    steps.post_verify(&proof);
 }
+
 fn main() {
     dotenv().ok();
     // Setup the logger.
@@ -185,17 +166,23 @@ fn main() {
 
     println!("evm: {}", args.evm);
 
-    // Setup the prover client.
-    let script: Box<dyn Script> = if args.evm {
-        Box::new(EvmScript::new(ELF))
-    } else {
-        Box::new(LocalScript::new(ELF))
-    };
-
     let slot: u64 = 1;
     let beacon_block_hash = h!("45f756e30f2c2ee102d90fbff583f48264049f1ab19d9a7653434170010f8d5e");
 
-    script.run(slot, &beacon_block_hash);
+    let program_input = ProgramInput {
+        slot,
+        beacon_block_hash,
+    };
+    let expected_public_values = PublicValuesRust {
+        slot,
+        beacon_block_hash,
+    };
+
+    if args.evm {
+        run_script(EvmScript::new(ELF), &program_input, &expected_public_values);
+    } else {
+        run_script(LocalScript::new(ELF), &program_input, &expected_public_values);
+    }
 }
 
 /// A fixture that can be used to test the verification of SP1 zkVM proofs inside Solidity.
