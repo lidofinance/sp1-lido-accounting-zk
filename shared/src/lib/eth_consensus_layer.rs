@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 pub use ssz_types::{typenum, typenum::Unsigned, BitList, BitVector, FixedVector, VariableList};
 
+#[cfg(feature = "merkle_tree")]
 use tree_hash_derive::TreeHash;
 
 pub type Address = H160;
@@ -22,20 +23,23 @@ type Epoch = u64;
 // Re-export
 pub type SlotsPerEpoch = eth_spec::SlotsPerEpoch;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct Fork {
     previous_version: Version,
     current_version: Version,
     epoch: Epoch,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct Checkpoint {
     epoch: Epoch,
     root: Root,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct BeaconBlockHeader {
     slot: Slot,
     proposer_index: CommitteeIndex,
@@ -44,7 +48,8 @@ pub struct BeaconBlockHeader {
     body_root: Root,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct Eth1Data {
     deposit_root: Root,
     #[serde(with = "serde_utils::quoted_u64")]
@@ -52,7 +57,8 @@ pub struct Eth1Data {
     block_hash: Hash256,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct Validator {
     pub pubkey: BlsPublicKey,
     pub withdrawal_credentials: Hash256,
@@ -65,7 +71,8 @@ pub struct Validator {
     pub withdrawable_epoch: Epoch,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct AttestationData {
     pub slot: Slot,
     pub index: CommitteeIndex,
@@ -74,7 +81,8 @@ pub struct AttestationData {
     pub target: Checkpoint,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct PendingAttestation {
     aggregation_bits: BitList<eth_spec::MaxValidatorsPerCommittee>,
     data: AttestationData,
@@ -82,13 +90,15 @@ pub struct PendingAttestation {
     proposer_index: CommitteeIndex,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct SyncCommittee {
     pubkeys: FixedVector<BlsPublicKey, eth_spec::SyncCommitteeSize>,
     aggregate_pubkey: BlsPublicKey,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct ExecutionPayloadHeader {
     parent_hash: Hash256,
     fee_recipient: Address,
@@ -114,7 +124,8 @@ pub struct ExecutionPayloadHeader {
     // excess_data_gas: Uint256
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct HistoricalSummary {
     block_summary_root: Root,
     state_summary_root: Root,
@@ -125,7 +136,8 @@ pub type Balances = VariableList<u64, eth_spec::ValidatorRegistryLimit>;
 
 // Simplified https://github.com/sigp/lighthouse/blob/master/consensus/types/src/beacon_state.rs#L212
 // Primarily - flattening the "superstruct" part on different eth specs,
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "merkle_tree", derive(TreeHash))]
 pub struct BeaconState {
     // Versioning
     #[serde(with = "serde_utils::quoted_u64")]

@@ -8,33 +8,36 @@ edition = "2021"
 name = "sp1_lido_accounting_zk_shared"
 path = "src/lib/lib.rs"
 
-[[bin]]
+[[example]]
 name = "ssz_e2e_test"
-path = "src/bin/ssz_e2e_test.rs"
-required-features = ["synthetic"]
+path = "examples/ssz_e2e_test.rs"
+required-features = ["merkle_tree"]
 
-[[bin]]
+[[example]]
 name = "report_e2e_test"
-path = "src/bin/report.rs"
-required-features = ["synthetic"]
+path = "examples/report.rs"
+required-features = ["merkle_tree"]
 
 [dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-alloy-sol-types = "0.7.2"
-log = "0.4.21"
+serde_derive = "1.0.204"
 anyhow = "1.0.86"
+alloy-sol-types = "0.7.2"
 ethereum_ssz = "0.5.4"
 ethereum_serde_utils = "0.5.2"
 ethereum_ssz_derive = "0.5.4"
-simple_logger = "5.0.0"
-tokio = { version = "1.38.0", features = ["full"] }
 ssz_types = "0.6.0"
 ethereum-types = "0.14.1"
-serde_derive = "1.0.204"
 hex = "0.4.3"
-tree_hash_derive = "0.6.0"
-tree_hash = "0.6.0"
+tree_hash_derive = { version = "0.6.0", optional = true }
+tree_hash = {version = "0.6.0", optional = true }
+typenum = "1.17.0"
+
+[dev-dependencies]
+log = "0.4.21"
+simple_logger = "5.0.0"
+tokio = { version = "1.38.0", features = ["full"] }
 
 [features]
-synthetic = []
+merkle_tree = ["dep:tree_hash_derive", "dep:tree_hash"]

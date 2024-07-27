@@ -1,4 +1,4 @@
-pub use ssz_types::typenum::*;
+pub use typenum::*;
 
 pub type MaxValidatorsPerCommittee = U2048;
 pub type SlotsPerEth1VotingPeriod = U2048; // 64 epochs * 32 slots per epoch

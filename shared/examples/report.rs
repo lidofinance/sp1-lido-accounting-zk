@@ -4,13 +4,11 @@ use serde_json::Value;
 
 use ssz_types::typenum::Unsigned;
 use std::path::PathBuf;
-use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::local_synthetic::{
-    BalanceGenerationMode, SyntheticBeaconStateReader,
-};
+mod synthetic_beacon_state_reader;
+use crate::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateReader};
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256, SlotsPerEpoch};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{Hash256, SlotsPerEpoch};
 use sp1_lido_accounting_zk_shared::report::ReportData;
 
 use simple_logger::SimpleLogger;

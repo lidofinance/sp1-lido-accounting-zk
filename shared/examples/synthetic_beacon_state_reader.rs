@@ -1,7 +1,7 @@
-use crate::beacon_state_reader::BeaconStateReader;
-use crate::eth_consensus_layer::BeaconState;
 use anyhow::{anyhow, Result};
 use log;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconState;
 use ssz::Decode;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
