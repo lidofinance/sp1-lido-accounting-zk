@@ -1,14 +1,15 @@
 use hex::FromHex;
 use log;
 use serde_json::Value;
-use sp1_lido_accountin_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
+
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accountin_zk_shared::beacon_state_reader::local_synthetic::{
+use sp1_lido_accounting_zk_shared::beacon_state_reader::local_synthetic::{
     BalanceGenerationMode, SyntheticBeaconStateReader,
 };
-use sp1_lido_accountin_zk_shared::beacon_state_reader::BeaconStateReader;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
 
 use simple_logger::SimpleLogger;
 

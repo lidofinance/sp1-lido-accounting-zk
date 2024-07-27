@@ -1,11 +1,11 @@
 [workspace]
 [package]
 version = "0.1.0"
-name = "sp1-lido-accounting-zk-shared"
+name = "sp1_lido_accounting_zk_shared"
 edition = "2021"
 
 [lib]
-name = "sp1_lido_accountin_zk_shared"
+name = "sp1_lido_accounting_zk_shared"
 path = "src/lib/lib.rs"
 
 [[bin]]

@@ -1537,7 +1537,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-lido-accounting-zk-shared"
+name = "sp1_lido_accounting_zk_shared"
 version = "0.1.0"
 dependencies = [
  "alloy-sol-types",
