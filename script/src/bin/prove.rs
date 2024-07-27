@@ -17,6 +17,8 @@ use sp1_sdk::{
 };
 use std::path::PathBuf;
 
+use sp1_lido_accounting_zk_shared::public_input::{PublicValuesRust, PublicValuesSolidity};
+
 use anyhow::Result;
 use log;
 
@@ -38,29 +40,6 @@ struct ProveArgs {
 struct ProgramInput {
     slot: u64,
     beacon_block_hash: [u8; 32],
-}
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-struct PublicValuesRust {
-    slot: u64,
-    beacon_block_hash: [u8; 32],
-}
-
-/// The public values encoded as a tuple that can be easily deserialized inside Solidity.
-type PublicValuesSolidity = sol! {
-    tuple(uint64, bytes32)
-};
-
-impl TryFrom<&SP1PublicValues> for PublicValuesRust {
-    type Error = alloy_sol_types::Error;
-
-    fn try_from(value: &SP1PublicValues) -> core::result::Result<Self, Self::Error> {
-        let (slot, block_hash) = PublicValuesSolidity::abi_decode(value.as_slice(), false)?;
-        core::result::Result::Ok(Self {
-            slot,
-            beacon_block_hash: block_hash.into(),
-        })
-    }
 }
 
 trait ScriptSteps<ProofType> {
@@ -148,7 +127,10 @@ fn run_script<ProofType>(
 
     // let public_values_bytes = PublicValuesSolidity::abi_decode(proof.public_values.as_slice(), false)?
     let public_values_bytes = steps.extract_public_values(&proof);
-    let public_values: PublicValuesRust = public_values_bytes.try_into().expect("Failed to parse public values");
+    let public_values: PublicValuesRust = public_values_bytes
+        .as_slice()
+        .try_into()
+        .expect("Failed to parse public values");
 
     assert!(public_values == *expected_public_values);
     log::debug!(
