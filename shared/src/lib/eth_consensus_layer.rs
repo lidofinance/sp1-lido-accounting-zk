@@ -19,6 +19,9 @@ use crate::eth_spec;
 type Slot = u64;
 type Epoch = u64;
 
+// Re-export
+pub type SlotsPerEpoch = eth_spec::SlotsPerEpoch;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct Fork {
     previous_version: Version,
@@ -117,6 +120,9 @@ pub struct HistoricalSummary {
     state_summary_root: Root,
 }
 
+pub type Validators = VariableList<Validator, eth_spec::ValidatorRegistryLimit>;
+pub type Balances = VariableList<u64, eth_spec::ValidatorRegistryLimit>;
+
 // Simplified https://github.com/sigp/lighthouse/blob/master/consensus/types/src/beacon_state.rs#L212
 // Primarily - flattening the "superstruct" part on different eth specs,
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
@@ -142,9 +148,9 @@ pub struct BeaconState {
     pub eth1_deposit_index: u64,
 
     // Registry
-    pub validators: VariableList<Validator, eth_spec::ValidatorRegistryLimit>,
+    pub validators: Validators,
     #[serde(with = "ssz_types::serde_utils::quoted_u64_var_list")]
-    pub balances: VariableList<u64, eth_spec::ValidatorRegistryLimit>,
+    pub balances: Balances,
 
     // Randomness
     pub randao_mixes: FixedVector<Hash256, eth_spec::EpochsPerHistoricalVector>,

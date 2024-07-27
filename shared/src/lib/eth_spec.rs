@@ -11,4 +11,6 @@ pub type SyncCommitteeSize = U512;
 pub type BytesPerLogBloom = U256;
 pub type MaxExtraDataBytes = U32;
 
+pub type SlotsPerEpoch = U32;
+
 pub type JustificationBitsLength = U4;
