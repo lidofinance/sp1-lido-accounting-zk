@@ -12,11 +12,12 @@ use hex;
 use hex_literal::hex as h;
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{
-    HashableKey, ProverClient, SP1CompressedProof, SP1PlonkBn254Proof, SP1ProvingKey, SP1Stdin, SP1VerifyingKey,
+    HashableKey, ProverClient, SP1CompressedProof, SP1PlonkBn254Proof, SP1ProvingKey, SP1PublicValues, SP1Stdin,
+    SP1VerifyingKey,
 };
 use std::path::PathBuf;
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use log;
 
 use dotenv::dotenv;
@@ -39,6 +40,7 @@ struct ProgramInput {
     beacon_block_hash: [u8; 32],
 }
 
+#[derive(PartialEq, Eq, Clone, Debug)]
 struct PublicValuesRust {
     slot: u64,
     beacon_block_hash: [u8; 32],
@@ -49,17 +51,22 @@ type PublicValuesSolidity = sol! {
     tuple(uint64, bytes32)
 };
 
-// type PublicValuesSolidityRust = PublicValuesSolidity::RustType;
-// ... but compiler doesn't like it and demands fully-qualified type instead
-type PublicValuesSolidityRust = <(
-    alloy_sol_types::sol_data::Uint<64>,
-    alloy_sol_types::sol_data::FixedBytes<32>,
-) as SolType>::RustType;
+impl TryFrom<&SP1PublicValues> for PublicValuesRust {
+    type Error = alloy_sol_types::Error;
+
+    fn try_from(value: &SP1PublicValues) -> core::result::Result<Self, Self::Error> {
+        let (slot, block_hash) = PublicValuesSolidity::abi_decode(value.as_slice(), false)?;
+        core::result::Result::Ok(Self {
+            slot,
+            beacon_block_hash: block_hash.into(),
+        })
+    }
+}
 
 trait ScriptSteps<ProofType> {
     fn prove(&self, input: SP1Stdin) -> Result<ProofType>;
     fn verify(&self, proof: &ProofType) -> Result<()>;
-    fn extract_public_values(&self, proof: &ProofType) -> Result<PublicValuesSolidityRust>;
+    fn extract_public_values<'a>(&self, proof: &'a ProofType) -> &'a SP1PublicValues;
     fn post_verify(&self, proof: &ProofType);
 }
 
@@ -71,7 +78,7 @@ struct EvmScript {
 
 impl EvmScript {
     fn new(elf: &[u8]) -> Self {
-        let client = ProverClient::network();
+        let client: ProverClient = ProverClient::network();
         let (pk, vk) = client.setup(elf);
         Self { client, pk, vk }
     }
@@ -86,9 +93,8 @@ impl ScriptSteps<SP1PlonkBn254Proof> for EvmScript {
         self.client.verify_plonk(proof, &self.vk)
     }
 
-    fn extract_public_values(&self, proof: &SP1PlonkBn254Proof) -> Result<PublicValuesSolidityRust> {
-        let res: PublicValuesSolidityRust = PublicValuesSolidity::abi_decode(proof.public_values.as_slice(), false)?;
-        Ok(res)
+    fn extract_public_values<'a>(&self, proof: &'a SP1PlonkBn254Proof) -> &'a SP1PublicValues {
+        &proof.public_values
     }
 
     fn post_verify(&self, proof: &SP1PlonkBn254Proof) {
@@ -104,7 +110,7 @@ struct LocalScript {
 
 impl LocalScript {
     fn new(elf: &[u8]) -> Self {
-        let client = ProverClient::local();
+        let client: ProverClient = ProverClient::local();
         let (pk, vk) = client.setup(elf);
         Self { client, pk, vk }
     }
@@ -119,9 +125,8 @@ impl ScriptSteps<SP1CompressedProof> for LocalScript {
         self.client.verify_compressed(proof, &self.vk)
     }
 
-    fn extract_public_values(&self, proof: &SP1CompressedProof) -> Result<PublicValuesSolidityRust> {
-        let res: PublicValuesSolidityRust = PublicValuesSolidity::abi_decode(proof.public_values.as_slice(), false)?;
-        Ok(res)
+    fn extract_public_values<'a>(&self, proof: &'a SP1CompressedProof) -> &'a SP1PublicValues {
+        &proof.public_values
     }
 
     fn post_verify(&self, _proof: &SP1CompressedProof) {}
@@ -141,16 +146,16 @@ fn run_script<ProofType>(
     steps.verify(&proof).expect("failed to verify proof");
     log::info!("Successfully verified proof!");
 
-    let (proof_slot, proof_beacon_block_hash) = steps
-        .extract_public_values(&proof)
-        .expect("Failed to extract public values");
-    assert!(proof_slot == expected_public_values.slot);
-    assert!(proof_beacon_block_hash == expected_public_values.beacon_block_hash);
+    // let public_values_bytes = PublicValuesSolidity::abi_decode(proof.public_values.as_slice(), false)?
+    let public_values_bytes = steps.extract_public_values(&proof);
+    let public_values: PublicValuesRust = public_values_bytes.try_into().expect("Failed to parse public values");
+
+    assert!(public_values == *expected_public_values);
     log::debug!(
         "Expected hash: {}",
         hex::encode(expected_public_values.beacon_block_hash)
     );
-    log::debug!("Computed hash: {}", hex::encode(proof_beacon_block_hash));
+    log::debug!("Computed hash: {}", hex::encode(public_values.beacon_block_hash));
 
     log::info!("Public values match!");
     steps.post_verify(&proof);
