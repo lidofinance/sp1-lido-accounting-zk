@@ -1546,6 +1546,7 @@ dependencies = [
  "ethereum_serde_utils",
  "ethereum_ssz",
  "ethereum_ssz_derive",
+ "hex",
  "log",
  "serde",
  "serde_derive",
@@ -1553,6 +1554,8 @@ dependencies = [
  "simple_logger",
  "ssz_types",
  "tokio",
+ "tree_hash",
+ "tree_hash_derive",
 ]
 
 [[package]]
@@ -1776,6 +1779,17 @@ dependencies = [
  "ethereum-types",
  "ethereum_hashing",
  "smallvec",
+]
+
+[[package]]
+name = "tree_hash_derive"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ce7bccc538359a213436af7bc95804bdbf1c2a21d80e22953cbe9e096837ff1"
+dependencies = [
+ "darling",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

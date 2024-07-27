@@ -26,3 +26,6 @@ tokio = { version = "1.38.0", features = ["full"] }
 ssz_types = "0.6.0"
 ethereum-types = "0.14.1"
 serde_derive = "1.0.204"
+hex = "0.4.3"
+tree_hash_derive = "0.6.0"
+tree_hash = "0.6.0"
