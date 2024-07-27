@@ -10,6 +10,7 @@ python = "^3.12"
 hexbytes = "^1.2.1"
 ssz = "^0.5.0"
 click = "^8.1.7"
+dataclasses-json = "^0.6.7"
 
 
 [build-system]

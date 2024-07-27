@@ -6,7 +6,7 @@ from typing import List, Optional
 
 import constants
 from eth_consensus_layer import (
-    BeaconState, Fork, BeaconBlockHeader, Validator, Checkpoint, Eth1Data,
+    BeaconState, Fork, BeaconBlockHeader, JustificationBits, Validator, Checkpoint, Eth1Data,
     SyncCommittee, ExecutionPayloadHeader
 )
 
@@ -107,7 +107,7 @@ def make_beacon_block_state(
         slashings = Generators.zero_int_vector(constants.EPOCHS_PER_SLASHINGS_VECTOR),
         previous_epoch_participation = [],
         current_epoch_participation = [],
-        justification_bits = b"\x00\x00\x00\x00",
+        justification_bits = JustificationBits.deserialize(b"\x00"),
         previous_justified_checkpoint = Checkpoint.create(epoch = previous_epoch, root = Generators.hash_root()),
         current_justified_checkpoint = Checkpoint.create(epoch = epoch, root = Generators.hash_root()),
         finalized_checkpoint = Checkpoint.create(epoch = finalized_epoch, root = Generators.hash_root()),

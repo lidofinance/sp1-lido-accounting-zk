@@ -1,11 +1,12 @@
-import dataclasses
 import os
-from typing import Generator
-import random
-
+import json
 import itertools
+import random
+from typing import Generator
 
 import click
+import dataclasses
+import dataclasses_json
 import pathlib
 import enum
 
@@ -18,7 +19,7 @@ from eth_ssz_utils import (
     make_beacon_block_state,
     Constants,
 )
-from eth_consensus_layer import BeaconState
+from eth_consensus_layer import BeaconState, JustificationBits
 import constants
 
 THIS_FOLDER = os.path.dirname(__file__)
@@ -34,6 +35,13 @@ class BalanceMode(enum.Enum):
     RANDOM = "random"
     SEQUENTIAL = "sequential"
     FIXED = "fixed"
+
+class BytesHexEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, bytes):
+            return o.hex()
+        else:
+            return super().default(o)
 
 
 def create_beacon_state(
@@ -66,9 +74,11 @@ MILLIETH = 10**6
 FIXED_BALANCE = 16 * GWEI_IN_1_ETH
 
 
+@dataclasses_json.dataclass_json
 @dataclasses.dataclass
 class Report:
     beacon_block_hash: bytes
+    total_balance: int
     lido_cl_balance: int
     total_validators: int
     lido_validators: int
@@ -76,14 +86,15 @@ class Report:
 
     @classmethod
     def from_beacon_state(cls, beacon_state: BeaconState) -> "Report":
-        cl_balance, validators, exited_validators = 0, 0, 0
+        total_balance, lido_cl_balance, validators, exited_validators = 0, 0, 0, 0
 
         beacon_state_slot = beacon_state.slot // constants.SLOTS_PER_EPOCH
 
         for validator, balance in zip(beacon_state.validators, beacon_state.balances):
+            total_balance += balance
             if validator.withdrawal_credentials == WithdrawalCreds.Lido:
                 validators += 1
-                cl_balance += balance
+                lido_cl_balance += balance
                 if validator.exit_epoch >= beacon_state_slot:
                     exited_validators += 1
 
@@ -91,14 +102,13 @@ class Report:
 
         return cls(
             beacon_block_hash,
-            cl_balance,
+            total_balance,
+            lido_cl_balance,
             len(beacon_state.validators),
             validators,
             exited_validators,
         )
     
-
-
 
 BALANCE_MODES = [mode.value for mode in BalanceMode]
 
@@ -156,19 +166,55 @@ def main(
         slot, epoch, validators, lido_validators, balance_gen
     )
 
-    target_dir = os.path.dirname(file)
+    file.parent.mkdir(parents=True, exist_ok=True)
+    manifesto_file = file.with_name(f"{file.stem}_manifesto.json")
 
-    if not os.path.exists(target_dir):
-        os.makedirs(target_dir)
 
     beacon_state_hash = ssz.get_hash_tree_root(beacon_state)
+    balances_hash = ssz.get_hash_tree_root(beacon_state.balances)
     report = Report.from_beacon_state(beacon_state)
     print(f"Beacon State hash: {report.beacon_block_hash.hex()}")
+    print(f"Balances hash: {balances_hash.hex()}")
     print(f"Expected report: {report}")
 
-    with open(file, "wb") as target:
-        target.write(ssz.encode(beacon_state))
-        target.flush()
+    manifesto = {
+        "report": report.to_dict(),
+        "beacon_block_hash": report.beacon_block_hash.hex(),
+        "parts": {
+            "genesis_time": ssz.get_hash_tree_root(beacon_state.genesis_time, ssz.sedes.uint.uint64),
+            "genesis_validators_root": ssz.get_hash_tree_root(beacon_state.genesis_validators_root, ssz.sedes.byte_vector.bytes32),
+            "slot": ssz.get_hash_tree_root(beacon_state.slot, ssz.sedes.uint.uint64),
+            "fork": ssz.get_hash_tree_root(beacon_state.fork),
+            "latest_block_header": ssz.get_hash_tree_root(beacon_state.latest_block_header),
+            "block_roots": ssz.get_hash_tree_root(beacon_state.block_roots),
+            "state_roots": ssz.get_hash_tree_root(beacon_state.state_roots),
+            "historical_roots": ssz.get_hash_tree_root(beacon_state.historical_roots),
+            "eth1_data": ssz.get_hash_tree_root(beacon_state.eth1_data),
+            "eth1_data_votes": ssz.get_hash_tree_root(beacon_state.eth1_data_votes),
+            "eth1_deposit_index": ssz.get_hash_tree_root(beacon_state.eth1_deposit_index, ssz.sedes.uint.uint64),
+            "validators": ssz.get_hash_tree_root(beacon_state.validators),
+            "balances": ssz.get_hash_tree_root(beacon_state.balances),
+            "randao_mixes": ssz.get_hash_tree_root(beacon_state.randao_mixes),
+            "slashings": ssz.get_hash_tree_root(beacon_state.slashings),
+            "previous_epoch_participation": ssz.get_hash_tree_root(beacon_state.previous_epoch_participation),
+            "current_epoch_participation": ssz.get_hash_tree_root(beacon_state.current_epoch_participation),
+            "justification_bits": ssz.get_hash_tree_root(beacon_state.justification_bits, JustificationBits),
+            "previous_justified_checkpoint": ssz.get_hash_tree_root(beacon_state.previous_justified_checkpoint),
+            "current_justified_checkpoint": ssz.get_hash_tree_root(beacon_state.current_justified_checkpoint),
+            "finalized_checkpoint": ssz.get_hash_tree_root(beacon_state.finalized_checkpoint),
+            "inactivity_scores": ssz.get_hash_tree_root(beacon_state.inactivity_scores),
+            "current_sync_committee": ssz.get_hash_tree_root(beacon_state.current_sync_committee),
+            "next_sync_committee": ssz.get_hash_tree_root(beacon_state.next_sync_committee),
+            "latest_execution_payload_header": ssz.get_hash_tree_root(beacon_state.latest_execution_payload_header),
+            "next_withdrawal_index": ssz.get_hash_tree_root(beacon_state.next_withdrawal_index, ssz.sedes.uint.uint64),
+            "next_withdrawal_validator_index": ssz.get_hash_tree_root(beacon_state.next_withdrawal_validator_index, ssz.sedes.uint.uint64),
+            "historical_summaries": ssz.get_hash_tree_root(beacon_state.historical_summaries),
+        }
+    }
+
+    file.write_bytes(ssz.encode(beacon_state))
+    with open(manifesto_file, "w") as manifesto_fp:
+        json.dump(manifesto, manifesto_fp, cls=BytesHexEncoder, indent=2)
 
     if check:
         with open(file, "rb") as target:

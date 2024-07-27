@@ -239,6 +239,7 @@ class HistoricalSummary(HashableContainer):
 
 Validators = List(Validator, constants.VALIDATOR_REGISTRY_LIMIT)
 Balances = List(Gwei, constants.VALIDATOR_REGISTRY_LIMIT)
+JustificationBits = Bitvector(constants.JUSTIFICATION_BITS_LENGTH)
 
 
 class BeaconState(HashableContainer, InclusionProofUtilsTrait):
@@ -271,7 +272,7 @@ class BeaconState(HashableContainer, InclusionProofUtilsTrait):
         ("previous_epoch_participation", List(ParticipationFlags, constants.VALIDATOR_REGISTRY_LIMIT)),
         ("current_epoch_participation", List(ParticipationFlags, constants.VALIDATOR_REGISTRY_LIMIT)),
         # Finality
-        ("justification_bits", Bitvector(constants.JUSTIFICATION_BITS_LENGTH)),
+        ("justification_bits", JustificationBits),
         # Bit set for every recent justified epoch
         ("previous_justified_checkpoint", Checkpoint),
         ("current_justified_checkpoint", Checkpoint),
