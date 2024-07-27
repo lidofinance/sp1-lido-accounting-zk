@@ -5,12 +5,13 @@ name = "sp1-lido-accounting-zk-shared"
 edition = "2021"
 
 [lib]
-name = "eth_consensus_layer_ssz"
+name = "sp1_lido_accountin_zk_shared"
 path = "src/lib/lib.rs"
 
 [[bin]]
-name = "eth_consensus_layer_ssz_e2e_test"
-path = "src/bin/main.rs"
+name = "ssz_e2e_test"
+path = "src/bin/ssz_e2e_test.rs"
+required-features = ["synthetic"]
 
 [dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
@@ -29,3 +30,6 @@ serde_derive = "1.0.204"
 hex = "0.4.3"
 tree_hash_derive = "0.6.0"
 tree_hash = "0.6.0"
+
+[features]
+synthetic = []

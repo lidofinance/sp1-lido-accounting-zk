@@ -1,15 +1,12 @@
+use crate::beacon_state_reader::BeaconStateReader;
+use crate::eth_consensus_layer::BeaconState;
 use anyhow::{anyhow, Result};
-use eth_consensus_layer_ssz::BeaconState;
 use log;
 use ssz::Decode;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-
-pub trait BeaconStateReader {
-    async fn read_beacon_state(&self, slot: u64) -> Result<BeaconState>;
-}
 
 pub enum BalanceGenerationMode {
     RANDOM,
