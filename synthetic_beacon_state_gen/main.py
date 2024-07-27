@@ -52,13 +52,26 @@ def create_beacon_state(
     balance_generator: Generator[int, None, None],
 ) -> BeaconState:
     assert lido_validators <= total_validators
-
+# withdrawal_credentials: bytes, activation_eligibility_epoch: int, activation_epoch: int,
+        # exit_epoch
     balances = list(itertools.islice(balance_generator, total_validators))
     validators = [
-        make_validator(WithdrawalCreds.Lido, i, i + 1, None, pubkey=b"\x01" * 48)
+        make_validator(
+            withdrawal_credentials = WithdrawalCreds.Lido, 
+            activation_eligibility_epoch = epoch, 
+            activation_epoch = epoch + 1, 
+            exit_epoch=None, 
+            pubkey=b"\x01" * 48
+        )
         for i in range(lido_validators)
     ] + [
-        make_validator(WithdrawalCreds.Other, i, i + 1, None, pubkey=b"\x01" * 48)
+        make_validator(
+            withdrawal_credentials = WithdrawalCreds.Other, 
+            activation_eligibility_epoch = epoch, 
+            activation_epoch = epoch + 1, 
+            exit_epoch=None, 
+            pubkey=b"\x01" * 48
+        )
         for i in range(lido_validators, total_validators)
     ]
 
@@ -77,15 +90,18 @@ FIXED_BALANCE = 16 * GWEI_IN_1_ETH
 @dataclasses_json.dataclass_json
 @dataclasses.dataclass
 class Report:
+    slot: int
+    epoch: int
     beacon_block_hash: bytes
     total_balance: int
     lido_cl_balance: int
     total_validators: int
     lido_validators: int
     lido_exited_validators: int
+    lido_withdrawal_credentials: bytes
 
     @classmethod
-    def from_beacon_state(cls, beacon_state: BeaconState) -> "Report":
+    def from_beacon_state(cls, epoch: int, beacon_state: BeaconState) -> "Report":
         total_balance, lido_cl_balance, validators, exited_validators = 0, 0, 0, 0
 
         beacon_state_slot = beacon_state.slot // constants.SLOTS_PER_EPOCH
@@ -95,18 +111,21 @@ class Report:
             if validator.withdrawal_credentials == WithdrawalCreds.Lido:
                 validators += 1
                 lido_cl_balance += balance
-                if validator.exit_epoch >= beacon_state_slot:
+                if validator.exit_epoch <= beacon_state_slot:
                     exited_validators += 1
 
-        beacon_block_hash = ssz.get_hash_tree_root(beacon_state)
+        beacon_block_hash = HexBytes(ssz.get_hash_tree_root(beacon_state))
 
         return cls(
+            beacon_state.slot,
+            epoch,
             beacon_block_hash,
             total_balance,
             lido_cl_balance,
             len(beacon_state.validators),
             validators,
             exited_validators,
+            WithdrawalCreds.Lido,
         )
     
 
@@ -172,7 +191,7 @@ def main(
 
     beacon_state_hash = ssz.get_hash_tree_root(beacon_state)
     balances_hash = ssz.get_hash_tree_root(beacon_state.balances)
-    report = Report.from_beacon_state(beacon_state)
+    report = Report.from_beacon_state(epoch, beacon_state)
     print(f"Beacon State hash: {report.beacon_block_hash.hex()}")
     print(f"Balances hash: {balances_hash.hex()}")
     print(f"Expected report: {report}")
