@@ -1,13 +1,14 @@
+use anyhow::{anyhow, Result};
 use eth_consensus_layer_ssz::BeaconState;
 use log;
-use ssz::{Decode, Encode};
+use ssz::Decode;
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 pub trait BeaconStateReader {
-    async fn read_beacon_state(&self, slot: u64) -> BeaconState;
+    async fn read_beacon_state(&self, slot: u64) -> Result<BeaconState>;
 }
 
 pub enum BalanceGenerationMode {
@@ -61,10 +62,7 @@ impl SyntheticBeaconStateReader {
 
     fn get_python(&self) -> PathBuf {
         let folder = self.synth_gen_folder();
-        let failed_to_run_err = format!(
-            "Failed to execute poetry in {}",
-            &folder.as_os_str().to_str().unwrap()
-        );
+        let failed_to_run_err = format!("Failed to execute poetry in {}", &folder.as_os_str().to_str().unwrap());
         let poerty_run = Command::new("poetry")
             .current_dir(&folder)
             .args(["env", "info", "-e"])
@@ -77,15 +75,25 @@ impl SyntheticBeaconStateReader {
             .or(full_output.strip_suffix("\r\n"))
             .unwrap_or(full_output);
         log::debug!("Got python location {:?}", no_trailing_newline);
-        return PathBuf::from(&no_trailing_newline);
+        PathBuf::from(&no_trailing_newline)
     }
 
     fn get_script(&self) -> PathBuf {
-        return self.synth_gen_folder().join("main.py");
+        self.synth_gen_folder().join("main.py")
     }
 
     fn create_file_name(&self, slot: u64) -> PathBuf {
-        return PathBuf::from(&self.ssz_store_location).join(format!("bs_{}.ssz", slot));
+        PathBuf::from(&self.ssz_store_location)
+            .join(format!("bs_{}.ssz", slot))
+            .canonicalize()
+            .expect("Failed to canonicalize path")
+    }
+
+    fn create_manifesto_file_name(&self, slot: u64) -> PathBuf {
+        PathBuf::from(&self.ssz_store_location)
+            .join(format!("bs_{}_manifesto.json", slot))
+            .canonicalize()
+            .expect("Failed to canonicalize manifesto path")
     }
 
     async fn generate_beacon_state(&self, file_path: &Path, slot: u64) {
@@ -108,23 +116,37 @@ impl SyntheticBeaconStateReader {
         }
 
         log::debug!("Built command {:?}", command);
-        command
-            .status()
-            .expect("Failed to execute beacon state generator");
+        command.status().expect("Failed to execute beacon state generator");
     }
 
-    async fn read_beacon_state_from_file(&self, file_path: &Path) -> BeaconState {
+    async fn read_beacon_state_from_file(&self, file_path: &Path) -> Result<BeaconState> {
         log::info!("Reading from file {:?}", file_path);
-        let data = read_binary_file(file_path).unwrap();
-        return BeaconState::from_ssz_bytes(&data).unwrap();
+        let data = read_binary_file(file_path)?;
+        // TODO: better mapping ssz::DecodeError to std::error::Error/anyhow::Error
+        BeaconState::from_ssz_bytes(&data).map_err(|decode_err| anyhow!("Couldn't decode ssz {:#?}", decode_err))
+    }
+
+    pub async fn read_manifesto(&self, slot: u64) -> Result<serde_json::Value> {
+        self.read_manifesto_from_file(&self.create_manifesto_file_name(slot))
+            .await
+    }
+
+    async fn read_manifesto_from_file(&self, file_path: &Path) -> Result<serde_json::Value> {
+        log::info!("Reading manifesto from file {:?}", file_path);
+        let file = File::open(file_path)?;
+        let reader = BufReader::new(file);
+
+        // Read the JSON contents of the file as an instance of `User`.
+        let res = serde_json::from_reader(reader)?;
+        Ok(res)
     }
 }
 
 impl BeaconStateReader for SyntheticBeaconStateReader {
-    async fn read_beacon_state(&self, slot: u64) -> BeaconState {
+    async fn read_beacon_state(&self, slot: u64) -> Result<BeaconState> {
         let file_name = self.create_file_name(slot);
         self.generate_beacon_state(&file_name, slot).await;
-        return self.read_beacon_state_from_file(&file_name).await;
+        self.read_beacon_state_from_file(&file_name).await
     }
 }
 
