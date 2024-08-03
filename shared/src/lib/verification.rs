@@ -59,8 +59,11 @@ where
     fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex]) -> Result<(), Error> {
         let leaves_as_h256 = self.tree_field_leaves();
         let total_leaves_count = leaves_as_h256.len();
-        // Quirk: rs_merkle does not pad to next power of two
-        assert!(is_power_of_two(total_leaves_count));
+        // Quirk: rs_merkle does not pad to next power of two, ending up with a different merkle root
+        assert!(
+            is_power_of_two(total_leaves_count),
+            "Number of leaves must bea power of 2"
+        );
 
         let leaves_vec: Vec<&RsMerkleHash> = leaves_as_h256.iter().map(|val| val.as_fixed_bytes()).collect();
 
@@ -131,7 +134,7 @@ impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
     }
 
     fn tree_field_leaves(&self) -> Vec<Hash256> {
-        return vec![
+        let result = vec![
             self.genesis_time,
             self.genesis_validators_root,
             self.slot,
@@ -160,11 +163,14 @@ impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
             self.next_withdrawal_index,
             self.next_withdrawal_validator_index,
             self.historical_summaries,
-            // padding to the nearest power of 2 - rs_merkle doesn't seem to do it
+            // Quirk: padding to the nearest power of 2 - rs_merkle doesn't seem to do it
             ZEROHASH.into(),
             ZEROHASH.into(),
             ZEROHASH.into(),
             ZEROHASH.into(),
         ];
+        // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
+        assert!(result.len() == 32);
+        result
     }
 }
