@@ -41,3 +41,7 @@ tokio = { version = "1.38.0", features = ["full"] }
 
 [features]
 merkle_tree = ["dep:tree_hash_derive", "dep:tree_hash"]
+
+[patch.crates-io]
+sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
+ethereum_hashing = { path = "../../../ethereum_hashing" }
