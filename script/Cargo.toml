@@ -26,6 +26,8 @@ hex-literal = "0.4.1"
 hex = "0.4"
 anyhow = "1.0.86"
 sp1_lido_accounting_zk_shared = { path = "../shared" }
+tokio = "1.39.2"
+tree_hash = "0.6.0"
 
 [build-dependencies]
 sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.0.5-testnet" }
