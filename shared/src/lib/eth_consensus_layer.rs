@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 pub use ssz_types::{typenum, typenum::Unsigned, BitList, BitVector, FixedVector, VariableList};
 
+use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
 pub type Address = H160;
@@ -187,4 +188,97 @@ pub struct BeaconState {
     pub next_withdrawal_validator_index: u64,
     // Deep history valid from Capella onwards.
     pub historical_summaries: VariableList<HistoricalSummary, eth_spec::HistoricalRootsLimit>,
+}
+
+// TODO: Derive?
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+pub struct BeaconStatePrecomputedHashes {
+    // Versioning
+    pub genesis_time: Hash256,
+    pub genesis_validators_root: Hash256,
+    pub slot: Hash256,
+    pub fork: Hash256,
+
+    // History
+    pub latest_block_header: Hash256,
+    pub block_roots: Hash256,
+    pub state_roots: Hash256,
+    // Frozen in Capella, replaced by historical_summaries
+    pub historical_roots: Hash256,
+
+    // Ethereum 1.0 chain data
+    pub eth1_data: Hash256,
+    pub eth1_data_votes: Hash256,
+    pub eth1_deposit_index: Hash256,
+
+    // Registry
+    pub validators: Hash256,
+    pub balances: Hash256,
+
+    // Randomness
+    pub randao_mixes: Hash256,
+
+    // Slashings
+    pub slashings: Hash256,
+
+    // Participation (Altair and later)
+    pub previous_epoch_participation: Hash256,
+    pub current_epoch_participation: Hash256,
+
+    // Finality
+    pub justification_bits: Hash256,
+    pub previous_justified_checkpoint: Hash256,
+    pub current_justified_checkpoint: Hash256,
+    pub finalized_checkpoint: Hash256,
+
+    // Inactivity
+    pub inactivity_scores: Hash256,
+
+    // Light-client sync committees
+    pub current_sync_committee: Hash256,
+    pub next_sync_committee: Hash256,
+
+    // Execution
+    pub latest_execution_payload_header: Hash256,
+
+    // Capella
+    pub next_withdrawal_index: Hash256,
+    pub next_withdrawal_validator_index: Hash256,
+    // Deep history valid from Capella onwards.
+    pub historical_summaries: Hash256,
+}
+
+impl From<&BeaconState> for BeaconStatePrecomputedHashes {
+    fn from(value: &BeaconState) -> Self {
+        Self {
+            genesis_time: value.genesis_time.tree_hash_root(),
+            genesis_validators_root: value.genesis_validators_root.tree_hash_root(),
+            slot: value.slot.tree_hash_root(),
+            fork: value.fork.tree_hash_root(),
+            latest_block_header: value.latest_block_header.tree_hash_root(),
+            block_roots: value.block_roots.tree_hash_root(),
+            state_roots: value.state_roots.tree_hash_root(),
+            historical_roots: value.historical_roots.tree_hash_root(),
+            eth1_data: value.eth1_data.tree_hash_root(),
+            eth1_data_votes: value.eth1_data_votes.tree_hash_root(),
+            eth1_deposit_index: value.eth1_deposit_index.tree_hash_root(),
+            validators: value.validators.tree_hash_root(),
+            balances: value.balances.tree_hash_root(),
+            randao_mixes: value.randao_mixes.tree_hash_root(),
+            slashings: value.slashings.tree_hash_root(),
+            previous_epoch_participation: value.previous_epoch_participation.tree_hash_root(),
+            current_epoch_participation: value.current_epoch_participation.tree_hash_root(),
+            justification_bits: value.justification_bits.tree_hash_root(),
+            previous_justified_checkpoint: value.previous_justified_checkpoint.tree_hash_root(),
+            current_justified_checkpoint: value.current_justified_checkpoint.tree_hash_root(),
+            finalized_checkpoint: value.finalized_checkpoint.tree_hash_root(),
+            inactivity_scores: value.inactivity_scores.tree_hash_root(),
+            current_sync_committee: value.current_sync_committee.tree_hash_root(),
+            next_sync_committee: value.next_sync_committee.tree_hash_root(),
+            latest_execution_payload_header: value.latest_execution_payload_header.tree_hash_root(),
+            next_withdrawal_index: value.next_withdrawal_index.tree_hash_root(),
+            next_withdrawal_validator_index: value.next_withdrawal_validator_index.tree_hash_root(),
+            historical_summaries: value.historical_summaries.tree_hash_root(),
+        }
+    }
 }

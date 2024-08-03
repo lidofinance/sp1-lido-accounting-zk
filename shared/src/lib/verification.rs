@@ -3,7 +3,7 @@ use rs_merkle::{algorithms::Sha256, MerkleProof, MerkleTree};
 use hex;
 use hex_literal::hex as h;
 
-use crate::eth_consensus_layer::{BeaconState, Hash256};
+use crate::eth_consensus_layer::{BeaconState, BeaconStatePrecomputedHashes, Hash256};
 
 use tree_hash::TreeHash;
 
@@ -83,6 +83,19 @@ where
 // TODO: derive
 impl MerkleTreeFieldLeaves for BeaconState {
     fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
+        let precomp: BeaconStatePrecomputedHashes = self.into();
+        precomp.get_leaf_index(field_name)
+    }
+
+    fn tree_field_leaves(&self) -> Vec<Hash256> {
+        let precomp: BeaconStatePrecomputedHashes = self.into();
+        precomp.tree_field_leaves()
+    }
+}
+
+// TODO: derive
+impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
+    fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
         let start_index = 0;
         match field_name {
             "genesis_time" => Ok(start_index + 0),
@@ -119,34 +132,34 @@ impl MerkleTreeFieldLeaves for BeaconState {
 
     fn tree_field_leaves(&self) -> Vec<Hash256> {
         return vec![
-            self.genesis_time.tree_hash_root(),
-            self.genesis_validators_root.tree_hash_root(),
-            self.slot.tree_hash_root(),
-            self.fork.tree_hash_root(),
-            self.latest_block_header.tree_hash_root(),
-            self.block_roots.tree_hash_root(),
-            self.state_roots.tree_hash_root(),
-            self.historical_roots.tree_hash_root(),
-            self.eth1_data.tree_hash_root(),
-            self.eth1_data_votes.tree_hash_root(),
-            self.eth1_deposit_index.tree_hash_root(),
-            self.validators.tree_hash_root(),
-            self.balances.tree_hash_root(),
-            self.randao_mixes.tree_hash_root(),
-            self.slashings.tree_hash_root(),
-            self.previous_epoch_participation.tree_hash_root(),
-            self.current_epoch_participation.tree_hash_root(),
-            self.justification_bits.tree_hash_root(),
-            self.previous_justified_checkpoint.tree_hash_root(),
-            self.current_justified_checkpoint.tree_hash_root(),
-            self.finalized_checkpoint.tree_hash_root(),
-            self.inactivity_scores.tree_hash_root(),
-            self.current_sync_committee.tree_hash_root(),
-            self.next_sync_committee.tree_hash_root(),
-            self.latest_execution_payload_header.tree_hash_root(),
-            self.next_withdrawal_index.tree_hash_root(),
-            self.next_withdrawal_validator_index.tree_hash_root(),
-            self.historical_summaries.tree_hash_root(),
+            self.genesis_time,
+            self.genesis_validators_root,
+            self.slot,
+            self.fork,
+            self.latest_block_header,
+            self.block_roots,
+            self.state_roots,
+            self.historical_roots,
+            self.eth1_data,
+            self.eth1_data_votes,
+            self.eth1_deposit_index,
+            self.validators,
+            self.balances,
+            self.randao_mixes,
+            self.slashings,
+            self.previous_epoch_participation,
+            self.current_epoch_participation,
+            self.justification_bits,
+            self.previous_justified_checkpoint,
+            self.current_justified_checkpoint,
+            self.finalized_checkpoint,
+            self.inactivity_scores,
+            self.current_sync_committee,
+            self.next_sync_committee,
+            self.latest_execution_payload_header,
+            self.next_withdrawal_index,
+            self.next_withdrawal_validator_index,
+            self.historical_summaries,
             // padding to the nearest power of 2 - rs_merkle doesn't seem to do it
             ZEROHASH.into(),
             ZEROHASH.into(),
