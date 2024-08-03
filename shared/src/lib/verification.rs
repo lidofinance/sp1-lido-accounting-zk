@@ -1,4 +1,4 @@
-use rs_merkle::{algorithms::Sha256, MerkleProof, MerkleTree};
+use rs_merkle::{algorithms::Sha256, proof_serializers, MerkleProof, MerkleTree};
 
 use hex;
 use hex_literal::hex as h;
@@ -37,6 +37,7 @@ fn is_power_of_two(n: usize) -> bool {
 
 pub trait FieldProof {
     fn get_field_multiproof(&self, indices: &[LeafIndex]) -> MerkleProof<Sha256>;
+    fn get_serialized_multiproof(&self, indices: &[LeafIndex]) -> Vec<u8>;
     fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex]) -> Result<(), Error>;
 }
 
@@ -54,6 +55,11 @@ where
         let merkle_tree = MerkleTree::<Sha256>::from_leaves(leaves_vec.as_slice());
 
         return merkle_tree.proof(indices);
+    }
+
+    fn get_serialized_multiproof(&self, indices: &[LeafIndex]) -> Vec<u8> {
+        let proof = self.get_field_multiproof(indices);
+        proof.serialize::<proof_serializers::DirectHashesOrder>()
     }
 
     fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex]) -> Result<(), Error> {

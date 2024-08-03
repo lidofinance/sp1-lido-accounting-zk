@@ -282,3 +282,10 @@ impl From<&BeaconState> for BeaconStatePrecomputedHashes {
         }
     }
 }
+
+impl From<BeaconState> for BeaconStatePrecomputedHashes {
+    fn from(value: BeaconState) -> Self {
+        let borrowed: &BeaconState = &value;
+        borrowed.into()
+    }
+}

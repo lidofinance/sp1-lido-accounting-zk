@@ -19,8 +19,11 @@ use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::{
     beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader},
+    eth_consensus_layer::BeaconStatePrecomputedHashes,
     program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity},
 };
+
+use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
 
 use anyhow::Result;
 use log;
@@ -163,9 +166,18 @@ async fn main() {
     let slot = bs.slot;
     let beacon_block_hash = bs.tree_hash_root();
 
+    let bs_with_precomputed: BeaconStatePrecomputedHashes = (&bs).into();
+    let indices = bs
+        .get_leafs_indices(["validators", "balances"])
+        .expect("Failed to get leaf indices");
+
+    let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&indices);
+
     let program_input = ProgramInput {
         slot,
         beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
+        beacon_state: bs_with_precomputed,
+        validators_and_balances_proof: validators_and_balances_proof,
     };
     let expected_public_values = PublicValuesRust {
         slot,
