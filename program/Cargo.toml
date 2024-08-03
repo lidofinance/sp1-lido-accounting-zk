@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 alloy-sol-types = "0.7.2"
+sp1-derive = "1.1.0"
 sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.0.5-testnet" }
 sp1_lido_accounting_zk_shared = { path = "../shared" }
 

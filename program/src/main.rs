@@ -7,23 +7,32 @@
 // inside the zkVM.
 #![no_main]
 sp1_zkvm::entrypoint!(main);
+use sp1_derive;
 
-use alloy_sol_types::{sol, SolType};
+use alloy_sol_types::SolType;
 
-/// The public values encoded as a tuple that can be easily deserialized inside Solidity.
-type PublicValuesTuple = sol! {
-    tuple(uint64, bytes32)
-};
+use sp1_lido_accounting_zk_shared::program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity};
 
-type HashElement = [u8; 32];
+#[sp1_derive::cycle_tracker]
+fn read_input() -> ProgramInput {
+    sp1_zkvm::io::read::<ProgramInput>()
+}
 
-pub fn main() {
-    let slot: u64 = sp1_zkvm::io::read::<u64>();
-    let hash: HashElement = sp1_zkvm::io::read::<HashElement>();
-
-    // Encocde the public values of the program.
-    let bytes = PublicValuesTuple::abi_encode(&(slot, hash));
+#[sp1_derive::cycle_tracker]
+fn commit_public_values(public_values: PublicValuesRust) {
+    let bytes = PublicValuesSolidity::abi_encode(&(public_values.slot, public_values.beacon_block_hash));
 
     // Commit to the public values of the program.
     sp1_zkvm::io::commit_slice(&bytes);
+}
+
+pub fn main() {
+    let input: ProgramInput = read_input();
+
+    let public_values = PublicValuesRust {
+        slot: input.slot,
+        beacon_block_hash: input.beacon_block_hash,
+    };
+
+    commit_public_values(public_values);
 }

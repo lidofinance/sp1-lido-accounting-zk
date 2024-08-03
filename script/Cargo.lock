@@ -4803,6 +4803,7 @@ dependencies = [
  "ethereum_ssz",
  "ethereum_ssz_derive",
  "hex",
+ "hex-literal",
  "rs_merkle",
  "serde",
  "serde_derive",

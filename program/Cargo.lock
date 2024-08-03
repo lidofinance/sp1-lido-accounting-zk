@@ -1399,10 +1399,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-derive"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dbc1d9a05a0e83f548907d50539e5e59873bbf6a82793ce87a195345ca7ddf9"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "sp1-lido-accounting-zk-program"
 version = "0.1.0"
 dependencies = [
  "alloy-sol-types",
+ "sp1-derive",
  "sp1-zkvm",
  "sp1_lido_accounting_zk_shared",
 ]

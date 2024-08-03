@@ -17,7 +17,7 @@ use sp1_sdk::{
 };
 use std::path::PathBuf;
 
-use sp1_lido_accounting_zk_shared::public_input::{PublicValuesRust, PublicValuesSolidity};
+use sp1_lido_accounting_zk_shared::public_input::{ProgramInput, PublicValuesRust, PublicValuesSolidity};
 
 use anyhow::Result;
 use log;
@@ -35,11 +35,6 @@ pub const ELF: &[u8] = include_bytes!("../../../program/elf/riscv32im-succinct-z
 struct ProveArgs {
     #[clap(long, default_value = "false")]
     evm: bool,
-}
-
-struct ProgramInput {
-    slot: u64,
-    beacon_block_hash: [u8; 32],
 }
 
 trait ScriptSteps<ProofType> {
@@ -117,8 +112,7 @@ fn run_script<ProofType>(
     expected_public_values: &PublicValuesRust,
 ) {
     let mut stdin: SP1Stdin = SP1Stdin::new();
-    stdin.write(&program_input.slot);
-    stdin.write(&program_input.beacon_block_hash);
+    stdin.write(&program_input);
 
     let proof = steps.prove(stdin).expect("failed to generate proof");
     log::info!("Successfully generated proof!");
