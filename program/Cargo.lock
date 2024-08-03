@@ -1420,9 +1420,11 @@ name = "sp1-lido-accounting-zk-program"
 version = "0.1.0"
 dependencies = [
  "alloy-sol-types",
+ "hex",
  "sp1-derive",
  "sp1-zkvm",
  "sp1_lido_accounting_zk_shared",
+ "tree_hash",
 ]
 
 [[package]]

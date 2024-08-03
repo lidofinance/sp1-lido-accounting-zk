@@ -9,6 +9,7 @@
 use alloy_sol_types::SolType;
 use clap::Parser;
 use hex;
+use hex_literal::hex as h;
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{
     HashableKey, ProverClient, SP1CompressedProof, SP1PlonkBn254Proof, SP1ProvingKey, SP1PublicValues, SP1Stdin,
@@ -176,6 +177,7 @@ async fn main() {
     let program_input = ProgramInput {
         slot,
         beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
+        // beacon_block_hash: h!("0000000000000000000000000000000000000000000000000000000000000000"),
         beacon_state: bs_with_precomputed,
         validators_and_balances_proof: validators_and_balances_proof,
     };

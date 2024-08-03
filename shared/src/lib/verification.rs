@@ -15,6 +15,7 @@ type RsMerkleHash = <Sha256 as rs_merkle::Hasher>::Hash;
 pub enum Error {
     FieldDoesNotExist(String),
     VerificationError(),
+    DeserializationError(rs_merkle::Error),
 }
 
 const ZEROHASH: [u8; 32] = h!("0000000000000000000000000000000000000000000000000000000000000000");
@@ -39,6 +40,7 @@ pub trait FieldProof {
     fn get_field_multiproof(&self, indices: &[LeafIndex]) -> MerkleProof<Sha256>;
     fn get_serialized_multiproof(&self, indices: &[LeafIndex]) -> Vec<u8>;
     fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex]) -> Result<(), Error>;
+    fn verify_serialized(&self, proof_bytes: &Vec<u8>, indices: &[LeafIndex]) -> Result<(), Error>;
 }
 
 impl<T> FieldProof for T
@@ -85,6 +87,14 @@ where
             return Ok(());
         } else {
             return Err(Error::VerificationError());
+        }
+    }
+
+    fn verify_serialized(&self, proof_bytes: &Vec<u8>, indices: &[LeafIndex]) -> Result<(), Error> {
+        let maybe_proof = MerkleProof::deserialize::<proof_serializers::DirectHashesOrder>(proof_bytes.as_slice());
+        match maybe_proof {
+            Ok(proof) => self.verify(&proof, indices),
+            Err(error) => Err(Error::DeserializationError(error)),
         }
     }
 }
