@@ -3,3 +3,4 @@ pub mod eth_consensus_layer;
 mod eth_spec;
 pub mod public_input;
 pub mod report;
+pub mod verification;

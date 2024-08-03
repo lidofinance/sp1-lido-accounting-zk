@@ -11,12 +11,10 @@ path = "src/lib/lib.rs"
 [[example]]
 name = "ssz_e2e_test"
 path = "examples/ssz_e2e_test.rs"
-required-features = ["merkle_tree"]
 
 [[example]]
 name = "report_e2e_test"
 path = "examples/report.rs"
-required-features = ["merkle_tree"]
 
 [dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
@@ -34,6 +32,7 @@ tree_hash_derive = "0.6.0"
 tree_hash = "0.6.0"
 typenum = "1.17.0"
 rs_merkle = "1.4.2"
+hex-literal = "0.4.1"
 
 [dev-dependencies]
 log = "0.4.21"

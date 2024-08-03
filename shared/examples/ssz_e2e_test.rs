@@ -1,5 +1,6 @@
 use hex::FromHex;
 use log;
+use rs_merkle::MerkleTree;
 use serde_json::Value;
 
 use std::path::PathBuf;
@@ -10,6 +11,7 @@ mod synthetic_beacon_state_reader;
 use crate::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateReader};
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
+use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
 
 use simple_logger::SimpleLogger;
 
@@ -207,5 +209,19 @@ async fn main() {
     log::debug!("Total balance (manifest): {}", manifesto_total_balance);
     assert_eq!(total_balance, manifesto_total_balance);
 
+    // Step 4: get multiproof for validators+balances fields in BeaconState
+    let indices = beacon_state
+        .get_leafs_indices(["validators", "balances"])
+        .expect("Failed to get leaf indices");
+
+    let proof = beacon_state.get_field_multiproof(&indices);
+    log::debug!("Proof hashes: {:?}", proof.proof_hashes_hex());
+
+    // Step 5: verify multiproof
+    let verification_result = beacon_state.verify(&proof, &indices);
+    match verification_result {
+        Ok(()) => log::info!("Verification succeeded"),
+        Err(error) => log::error!("Verification failed: {:?}", error),
+    }
     // assert!(bs_merkle == root.into())
 }
