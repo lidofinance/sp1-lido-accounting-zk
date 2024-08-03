@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use log;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::{
+    read_binary_file, BeaconStateReader, FileBasedBeaconStateReader,
+};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconState;
 use ssz::Decode;
 use std::fs::File;
@@ -143,13 +145,7 @@ impl BeaconStateReader for SyntheticBeaconStateReader {
     async fn read_beacon_state(&self, slot: u64) -> Result<BeaconState> {
         let file_name = self.create_file_name(slot);
         self.generate_beacon_state(&file_name, slot).await;
-        self.read_beacon_state_from_file(&file_name).await
+        let file_reader = FileBasedBeaconStateReader::new(file_name);
+        file_reader.read_beacon_state(slot).await
     }
-}
-
-fn read_binary_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
-    let mut file = File::open(path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-    Ok(buffer)
 }
