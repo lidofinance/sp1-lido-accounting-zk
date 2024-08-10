@@ -38,11 +38,11 @@ pub struct Checkpoint {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct BeaconBlockHeader {
-    slot: Slot,
-    proposer_index: CommitteeIndex,
-    parent_root: Root,
-    state_root: Root,
-    body_root: Root,
+    pub slot: Slot,
+    pub proposer_index: CommitteeIndex,
+    pub parent_root: Root,
+    pub state_root: Root,
+    pub body_root: Root,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]

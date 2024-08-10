@@ -1,16 +1,15 @@
 use hex::FromHex;
 use log;
-use rs_merkle::MerkleTree;
 use serde_json::Value;
 
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-mod synthetic_beacon_state_reader;
+mod util;
 
-use crate::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateReader};
+use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateReader};
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
 
 use simple_logger::SimpleLogger;
@@ -21,7 +20,30 @@ fn hex_str_to_h256(hex_str: &str) -> Hash256 {
         .into()
 }
 
-fn verify_parts(beacon_state: &BeaconState, manifesto: &Value) {
+fn verify_bh_parts(beacon_state_header: &BeaconBlockHeader, manifesto: &Value) {
+    assert_eq!(
+        beacon_state_header.slot.tree_hash_root(),
+        hex_str_to_h256(manifesto["parts"]["slot"].as_str().unwrap())
+    );
+    assert_eq!(
+        beacon_state_header.proposer_index.tree_hash_root(),
+        hex_str_to_h256(manifesto["parts"]["proposer_index"].as_str().unwrap())
+    );
+    assert_eq!(
+        beacon_state_header.parent_root.tree_hash_root(),
+        hex_str_to_h256(manifesto["parts"]["parent_root"].as_str().unwrap())
+    );
+    assert_eq!(
+        beacon_state_header.state_root.tree_hash_root(),
+        hex_str_to_h256(manifesto["parts"]["state_root"].as_str().unwrap())
+    );
+    assert_eq!(
+        beacon_state_header.body_root.tree_hash_root(),
+        hex_str_to_h256(manifesto["parts"]["body_root"].as_str().unwrap())
+    );
+}
+
+fn verify_bs_parts(beacon_state: &BeaconState, manifesto: &Value) {
     assert_eq!(
         beacon_state.genesis_time.tree_hash_root(),
         hex_str_to_h256(manifesto["parts"]["genesis_time"].as_str().unwrap()),
@@ -179,10 +201,18 @@ async fn main() {
     );
 
     let slot = 1000000;
+    reader
+        .evict_cache(slot)
+        .expect(&format!("Failed to evict cache for slot {}", slot));
+
     let beacon_state = reader
         .read_beacon_state(slot)
         .await
         .expect("Failed to read beacon state");
+    let beacon_block_header = reader
+        .read_beacon_block_header(slot)
+        .await
+        .expect("Failed to read beacon block header");
     log::info!(
         "Read Beacon State for slot {:?}, with {} validators",
         beacon_state.slot,
@@ -191,16 +221,26 @@ async fn main() {
 
     // Step 2: Compute merkle roots
     let bs_merkle: Hash256 = beacon_state.tree_hash_root();
+    let bh_merkle: Hash256 = beacon_block_header.tree_hash_root();
 
     // Step 2.1: compare against expected ones
     let manifesto = reader
         .read_manifesto(slot)
         .await
         .expect("Failed to read manifesto json");
-    let manifesto_bs_merkle: Hash256 = hex_str_to_h256(manifesto["beacon_block_hash"].as_str().unwrap());
+    let manifesto_bs_merkle: Hash256 = hex_str_to_h256(manifesto["beacon_state"]["hash"].as_str().unwrap());
+    let manifesto_bh_merkle: Hash256 = hex_str_to_h256(manifesto["beacon_block_header"]["hash"].as_str().unwrap());
     log::debug!("Beacon state merkle (computed): {}", hex::encode(bs_merkle));
     log::debug!("Beacon state merkle (manifest): {}", hex::encode(manifesto_bs_merkle));
-    verify_parts(&beacon_state, &manifesto);
+    log::debug!("Beacon block header merkle (computed): {}", hex::encode(bh_merkle));
+    log::debug!(
+        "Beacon block header merkle (manifest): {}",
+        hex::encode(manifesto_bh_merkle)
+    );
+    verify_bs_parts(&beacon_state, &manifesto["beacon_state"]);
+    verify_bh_parts(&beacon_block_header, &manifesto["beacon_block_header"]);
+    assert_eq!(bs_merkle, manifesto_bs_merkle);
+    assert_eq!(bh_merkle, manifesto_bh_merkle);
 
     // Step 3: compute sum
     let total_balance: u64 = beacon_state.balances.iter().sum();
@@ -209,19 +249,35 @@ async fn main() {
     log::debug!("Total balance (manifest): {}", manifesto_total_balance);
     assert_eq!(total_balance, manifesto_total_balance);
 
-    // Step 4: get multiproof for validators+balances fields in BeaconState
-    let indices = beacon_state
+    // Step 4: get and verify multiproof for validators+balances fields in BeaconState
+    // Step 4.1: get multiproof
+    let bs_indices = beacon_state
         .get_leafs_indices(["validators", "balances"])
         .expect("Failed to get leaf indices");
 
-    let proof = beacon_state.get_field_multiproof(&indices);
-    log::debug!("Proof hashes: {:?}", proof.proof_hashes_hex());
+    let bs_proof = beacon_state.get_field_multiproof(&bs_indices);
+    log::debug!("BeaconState proof hashes: {:?}", bs_proof.proof_hashes_hex());
 
-    // Step 5: verify multiproof
-    let verification_result = beacon_state.verify(&proof, &indices);
+    // Step 4.2: verify multiproof
+    let verification_result = beacon_state.verify(&bs_proof, &bs_indices);
     match verification_result {
         Ok(()) => log::info!("Verification succeeded"),
         Err(error) => log::error!("Verification failed: {:?}", error),
     }
-    // assert!(bs_merkle == root.into())
+
+    // Step 5: get and verify multiproof for beacon state hash in BeaconBlockHeader
+    // Step 5.1: get multiproof
+    let bh_indices = beacon_block_header
+        .get_leafs_indices(["state_root"])
+        .expect("Failed to get leaf indices");
+
+    let bh_proof = beacon_block_header.get_field_multiproof(&bh_indices);
+    log::debug!("BeaconBlockHeader proof hashes: {:?}", bh_proof.proof_hashes_hex());
+
+    // Step 5.2: verify multiproof
+    let verification_result = beacon_block_header.verify(&bh_proof, &bh_indices);
+    match verification_result {
+        Ok(()) => log::info!("Verification succeeded"),
+        Err(error) => log::error!("Verification failed: {:?}", error),
+    }
 }

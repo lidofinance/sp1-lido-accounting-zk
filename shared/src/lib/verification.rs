@@ -1,9 +1,8 @@
 use rs_merkle::{algorithms::Sha256, proof_serializers, MerkleProof, MerkleTree};
 
-use hex;
 use hex_literal::hex as h;
 
-use crate::eth_consensus_layer::{BeaconState, BeaconStatePrecomputedHashes, Hash256};
+use crate::eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStatePrecomputedHashes, Hash256};
 
 use tree_hash::TreeHash;
 
@@ -70,7 +69,7 @@ where
         // Quirk: rs_merkle does not pad to next power of two, ending up with a different merkle root
         assert!(
             is_power_of_two(total_leaves_count),
-            "Number of leaves must bea power of 2"
+            "Number of leaves must be a power of 2"
         );
 
         let leaves_vec: Vec<&RsMerkleHash> = leaves_as_h256.iter().map(|val| val.as_fixed_bytes()).collect();
@@ -187,6 +186,38 @@ impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
         ];
         // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
         assert!(result.len() == 32);
+        result
+    }
+}
+
+// TODO: derive
+impl MerkleTreeFieldLeaves for BeaconBlockHeader {
+    fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
+        let start_index = 0;
+        match field_name {
+            "slot" => Ok(start_index + 0),
+            "proposer_index" => Ok(start_index + 1),
+            "parent_root" => Ok(start_index + 2),
+            "state_root" => Ok(start_index + 3),
+            "body_root" => Ok(start_index + 4),
+            _ => Err(Error::FieldDoesNotExist(format!("Field {} does not exist", field_name))),
+        }
+    }
+
+    fn tree_field_leaves(&self) -> Vec<Hash256> {
+        let result: Vec<Hash256> = vec![
+            self.slot.tree_hash_root(),
+            self.proposer_index.tree_hash_root(),
+            self.parent_root,
+            self.state_root,
+            self.body_root,
+            // Quirk: padding to the nearest power of 2 - rs_merkle doesn't seem to do it
+            ZEROHASH.into(),
+            ZEROHASH.into(),
+            ZEROHASH.into(),
+        ];
+        // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
+        assert!(result.len() == 8);
         result
     }
 }

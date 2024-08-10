@@ -1,14 +1,13 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use log;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::{
-    read_binary_file, BeaconStateReader, FileBasedBeaconStateReader,
-};
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconState;
-use ssz::Decode;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 use std::fs::File;
-use std::io::{self, BufReader, Read};
+use std::io;
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::{env, fs};
 
 pub enum BalanceGenerationMode {
     RANDOM,
@@ -81,11 +80,8 @@ impl SyntheticBeaconStateReader {
         self.synth_gen_folder().join("main.py")
     }
 
-    fn create_file_name(&self, slot: u64) -> PathBuf {
-        PathBuf::from(&self.ssz_store_location)
-            .join(format!("bs_{}.ssz", slot))
-            .canonicalize()
-            .expect("Failed to canonicalize path")
+    fn create_file_reader(&self, slot: u64) -> FileBasedBeaconStateReader {
+        FileBasedBeaconStateReader::for_slot(&self.ssz_store_location, slot)
     }
 
     fn create_manifesto_file_name(&self, slot: u64) -> PathBuf {
@@ -118,13 +114,6 @@ impl SyntheticBeaconStateReader {
         command.status().expect("Failed to execute beacon state generator");
     }
 
-    async fn read_beacon_state_from_file(&self, file_path: &Path) -> Result<BeaconState> {
-        log::info!("Reading from file {:?}", file_path);
-        let data = read_binary_file(file_path)?;
-        // TODO: better mapping ssz::DecodeError to std::error::Error/anyhow::Error
-        BeaconState::from_ssz_bytes(&data).map_err(|decode_err| anyhow!("Couldn't decode ssz {:#?}", decode_err))
-    }
-
     pub async fn read_manifesto(&self, slot: u64) -> Result<serde_json::Value> {
         self.read_manifesto_from_file(&self.create_manifesto_file_name(slot))
             .await
@@ -139,13 +128,29 @@ impl SyntheticBeaconStateReader {
         let res = serde_json::from_reader(reader)?;
         Ok(res)
     }
+
+    pub fn evict_cache(&self, slot: u64) -> io::Result<()> {
+        let file_reader = self.create_file_reader(slot);
+        fs::remove_file(file_reader.beacon_state_path())?;
+        fs::remove_file(file_reader.beacon_block_header_path())?;
+        Ok(())
+    }
 }
 
 impl BeaconStateReader for SyntheticBeaconStateReader {
     async fn read_beacon_state(&self, slot: u64) -> Result<BeaconState> {
-        let file_name = self.create_file_name(slot);
-        self.generate_beacon_state(&file_name, slot).await;
-        let file_reader = FileBasedBeaconStateReader::new(file_name);
+        let file_reader = self.create_file_reader(slot);
+        if !file_reader.beacon_state_exists() {
+            self.generate_beacon_state(file_reader.beacon_state_path(), slot).await;
+        }
         file_reader.read_beacon_state(slot).await
+    }
+
+    async fn read_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader> {
+        let file_reader = self.create_file_reader(slot);
+        if !file_reader.beacon_block_header_exists() {
+            self.generate_beacon_state(file_reader.beacon_state_path(), slot).await;
+        }
+        file_reader.read_beacon_block_header(slot).await
     }
 }
