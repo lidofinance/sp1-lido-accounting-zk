@@ -23,18 +23,19 @@ trait ValidatorsAndBalancesHash {
     fn validators_hash(&self) -> Hash256;
 }
 
-// #[cfg(not(target_arch = "riscv32"))]
-// impl ValidatorsAndBalancesHash for ValsAndBals {
-//     fn balances_hash(&self) -> Hash256 {
-//         self.balances.tree_hash_root()
-//     }
-//     // fn validators_hash(&self) -> Hash256 {
-//     //     self.validators.tree_hash_root()
-//     // }
-// }
+#[cfg(not(target_arch = "riscv32"))]
+impl ValidatorsAndBalancesHash for ValsAndBals {
+    fn balances_hash(&self) -> Hash256 {
+        self.balances.tree_hash_root()
+    }
+    fn validators_hash(&self) -> Hash256 {
+        self.validators.tree_hash_root()
+    }
+}
 
-// #[cfg(target_arch = "riscv32")]
+#[cfg(target_arch = "riscv32")]
 struct HashHelper {}
+#[cfg(target_arch = "riscv32")]
 impl HashHelper {
     const MAX_DEPTH: usize = 29;
 
@@ -47,7 +48,7 @@ impl HashHelper {
     }
 }
 
-// #[cfg(target_arch = "riscv32")]
+#[cfg(target_arch = "riscv32")]
 impl ValidatorsAndBalancesHash for ValsAndBals {
     fn balances_hash(&self) -> Hash256 {
         assert!((self.balances.len() as u64) < (u32::MAX as u64));
