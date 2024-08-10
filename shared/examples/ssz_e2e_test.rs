@@ -191,10 +191,12 @@ async fn main() {
     SimpleLogger::new().env().init().unwrap();
     // Step 1. obtain SSZ-serialized beacon state
     // For now using a "synthetic" generator based on reference implementation (py-ssz)
+    let total_validators_log2 = 8;
+    let lido_validators_log2 = total_validators_log2 / 2;
     let reader = SyntheticBeaconStateReader::new(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp"),
-        2_u64.pow(12),
-        2_u64.pow(6),
+        2_u64.pow(total_validators_log2),
+        2_u64.pow(lido_validators_log2),
         BalanceGenerationMode::SEQUENTIAL,
         true,
         true,
@@ -261,7 +263,7 @@ async fn main() {
     // Step 4.2: verify multiproof
     let verification_result = beacon_state.verify(&bs_proof, &bs_indices);
     match verification_result {
-        Ok(()) => log::info!("Verification succeeded"),
+        Ok(()) => log::info!("BeaconState Verification succeeded"),
         Err(error) => log::error!("Verification failed: {:?}", error),
     }
 
@@ -277,7 +279,7 @@ async fn main() {
     // Step 5.2: verify multiproof
     let verification_result = beacon_block_header.verify(&bh_proof, &bh_indices);
     match verification_result {
-        Ok(()) => log::info!("Verification succeeded"),
+        Ok(()) => log::info!("BeaconBlockHeader Verification succeeded"),
         Err(error) => log::error!("Verification failed: {:?}", error),
     }
 }

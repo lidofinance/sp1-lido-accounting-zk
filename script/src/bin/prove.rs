@@ -117,7 +117,7 @@ impl ScriptSteps for LocalScript {
     }
 
     fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
-        self.client.prove(&self.pk, input).compressed().run()
+        self.client.prove(&self.pk, input).run()
     }
 
     fn verify(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
