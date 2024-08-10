@@ -29,26 +29,56 @@ fn commit_public_values(public_values: PublicValuesRust) {
     sp1_zkvm::io::commit_slice(&bytes);
 }
 
+/**
+ * Proves that the data passed into program is well-formed and correct
+ *
+ * Going top-down:
+ * * Beacon Block root == merkle_tree_root(BeaconBlockHeader)
+ * * merkle_tree_root(BeaconState) is included into BeaconBlockHeader
+ * * Validators and balances are included into BeaconState (merkle multiproof)
+ */
 #[sp1_derive::cycle_tracker]
-fn verify_inputs(input: &ProgramInput) {
+fn prove_data_correctness(input: &ProgramInput) {
+    let beacon_block_header = &input.beacon_block_header;
     let beacon_state = &input.beacon_state;
 
-    let indices = beacon_state
+    // Beacon Block root == merkle_tree_root(BeaconBlockHeader)
+    println!("cycle-tracker-start: prove_data_correctness.beacon_block_header.root");
+    let bh_root = beacon_block_header.tree_hash_root();
+    assert!(
+        bh_root == input.beacon_block_hash.into(),
+        "Failed to verify Beacon Block Header hash, expected {}, got {}",
+        hex::encode(input.beacon_block_hash),
+        hex::encode(bh_root)
+    );
+    println!("cycle-tracker-end: prove_data_correctness.beacon_block_header.root");
+
+    // merkle_tree_root(BeaconState) is included into BeaconBlockHeader
+    println!("cycle-tracker-start: prove_data_correctness.beacon_state.root");
+    let bs_root = beacon_state.tree_hash_root();
+    assert!(
+        bs_root == beacon_block_header.state_root.into(),
+        "Beacon State hash mismatch, expected {}, got {}",
+        hex::encode(input.beacon_block_header.state_root),
+        hex::encode(bs_root)
+    );
+    println!("cycle-tracker-end: prove_data_correctness.beacon_state.root");
+
+    // Validators and balances are included into BeaconState (merkle multiproof)
+    println!("cycle-tracker-start: prove_data_correctness.vals_and_bals.multiproof");
+    let bs_indices = beacon_state
         .get_leafs_indices(["validators", "balances"])
         .expect("Failed to get leaf indices");
 
     beacon_state
-        .verify_serialized(&input.validators_and_balances_proof, &indices)
+        .verify_serialized(&input.validators_and_balances_proof, &bs_indices)
         .expect("Failed to verify validators and balances inclusion");
+    println!("cycle-tracker-end: prove_data_correctness.vals_and_bals.multiproof");
+}
 
-    // TODO: this should ladder up to beacon block, but for now
-    // we're passing beacon state hash as beacon block hash
-    assert!(
-        beacon_state.tree_hash_root() == input.beacon_block_hash.into(),
-        "Failed to verify Beacon State hash, expected {}, got {}",
-        hex::encode(input.beacon_block_hash),
-        hex::encode(beacon_state.tree_hash_root())
-    );
+#[sp1_derive::cycle_tracker]
+fn verify_inputs(input: &ProgramInput) {
+    prove_data_correctness(input);
 }
 
 pub fn main() {

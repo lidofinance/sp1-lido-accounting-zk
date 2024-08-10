@@ -289,3 +289,32 @@ impl From<BeaconState> for BeaconStatePrecomputedHashes {
         borrowed.into()
     }
 }
+
+// TODO: Derive?
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+pub struct BeaconBlockHeaderPrecomputedHashes {
+    pub slot: Hash256,
+    pub proposer_index: Hash256,
+    pub parent_root: Hash256,
+    pub state_root: Hash256,
+    pub body_root: Hash256,
+}
+
+impl From<&BeaconBlockHeader> for BeaconBlockHeaderPrecomputedHashes {
+    fn from(value: &BeaconBlockHeader) -> Self {
+        Self {
+            slot: value.slot.tree_hash_root(),
+            proposer_index: value.proposer_index.tree_hash_root(),
+            parent_root: value.parent_root,
+            state_root: value.state_root,
+            body_root: value.body_root,
+        }
+    }
+}
+
+impl From<BeaconBlockHeader> for BeaconBlockHeaderPrecomputedHashes {
+    fn from(value: BeaconBlockHeader) -> Self {
+        let borrowed: &BeaconBlockHeader = &value;
+        borrowed.into()
+    }
+}

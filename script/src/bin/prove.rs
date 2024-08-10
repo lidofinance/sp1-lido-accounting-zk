@@ -20,7 +20,7 @@ use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::{
     beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader},
-    eth_consensus_layer::BeaconStatePrecomputedHashes,
+    eth_consensus_layer::{BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes},
     program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity},
 };
 
@@ -44,6 +44,8 @@ struct ProveArgs {
     evm: bool,
     #[clap(long)]
     path: PathBuf,
+    #[clap(long)]
+    slot: u64,
 }
 
 trait ScriptSteps<ProofType> {
@@ -158,31 +160,39 @@ async fn main() {
     println!("evm: {}", args.evm);
 
     let file_path = fs::canonicalize(args.path).expect("Couldn't canonicalize path");
-    let bs_reader = FileBasedBeaconStateReader::new(file_path);
+    let bs_reader = FileBasedBeaconStateReader::for_slot(&file_path, args.slot);
     let bs = bs_reader
-        .read_beacon_state(0) // slot is ignored; TODO: refactor readers
+        .read_beacon_state(args.slot) // File reader ignores slot; TODO: refactor readers
         .await
         .expect("Failed to read beacon state");
+    let bh = bs_reader
+        .read_beacon_block_header(args.slot) // File reader ignores slot; TODO: refactor readers
+        .await
+        .expect("Failed to read beacon block header");
 
-    let slot = bs.slot;
-    let beacon_block_hash = bs.tree_hash_root();
+    assert_eq!(bs.slot, args.slot);
+    assert_eq!(bh.slot, args.slot);
+
+    let beacon_block_hash = bh.tree_hash_root();
 
     let bs_with_precomputed: BeaconStatePrecomputedHashes = (&bs).into();
-    let indices = bs
+    let bh_with_precomputed: BeaconBlockHeaderPrecomputedHashes = (&bh).into();
+    let bs_indices = bs
         .get_leafs_indices(["validators", "balances"])
-        .expect("Failed to get leaf indices");
+        .expect("Failed to get BeaconState field indices");
 
-    let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&indices);
+    let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&bs_indices);
 
     let program_input = ProgramInput {
-        slot,
+        slot: bs.slot,
         beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
         // beacon_block_hash: h!("0000000000000000000000000000000000000000000000000000000000000000"),
+        beacon_block_header: bh_with_precomputed,
         beacon_state: bs_with_precomputed,
         validators_and_balances_proof: validators_and_balances_proof,
     };
     let expected_public_values = PublicValuesRust {
-        slot,
+        slot: bs.slot,
         beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
     };
 
