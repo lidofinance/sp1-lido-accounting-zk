@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use crate::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 
 pub trait BeaconStateReader {
+    #[allow(async_fn_in_trait)]
     async fn read_beacon_state(&self, slot: u64) -> Result<BeaconState>;
+    #[allow(async_fn_in_trait)]
     async fn read_beacon_block_header(&self, _slot: u64) -> Result<BeaconBlockHeader>;
 }
 

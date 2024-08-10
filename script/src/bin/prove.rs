@@ -7,12 +7,13 @@
 //! ```
 
 use alloy_sol_types::SolType;
+use anyhow::anyhow;
 use clap::Parser;
 use hex;
 use hex_literal::hex as h;
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{
-    HashableKey, ProverClient, SP1CompressedProof, SP1PlonkBn254Proof, SP1ProvingKey, SP1PublicValues, SP1Stdin,
+    ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
     SP1VerifyingKey,
 };
 use std::fs;
@@ -21,7 +22,6 @@ use std::path::PathBuf;
 use sp1_lido_accounting_zk_shared::{
     beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader},
     eth_consensus_layer::{BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes},
-    eth_spec,
     program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity, ValsAndBals},
 };
 
@@ -29,8 +29,6 @@ use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLea
 
 use anyhow::Result;
 use log;
-
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Unsigned;
 
 use dotenv::dotenv;
 use std::env;
@@ -45,17 +43,20 @@ const ELF: &[u8] = include_bytes!("../../../program/elf/riscv32im-succinct-zkvm-
 struct ProveArgs {
     #[clap(long, default_value = "false")]
     evm: bool,
+    #[clap(long, default_value = "false")]
+    prove: bool,
     #[clap(long)]
     path: PathBuf,
     #[clap(long)]
     slot: u64,
 }
 
-trait ScriptSteps<ProofType> {
-    fn prove(&self, input: SP1Stdin) -> Result<ProofType>;
-    fn verify(&self, proof: &ProofType) -> Result<()>;
-    fn extract_public_values<'a>(&self, proof: &'a ProofType) -> &'a SP1PublicValues;
-    fn post_verify(&self, proof: &ProofType);
+trait ScriptSteps {
+    fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)>;
+    fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues>;
+    fn verify(&self, proof: &SP1ProofWithPublicValues) -> Result<()>;
+    fn extract_public_values<'a>(&self, proof: &'a SP1ProofWithPublicValues) -> &'a SP1PublicValues;
+    fn post_verify(&self, proof: &SP1ProofWithPublicValues);
 }
 
 struct EvmScript {
@@ -65,27 +66,33 @@ struct EvmScript {
 }
 
 impl EvmScript {
-    fn new(elf: &[u8]) -> Self {
+    fn new() -> Self {
         let client: ProverClient = ProverClient::network();
-        let (pk, vk) = client.setup(elf);
+        let (pk, vk) = client.setup(ELF);
         Self { client, pk, vk }
     }
 }
 
-impl ScriptSteps<SP1PlonkBn254Proof> for EvmScript {
-    fn prove(&self, input: SP1Stdin) -> Result<SP1PlonkBn254Proof> {
-        self.client.prove_plonk(&self.pk, input)
+impl ScriptSteps for EvmScript {
+    fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
+        self.client.execute(ELF, input).run()
     }
 
-    fn verify(&self, proof: &SP1PlonkBn254Proof) -> Result<()> {
-        self.client.verify_plonk(proof, &self.vk)
+    fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
+        self.client.prove(&self.pk, input).plonk().run()
     }
 
-    fn extract_public_values<'a>(&self, proof: &'a SP1PlonkBn254Proof) -> &'a SP1PublicValues {
+    fn verify(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
+        self.client
+            .verify(proof, &self.vk)
+            .map_err(|err| anyhow!("Couldn't verify {:#?}", err))
+    }
+
+    fn extract_public_values<'a>(&self, proof: &'a SP1ProofWithPublicValues) -> &'a SP1PublicValues {
         &proof.public_values
     }
 
-    fn post_verify(&self, proof: &SP1PlonkBn254Proof) {
+    fn post_verify(&self, proof: &SP1ProofWithPublicValues) {
         create_plonk_fixture(proof, &self.vk);
     }
 }
@@ -97,58 +104,89 @@ struct LocalScript {
 }
 
 impl LocalScript {
-    fn new(elf: &[u8]) -> Self {
+    fn new() -> Self {
         let client: ProverClient = ProverClient::local();
-        let (pk, vk) = client.setup(elf);
+        let (pk, vk) = client.setup(ELF);
         Self { client, pk, vk }
     }
 }
 
-impl ScriptSteps<SP1CompressedProof> for LocalScript {
-    fn prove(&self, input: SP1Stdin) -> Result<SP1CompressedProof> {
-        self.client.prove_compressed(&self.pk, input)
+impl ScriptSteps for LocalScript {
+    fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
+        self.client.execute(ELF, input).run()
     }
 
-    fn verify(&self, proof: &SP1CompressedProof) -> Result<()> {
-        self.client.verify_compressed(proof, &self.vk)
+    fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
+        self.client.prove(&self.pk, input).compressed().run()
     }
 
-    fn extract_public_values<'a>(&self, proof: &'a SP1CompressedProof) -> &'a SP1PublicValues {
+    fn verify(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
+        self.client
+            .verify(proof, &self.vk)
+            .map_err(|err| anyhow!("Couldn't verify {:#?}", err))
+    }
+
+    fn extract_public_values<'a>(&self, proof: &'a SP1ProofWithPublicValues) -> &'a SP1PublicValues {
         &proof.public_values
     }
 
-    fn post_verify(&self, _proof: &SP1CompressedProof) {}
+    fn post_verify(&self, _proof: &SP1ProofWithPublicValues) {}
 }
 
-fn run_script<ProofType>(
-    steps: impl ScriptSteps<ProofType>,
+fn run_script(
+    steps: impl ScriptSteps,
+    prove: bool,
     program_input: &ProgramInput,
     expected_public_values: &PublicValuesRust,
 ) {
     let mut stdin: SP1Stdin = SP1Stdin::new();
     stdin.write(&program_input);
+    // log::info!("Rereading");
+    // let reread = stdin.read::<ProgramInput>();
+    // log::info!("Validators {:?}", reread.validators_and_balances.validators);
 
-    let proof = steps.prove(stdin).expect("failed to generate proof");
-    log::info!("Successfully generated proof!");
-    steps.verify(&proof).expect("failed to verify proof");
-    log::info!("Successfully verified proof!");
+    let public_values: &SP1PublicValues;
 
-    // let public_values_bytes = PublicValuesSolidity::abi_decode(proof.public_values.as_slice(), false)?
-    let public_values_bytes = steps.extract_public_values(&proof);
-    let public_values: PublicValuesRust = public_values_bytes
+    if prove {
+        let proof = steps.prove(stdin).expect("failed to generate proof");
+        log::info!("Successfully generated proof!");
+        steps.verify(&proof).expect("failed to verify proof");
+        log::info!("Successfully verified proof!");
+        public_values = steps.extract_public_values(&proof);
+
+        verify_public_values(&public_values, expected_public_values);
+
+        steps.post_verify(&proof);
+    } else {
+        // Only execute the program and get a `SP1PublicValues` object.
+        let (public_values, execution_report) = steps.execute(stdin).unwrap();
+
+        // Print the total number of cycles executed and the full execution report with a breakdown of
+        // the RISC-V opcode and syscall counts.
+        log::info!(
+            "Executed program with {} cycles",
+            execution_report.total_instruction_count() + execution_report.total_syscall_count()
+        );
+        log::debug!("Full execution report:\n{}", execution_report);
+
+        verify_public_values(&public_values, expected_public_values);
+    }
+}
+
+fn verify_public_values(public_values: &SP1PublicValues, expected_public_values: &PublicValuesRust) {
+    let public_values_parsed: PublicValuesRust = public_values
         .as_slice()
         .try_into()
         .expect("Failed to parse public values");
 
-    assert!(public_values == *expected_public_values);
+    assert!(public_values_parsed == *expected_public_values);
     log::debug!(
         "Expected hash: {}",
         hex::encode(expected_public_values.beacon_block_hash)
     );
-    log::debug!("Computed hash: {}", hex::encode(public_values.beacon_block_hash));
+    log::debug!("Computed hash: {}", hex::encode(public_values_parsed.beacon_block_hash));
 
     log::info!("Public values match!");
-    steps.post_verify(&proof);
 }
 
 #[tokio::main]
@@ -179,7 +217,7 @@ async fn main() {
     let beacon_block_hash = bh.tree_hash_root();
 
     log::info!(
-        "Processing BeaconState:\nSlot: {}\nBlock Hash: {}\nValidator count:{}",
+        "Processing BeaconState. Slot: {}, Block Hash: {}, Validator count:{}",
         bs.slot,
         hex::encode(beacon_block_hash),
         bs.validators.len()
@@ -193,9 +231,6 @@ async fn main() {
 
     let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&bs_indices);
 
-    println!("Size: {}", eth_spec::ValidatorRegistryLimit::to_usize());
-    // println!("Type: {}", std::any::type_name::<eth_spec::ValidatorRegistryLimit>());
-
     let program_input = ProgramInput {
         slot: bs.slot,
         beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
@@ -203,7 +238,10 @@ async fn main() {
         beacon_block_header: bh_with_precomputed,
         beacon_state: bs_with_precomputed,
         validators_and_balances_proof: validators_and_balances_proof,
-        validators_and_balances: ValsAndBals { balances: bs.balances },
+        validators_and_balances: ValsAndBals {
+            balances: bs.balances,
+            validators: bs.validators,
+        },
     };
     let expected_public_values = PublicValuesRust {
         slot: bs.slot,
@@ -211,9 +249,9 @@ async fn main() {
     };
 
     if args.evm {
-        run_script(EvmScript::new(ELF), &program_input, &expected_public_values);
+        run_script(EvmScript::new(), args.prove, &program_input, &expected_public_values)
     } else {
-        run_script(LocalScript::new(ELF), &program_input, &expected_public_values);
+        run_script(LocalScript::new(), args.prove, &program_input, &expected_public_values)
     }
 }
 
@@ -229,7 +267,7 @@ struct ProofFixture {
 }
 
 /// Create a fixture for the given proof.
-fn create_plonk_fixture(proof: &SP1PlonkBn254Proof, vk: &SP1VerifyingKey) {
+fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) {
     // Deserialize the public values.
     let bytes = proof.public_values.as_slice();
     let (slot, beacon_block_hash) = PublicValuesSolidity::abi_decode(bytes, false).unwrap();
@@ -239,8 +277,8 @@ fn create_plonk_fixture(proof: &SP1PlonkBn254Proof, vk: &SP1VerifyingKey) {
         slot: slot,
         beacon_block_hash: beacon_block_hash.to_string(),
         vkey: vk.bytes32().to_string(),
-        public_values: proof.public_values.bytes().to_string(),
-        proof: proof.bytes().to_string(),
+        public_values: format!("0x{}", hex::encode(bytes)),
+        proof: format!("0x{}", hex::encode(proof.bytes())),
     };
 
     // The verification key is used to verify that the proof corresponds to the execution of the

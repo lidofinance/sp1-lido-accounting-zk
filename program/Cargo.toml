@@ -5,10 +5,10 @@ name = "sp1-lido-accounting-zk-program"
 edition = "2021"
 
 [dependencies]
-alloy-sol-types = "0.7.2"
+alloy-sol-types = "0.7.6"
 hex = { version = "0.4.3", default-features = false }
 sp1-derive = "1.1.0"
-sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.0.5-testnet" }
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0" }
 sp1_lido_accounting_zk_shared = { path = "../shared" }
 tree_hash = "0.6.0"
 ethereum_hashing = "0.6.0"

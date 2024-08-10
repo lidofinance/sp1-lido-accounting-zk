@@ -48,7 +48,7 @@ pub struct BeaconBlockHeader {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct Eth1Data {
     deposit_root: Root,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     deposit_count: u64,
     block_hash: Hash256,
 }
@@ -57,16 +57,16 @@ pub struct Eth1Data {
 pub struct Validator {
     pub pubkey: BlsPublicKey,
     pub withdrawal_credentials: Hash256,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     pub effective_balance: u64,
     pub slashed: bool,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     pub activation_eligibility_epoch: Epoch,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     pub activation_epoch: Epoch,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     pub exit_epoch: Epoch,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     pub withdrawable_epoch: Epoch,
 }
 
@@ -101,13 +101,13 @@ pub struct ExecutionPayloadHeader {
     receipts_root: Root,
     logs_bloom: FixedVector<u8, eth_spec::BytesPerLogBloom>,
     prev_randao: Hash256,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     block_number: u64,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     gas_limit: u64,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     gas_used: u64,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     timestamp: u64,
     extra_data: VariableList<u8, eth_spec::MaxExtraDataBytes>,
     // workaround - looks like ByteList is partially broken, but extra data is exactly bytes32
@@ -133,7 +133,7 @@ pub type Balances = VariableList<u64, eth_spec::ValidatorRegistryLimit>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct BeaconState {
     // Versioning
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     pub genesis_time: u64,
     pub genesis_validators_root: Hash256,
     pub slot: Slot,
@@ -149,19 +149,19 @@ pub struct BeaconState {
     // Ethereum 1.0 chain data
     pub eth1_data: Eth1Data,
     pub eth1_data_votes: VariableList<Eth1Data, eth_spec::SlotsPerEth1VotingPeriod>,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     pub eth1_deposit_index: u64,
 
     // Registry
     pub validators: Validators,
-    #[serde(with = "ssz_types::serde_utils::quoted_u64_var_list")]
+    // #[serde(with = "ssz_types::serde_utils::quoted_u64_var_list")]
     pub balances: Balances,
 
     // Randomness
     pub randao_mixes: FixedVector<Hash256, eth_spec::EpochsPerHistoricalVector>,
 
     // Slashings
-    #[serde(with = "ssz_types::serde_utils::quoted_u64_fixed_vec")]
+    // #[serde(with = "ssz_types::serde_utils::quoted_u64_fixed_vec")]
     pub slashings: FixedVector<u64, eth_spec::EpochsPerSlashingsVector>,
 
     // Participation (Altair and later)
@@ -175,7 +175,7 @@ pub struct BeaconState {
     pub finalized_checkpoint: Checkpoint,
 
     // Inactivity
-    #[serde(with = "ssz_types::serde_utils::quoted_u64_var_list")]
+    // #[serde(with = "ssz_types::serde_utils::quoted_u64_var_list")]
     pub inactivity_scores: VariableList<u64, eth_spec::ValidatorRegistryLimit>,
 
     // Light-client sync committees
@@ -186,9 +186,9 @@ pub struct BeaconState {
     pub latest_execution_payload_header: ExecutionPayloadHeader,
 
     // Capella
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     pub next_withdrawal_index: u64,
-    #[serde(with = "serde_utils::quoted_u64")]
+    // #[serde(with = "serde_utils::quoted_u64")]
     pub next_withdrawal_validator_index: u64,
     // Deep history valid from Capella onwards.
     pub historical_summaries: VariableList<HistoricalSummary, eth_spec::HistoricalRootsLimit>,
