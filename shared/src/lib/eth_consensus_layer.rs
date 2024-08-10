@@ -60,9 +60,13 @@ pub struct Validator {
     #[serde(with = "serde_utils::quoted_u64")]
     pub effective_balance: u64,
     pub slashed: bool,
+    #[serde(with = "serde_utils::quoted_u64")]
     pub activation_eligibility_epoch: Epoch,
+    #[serde(with = "serde_utils::quoted_u64")]
     pub activation_epoch: Epoch,
+    #[serde(with = "serde_utils::quoted_u64")]
     pub exit_epoch: Epoch,
+    #[serde(with = "serde_utils::quoted_u64")]
     pub withdrawable_epoch: Epoch,
 }
 

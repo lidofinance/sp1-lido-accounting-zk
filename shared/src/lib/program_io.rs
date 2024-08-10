@@ -1,7 +1,9 @@
 use alloy_sol_types::{sol, SolType};
 use serde::{Deserialize, Serialize};
 
-use crate::eth_consensus_layer::{BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes};
+use crate::eth_consensus_layer::{
+    Balances, BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Validators,
+};
 
 // use crate::eth_consensus_layer::BeaconStatePrecomputedHashes;
 
@@ -12,8 +14,15 @@ pub struct ProgramInput {
     pub beacon_block_header: BeaconBlockHeaderPrecomputedHashes,
     pub beacon_state: BeaconStatePrecomputedHashes,
     pub validators_and_balances_proof: Vec<u8>,
+    pub validators_and_balances: ValsAndBals,
 }
 
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
+pub struct ValsAndBals {
+    // pub validators: Validators,
+    // #[serde(with = "ssz_types::serde_utils::quoted_u64_var_list")]
+    pub balances: Balances,
+}
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct PublicValuesRust {
     pub slot: u64,

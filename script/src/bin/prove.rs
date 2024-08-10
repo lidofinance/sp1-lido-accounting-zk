@@ -21,13 +21,16 @@ use std::path::PathBuf;
 use sp1_lido_accounting_zk_shared::{
     beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader},
     eth_consensus_layer::{BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes},
-    program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity},
+    eth_spec,
+    program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity, ValsAndBals},
 };
 
 use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
 
 use anyhow::Result;
 use log;
+
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::Unsigned;
 
 use dotenv::dotenv;
 use std::env;
@@ -175,6 +178,13 @@ async fn main() {
 
     let beacon_block_hash = bh.tree_hash_root();
 
+    log::info!(
+        "Processing BeaconState:\nSlot: {}\nBlock Hash: {}\nValidator count:{}",
+        bs.slot,
+        hex::encode(beacon_block_hash),
+        bs.validators.len()
+    );
+
     let bs_with_precomputed: BeaconStatePrecomputedHashes = (&bs).into();
     let bh_with_precomputed: BeaconBlockHeaderPrecomputedHashes = (&bh).into();
     let bs_indices = bs
@@ -183,6 +193,9 @@ async fn main() {
 
     let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&bs_indices);
 
+    println!("Size: {}", eth_spec::ValidatorRegistryLimit::to_usize());
+    // println!("Type: {}", std::any::type_name::<eth_spec::ValidatorRegistryLimit>());
+
     let program_input = ProgramInput {
         slot: bs.slot,
         beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
@@ -190,6 +203,7 @@ async fn main() {
         beacon_block_header: bh_with_precomputed,
         beacon_state: bs_with_precomputed,
         validators_and_balances_proof: validators_and_balances_proof,
+        validators_and_balances: ValsAndBals { balances: bs.balances },
     };
     let expected_public_values = PublicValuesRust {
         slot: bs.slot,

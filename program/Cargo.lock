@@ -1420,6 +1420,7 @@ name = "sp1-lido-accounting-zk-program"
 version = "0.1.0"
 dependencies = [
  "alloy-sol-types",
+ "ethereum_hashing",
  "hex",
  "sp1-derive",
  "sp1-zkvm",
