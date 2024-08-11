@@ -14,18 +14,20 @@ name = "vkey"
 path = "src/bin/vkey.rs"
 
 [dependencies]
-sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.0.5-testnet", features = [ "plonk" ] }
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0", features = [ "network" ] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 clap = { version = "4.0", features = ["derive", "env"] }
 tracing = "0.1.40"
-alloy-sol-types = "0.7.2"
+alloy-sol-types = "0.7.7"
 dotenv = "0.15.0"
 log = "0.4.21"
 hex-literal = "0.4.1"
 hex = "0.4"
 anyhow = "1.0.86"
-sp1_lido_accounting_zk_shared = { path = "../shared", features = ["merkle_tree"] }
+sp1_lido_accounting_zk_shared = { path = "../shared" }
+tokio = "1.39.2"
+tree_hash = "0.6.0"
 
 [build-dependencies]
-sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.0.5-testnet" }
+sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0" }

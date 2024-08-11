@@ -19,7 +19,7 @@ from eth_ssz_utils import (
     make_beacon_block_state,
     Constants,
 )
-from eth_consensus_layer import BeaconState, JustificationBits
+from eth_consensus_layer import BeaconState, BeaconBlockHeader, JustificationBits
 import constants
 
 THIS_FOLDER = os.path.dirname(__file__)
@@ -82,6 +82,18 @@ def create_beacon_state(
     )
 
 
+def create_beacon_block_header(
+    slot: int,
+    beacon_state_hash: bytes
+):
+    return BeaconBlockHeader.create(
+        slot = slot,
+        proposer_index = slot+42,
+        parent_root = b"\x01\x02"*16,
+        state_root = beacon_state_hash,
+        body_root = b"\xFC\xFD\xFE\xFF"*8,
+    )
+
 GWEI_IN_1_ETH = 10**9
 MILLIETH = 10**6
 FIXED_BALANCE = 16 * GWEI_IN_1_ETH
@@ -93,6 +105,7 @@ class Report:
     slot: int
     epoch: int
     beacon_block_hash: bytes
+    beacon_state_hash: bytes
     total_balance: int
     lido_cl_balance: int
     total_validators: int
@@ -101,7 +114,7 @@ class Report:
     lido_withdrawal_credentials: bytes
 
     @classmethod
-    def from_beacon_state(cls, epoch: int, beacon_state: BeaconState) -> "Report":
+    def create(cls, epoch: int, beacon_state: BeaconState, beacon_block_header: BeaconBlockHeader) -> "Report":
         total_balance, lido_cl_balance, validators, exited_validators = 0, 0, 0, 0
 
         beacon_state_slot = beacon_state.slot // constants.SLOTS_PER_EPOCH
@@ -114,12 +127,14 @@ class Report:
                 if validator.exit_epoch <= beacon_state_slot:
                     exited_validators += 1
 
-        beacon_block_hash = HexBytes(ssz.get_hash_tree_root(beacon_state))
+        beacon_state_hash = HexBytes(ssz.get_hash_tree_root(beacon_state))
+        beacon_block_hash = HexBytes(ssz.get_hash_tree_root(beacon_block_header))
 
         return cls(
             beacon_state.slot,
             epoch,
             beacon_block_hash,
+            beacon_state_hash,
             total_balance,
             lido_cl_balance,
             len(beacon_state.validators),
@@ -184,54 +199,69 @@ def main(
     beacon_state = create_beacon_state(
         slot, epoch, validators, lido_validators, balance_gen
     )
-
-    file.parent.mkdir(parents=True, exist_ok=True)
-    manifesto_file = file.with_name(f"{file.stem}_manifesto.json")
-
-
     beacon_state_hash = ssz.get_hash_tree_root(beacon_state)
     balances_hash = ssz.get_hash_tree_root(beacon_state.balances)
-    report = Report.from_beacon_state(epoch, beacon_state)
+
+    beacon_block_header = create_beacon_block_header(slot, beacon_state_hash)
+    report = Report.create(epoch, beacon_state, beacon_block_header)
+    
     print(f"Beacon State hash: {report.beacon_block_hash.hex()}")
     print(f"Balances hash: {balances_hash.hex()}")
     print(f"Expected report: {report}")
 
     manifesto = {
         "report": report.to_dict(),
-        "beacon_block_hash": report.beacon_block_hash.hex(),
-        "parts": {
-            "genesis_time": ssz.get_hash_tree_root(beacon_state.genesis_time, ssz.sedes.uint.uint64),
-            "genesis_validators_root": ssz.get_hash_tree_root(beacon_state.genesis_validators_root, ssz.sedes.byte_vector.bytes32),
-            "slot": ssz.get_hash_tree_root(beacon_state.slot, ssz.sedes.uint.uint64),
-            "fork": ssz.get_hash_tree_root(beacon_state.fork),
-            "latest_block_header": ssz.get_hash_tree_root(beacon_state.latest_block_header),
-            "block_roots": ssz.get_hash_tree_root(beacon_state.block_roots),
-            "state_roots": ssz.get_hash_tree_root(beacon_state.state_roots),
-            "historical_roots": ssz.get_hash_tree_root(beacon_state.historical_roots),
-            "eth1_data": ssz.get_hash_tree_root(beacon_state.eth1_data),
-            "eth1_data_votes": ssz.get_hash_tree_root(beacon_state.eth1_data_votes),
-            "eth1_deposit_index": ssz.get_hash_tree_root(beacon_state.eth1_deposit_index, ssz.sedes.uint.uint64),
-            "validators": ssz.get_hash_tree_root(beacon_state.validators),
-            "balances": ssz.get_hash_tree_root(beacon_state.balances),
-            "randao_mixes": ssz.get_hash_tree_root(beacon_state.randao_mixes),
-            "slashings": ssz.get_hash_tree_root(beacon_state.slashings),
-            "previous_epoch_participation": ssz.get_hash_tree_root(beacon_state.previous_epoch_participation),
-            "current_epoch_participation": ssz.get_hash_tree_root(beacon_state.current_epoch_participation),
-            "justification_bits": ssz.get_hash_tree_root(beacon_state.justification_bits, JustificationBits),
-            "previous_justified_checkpoint": ssz.get_hash_tree_root(beacon_state.previous_justified_checkpoint),
-            "current_justified_checkpoint": ssz.get_hash_tree_root(beacon_state.current_justified_checkpoint),
-            "finalized_checkpoint": ssz.get_hash_tree_root(beacon_state.finalized_checkpoint),
-            "inactivity_scores": ssz.get_hash_tree_root(beacon_state.inactivity_scores),
-            "current_sync_committee": ssz.get_hash_tree_root(beacon_state.current_sync_committee),
-            "next_sync_committee": ssz.get_hash_tree_root(beacon_state.next_sync_committee),
-            "latest_execution_payload_header": ssz.get_hash_tree_root(beacon_state.latest_execution_payload_header),
-            "next_withdrawal_index": ssz.get_hash_tree_root(beacon_state.next_withdrawal_index, ssz.sedes.uint.uint64),
-            "next_withdrawal_validator_index": ssz.get_hash_tree_root(beacon_state.next_withdrawal_validator_index, ssz.sedes.uint.uint64),
-            "historical_summaries": ssz.get_hash_tree_root(beacon_state.historical_summaries),
+        "beacon_block_header": {
+            "hash": report.beacon_block_hash.hex(),
+            "parts": {
+                "slot": ssz.get_hash_tree_root(beacon_block_header.slot, ssz.sedes.uint.uint64),
+                "proposer_index": ssz.get_hash_tree_root(beacon_block_header.proposer_index, ssz.sedes.uint.uint64),
+                "parent_root": ssz.get_hash_tree_root(beacon_block_header.parent_root, ssz.sedes.byte_vector.bytes32),
+                "state_root": ssz.get_hash_tree_root(beacon_block_header.state_root, ssz.sedes.byte_vector.bytes32),
+                "body_root": ssz.get_hash_tree_root(beacon_block_header.body_root, ssz.sedes.byte_vector.bytes32),
+            }
+        },
+        "beacon_state": {
+            "hash": report.beacon_state_hash.hex(),
+            "parts": {
+                "genesis_time": ssz.get_hash_tree_root(beacon_state.genesis_time, ssz.sedes.uint.uint64),
+                "genesis_validators_root": ssz.get_hash_tree_root(beacon_state.genesis_validators_root, ssz.sedes.byte_vector.bytes32),
+                "slot": ssz.get_hash_tree_root(beacon_state.slot, ssz.sedes.uint.uint64),
+                "fork": ssz.get_hash_tree_root(beacon_state.fork),
+                "latest_block_header": ssz.get_hash_tree_root(beacon_state.latest_block_header),
+                "block_roots": ssz.get_hash_tree_root(beacon_state.block_roots),
+                "state_roots": ssz.get_hash_tree_root(beacon_state.state_roots),
+                "historical_roots": ssz.get_hash_tree_root(beacon_state.historical_roots),
+                "eth1_data": ssz.get_hash_tree_root(beacon_state.eth1_data),
+                "eth1_data_votes": ssz.get_hash_tree_root(beacon_state.eth1_data_votes),
+                "eth1_deposit_index": ssz.get_hash_tree_root(beacon_state.eth1_deposit_index, ssz.sedes.uint.uint64),
+                "validators": ssz.get_hash_tree_root(beacon_state.validators),
+                "balances": ssz.get_hash_tree_root(beacon_state.balances),
+                "randao_mixes": ssz.get_hash_tree_root(beacon_state.randao_mixes),
+                "slashings": ssz.get_hash_tree_root(beacon_state.slashings),
+                "previous_epoch_participation": ssz.get_hash_tree_root(beacon_state.previous_epoch_participation),
+                "current_epoch_participation": ssz.get_hash_tree_root(beacon_state.current_epoch_participation),
+                "justification_bits": ssz.get_hash_tree_root(beacon_state.justification_bits, JustificationBits),
+                "previous_justified_checkpoint": ssz.get_hash_tree_root(beacon_state.previous_justified_checkpoint),
+                "current_justified_checkpoint": ssz.get_hash_tree_root(beacon_state.current_justified_checkpoint),
+                "finalized_checkpoint": ssz.get_hash_tree_root(beacon_state.finalized_checkpoint),
+                "inactivity_scores": ssz.get_hash_tree_root(beacon_state.inactivity_scores),
+                "current_sync_committee": ssz.get_hash_tree_root(beacon_state.current_sync_committee),
+                "next_sync_committee": ssz.get_hash_tree_root(beacon_state.next_sync_committee),
+                "latest_execution_payload_header": ssz.get_hash_tree_root(beacon_state.latest_execution_payload_header),
+                "next_withdrawal_index": ssz.get_hash_tree_root(beacon_state.next_withdrawal_index, ssz.sedes.uint.uint64),
+                "next_withdrawal_validator_index": ssz.get_hash_tree_root(beacon_state.next_withdrawal_validator_index, ssz.sedes.uint.uint64),
+                "historical_summaries": ssz.get_hash_tree_root(beacon_state.historical_summaries),
+            }
         }
     }
 
+    file.parent.mkdir(parents=True, exist_ok=True)
     file.write_bytes(ssz.encode(beacon_state))
+    beacon_header_file = file.with_stem(f"{file.stem}_header")
+    beacon_header_file.write_bytes(ssz.encode(beacon_block_header))
+
+    manifesto_file = file.with_name(f"{file.stem}_manifesto.json")
     with open(manifesto_file, "w") as manifesto_fp:
         json.dump(manifesto, manifesto_fp, cls=BytesHexEncoder, indent=2)
 

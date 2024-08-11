@@ -5,8 +5,8 @@ use serde_json::Value;
 use ssz_types::typenum::Unsigned;
 use std::path::PathBuf;
 
-mod synthetic_beacon_state_reader;
-use crate::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateReader};
+mod util;
+use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateReader};
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{Hash256, SlotsPerEpoch};
 use sp1_lido_accounting_zk_shared::report::ReportData;
