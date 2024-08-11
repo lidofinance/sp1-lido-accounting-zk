@@ -35,7 +35,7 @@ fn verify_report(report: &ReportData, manifesto: &Value) {
         manifesto["report"]["lido_exited_validators"].as_u64().unwrap()
     );
     assert_eq!(
-        report.cl_balance,
+        report.lido_cl_valance,
         manifesto["report"]["lido_cl_balance"].as_u64().unwrap()
     );
 }
@@ -86,13 +86,13 @@ async fn main() {
     verify_report(&report, &manifesto);
     log::info!(
         "Report   : {:>16} balance, {:>8} all validators, {:>8} exited validators",
-        report.cl_balance,
+        report.lido_cl_balance,
         report.all_lido_validators,
         report.exited_lido_validators
     );
     log::info!(
         "Manifesto: {:>16} balance, {:>8} all validators, {:>8} exited validators",
-        report.cl_balance,
+        report.lido_cl_balance,
         report.all_lido_validators,
         report.exited_lido_validators
     );

@@ -21,10 +21,13 @@ use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::{
     beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader},
-    eth_consensus_layer::{BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes},
-    program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity, ValsAndBals},
+    eth_consensus_layer::{Balances, BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Hash256},
+    eth_spec,
+    program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity, ReportSolidity, ValsAndBals},
+    report::ReportData,
 };
 
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::Unsigned;
 use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
 
 use anyhow::Result;
@@ -243,9 +246,22 @@ async fn main() {
             validators: bs.validators,
         },
     };
+
+    let epoch = bs.slot.checked_div(eth_spec::SlotsPerEpoch::to_u64()).unwrap();
+    let lido_withdrawal_creds: Hash256 = sp1_lido_accounting_zk_shared::consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
+
+    let expected_report = ReportData::compute(
+        bs.slot,
+        epoch,
+        &program_input.validators_and_balances.validators,
+        &program_input.validators_and_balances.balances,
+        &lido_withdrawal_creds,
+    );
+
     let expected_public_values = PublicValuesRust {
         slot: bs.slot,
         beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
+        report: expected_report,
     };
 
     if args.evm {
@@ -261,6 +277,7 @@ async fn main() {
 struct ProofFixture {
     slot: u64,
     beacon_block_hash: String,
+    report: ReportData,
     vkey: String,
     public_values: String,
     proof: String,
@@ -270,12 +287,13 @@ struct ProofFixture {
 fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) {
     // Deserialize the public values.
     let bytes = proof.public_values.as_slice();
-    let (slot, beacon_block_hash) = PublicValuesSolidity::abi_decode(bytes, false).unwrap();
+    let public_values: PublicValuesSolidity = PublicValuesSolidity::abi_decode(bytes, false).unwrap();
 
     // Create the testing fixture so we can test things end-ot-end.
     let fixture = ProofFixture {
-        slot: slot,
-        beacon_block_hash: beacon_block_hash.to_string(),
+        slot: public_values.slot,
+        beacon_block_hash: public_values.beacon_block_hash.to_string(),
+        report: public_values.report.into(),
         vkey: vk.bytes32().to_string(),
         public_values: format!("0x{}", hex::encode(bytes)),
         proof: format!("0x{}", hex::encode(proof.bytes())),

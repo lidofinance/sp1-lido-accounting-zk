@@ -1,12 +1,14 @@
 use crate::eth_consensus_layer::{Balances, Hash256, Validators};
+use serde::{Deserialize, Serialize};
 
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct ReportData {
     pub slot: u64,
     pub epoch: u64,
     pub lido_withdrawal_credentials: Hash256,
     pub all_lido_validators: u64,
     pub exited_lido_validators: u64,
-    pub cl_balance: u64,
+    pub lido_cl_valance: u64,
 }
 
 impl ReportData {
@@ -41,7 +43,7 @@ impl ReportData {
             lido_withdrawal_credentials: creds,
             all_lido_validators: active,
             exited_lido_validators: exited,
-            cl_balance: cl_balance,
+            lido_cl_valance: cl_balance,
         }
     }
 }

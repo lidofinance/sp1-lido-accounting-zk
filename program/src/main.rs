@@ -9,13 +9,22 @@
 sp1_zkvm::entrypoint!(main);
 
 use alloy_sol_types::SolType;
-use ethereum_hashing::{hash32_concat, ZERO_HASHES};
 use hex;
 use sp1_derive;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{Hash256, Validator};
-use tree_hash::{MerkleHasher, TreeHash};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_shared::eth_spec::Unsigned;
+use sp1_lido_accounting_zk_shared::report::ReportData;
+use sp1_lido_accounting_zk_shared::{consts, eth_spec};
+use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity, ValsAndBals};
+#[cfg(target_arch = "riscv32")]
+use ethereum_hashing::{hash32_concat, ZERO_HASHES};
+#[cfg(target_arch = "riscv32")]
+use tree_hash::MerkleHasher;
+
+use sp1_lido_accounting_zk_shared::program_io::{
+    ProgramInput, PublicValuesRust, PublicValuesSolidity, ReportSolidity, ValsAndBals,
+};
 use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
 
 trait ValidatorsAndBalancesHash {
@@ -106,8 +115,28 @@ fn read_input() -> ProgramInput {
 }
 
 #[sp1_derive::cycle_tracker]
+fn h256_to_alloy_type(value: Hash256) -> alloy_primitives::FixedBytes<32> {
+    let bytes: [u8; 32] = value.into();
+    bytes.into()
+}
+
+#[sp1_derive::cycle_tracker]
 fn commit_public_values(public_values: PublicValuesRust) {
-    let bytes = PublicValuesSolidity::abi_encode(&(public_values.slot, public_values.beacon_block_hash));
+    let report_solidity = ReportSolidity {
+        slot: public_values.report.slot,
+        epoch: public_values.report.epoch,
+        lido_withdrawal_credentials: h256_to_alloy_type(public_values.report.lido_withdrawal_credentials),
+        all_lido_validators: public_values.report.all_lido_validators,
+        exited_lido_validators: public_values.report.exited_lido_validators,
+        lido_cl_valance: public_values.report.lido_cl_valance,
+    };
+    // public_values.report
+    let public_values_solidity: PublicValuesSolidity = PublicValuesSolidity {
+        slot: public_values.slot,
+        beacon_block_hash: public_values.beacon_block_hash.into(),
+        report: report_solidity,
+    };
+    let bytes = PublicValuesSolidity::abi_encode(&public_values_solidity);
 
     // Commit to the public values of the program.
     sp1_zkvm::io::commit_slice(&bytes);
@@ -185,6 +214,19 @@ fn prove_data_correctness(input: &ProgramInput) {
 }
 
 #[sp1_derive::cycle_tracker]
+fn compute_report(input: &ProgramInput) -> ReportData {
+    let epoch = input.slot.checked_div(eth_spec::SlotsPerEpoch::to_u64()).unwrap();
+
+    ReportData::compute(
+        input.slot,
+        epoch,
+        &input.validators_and_balances.validators,
+        &input.validators_and_balances.balances,
+        &consts::LIDO_WITHDRAWAL_CREDENTIALS.into(),
+    )
+}
+
+#[sp1_derive::cycle_tracker]
 fn verify_inputs(input: &ProgramInput) {
     prove_data_correctness(input);
 }
@@ -198,12 +240,16 @@ pub fn main() {
     verify_inputs(&input);
     println!("cycle-tracker-start: main.verify_inputs");
 
+    println!("cycle-tracker-start: main.compute_report");
+    let report = compute_report(&input);
+    println!("cycle-tracker-end: main.compute_report");
+
     println!("cycle-tracker-start: main.commit_public_values");
     let public_values = PublicValuesRust {
         slot: input.slot,
         beacon_block_hash: input.beacon_block_hash,
+        report,
     };
-
     commit_public_values(public_values);
     println!("cycle-tracker-end: main.commit_public_values");
 }
