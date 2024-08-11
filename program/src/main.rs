@@ -22,9 +22,8 @@ use ethereum_hashing::{hash32_concat, ZERO_HASHES};
 #[cfg(target_arch = "riscv32")]
 use tree_hash::MerkleHasher;
 
-use sp1_lido_accounting_zk_shared::program_io::{
-    ProgramInput, PublicValuesRust, PublicValuesSolidity, ReportSolidity, ValsAndBals,
-};
+use sp1_lido_accounting_zk_shared::io::eth_io::{PublicValuesSolidity, ReportMetadataSolidity, ReportSolidity};
+use sp1_lido_accounting_zk_shared::io::program_io::{ProgramInput, ValsAndBals};
 use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
 
 trait ValidatorsAndBalancesHash {
@@ -121,21 +120,22 @@ fn h256_to_alloy_type(value: Hash256) -> alloy_primitives::FixedBytes<32> {
 }
 
 #[sp1_derive::cycle_tracker]
-fn commit_public_values(public_values: PublicValuesRust) {
-    let report_solidity = ReportSolidity {
-        slot: public_values.report.slot,
-        epoch: public_values.report.epoch,
-        lido_withdrawal_credentials: h256_to_alloy_type(public_values.report.lido_withdrawal_credentials),
-        all_lido_validators: public_values.report.all_lido_validators,
-        exited_lido_validators: public_values.report.exited_lido_validators,
-        lido_cl_valance: public_values.report.lido_cl_valance,
-    };
-    // public_values.report
+fn commit_public_values(report: &ReportData, beacon_block_hash: &[u8; 32]) {
     let public_values_solidity: PublicValuesSolidity = PublicValuesSolidity {
-        slot: public_values.slot,
-        beacon_block_hash: public_values.beacon_block_hash.into(),
-        report: report_solidity,
+        report: ReportSolidity {
+            slot: report.slot,
+            all_lido_validators: report.all_lido_validators,
+            exited_lido_validators: report.exited_lido_validators,
+            lido_cl_valance: report.lido_cl_valance,
+        },
+        metadata: ReportMetadataSolidity {
+            slot: report.slot,
+            epoch: report.epoch,
+            lido_withdrawal_credentials: h256_to_alloy_type(report.lido_withdrawal_credentials),
+            beacon_block_hash: beacon_block_hash.into(),
+        },
     };
+
     let bytes = PublicValuesSolidity::abi_encode(&public_values_solidity);
 
     // Commit to the public values of the program.
@@ -245,11 +245,6 @@ pub fn main() {
     println!("cycle-tracker-end: main.compute_report");
 
     println!("cycle-tracker-start: main.commit_public_values");
-    let public_values = PublicValuesRust {
-        slot: input.slot,
-        beacon_block_hash: input.beacon_block_hash,
-        report,
-    };
-    commit_public_values(public_values);
+    commit_public_values(&report, &input.beacon_block_hash);
     println!("cycle-tracker-end: main.commit_public_values");
 }

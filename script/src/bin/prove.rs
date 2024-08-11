@@ -21,9 +21,12 @@ use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::{
     beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader},
-    eth_consensus_layer::{Balances, BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Hash256},
+    eth_consensus_layer::{BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Hash256},
     eth_spec,
-    program_io::{ProgramInput, PublicValuesRust, PublicValuesSolidity, ReportSolidity, ValsAndBals},
+    io::{
+        eth_io::{PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust},
+        program_io::{ProgramInput, ValsAndBals},
+    },
     report::ReportData,
 };
 
@@ -177,19 +180,26 @@ fn run_script(
 }
 
 fn verify_public_values(public_values: &SP1PublicValues, expected_public_values: &PublicValuesRust) {
-    let public_values_parsed: PublicValuesRust = public_values
-        .as_slice()
-        .try_into()
-        .expect("Failed to parse public values");
+    let public_values_solidity: PublicValuesSolidity =
+        PublicValuesSolidity::abi_decode(public_values.as_slice(), true).expect("Failed to parse public values");
+    let public_values_rust: PublicValuesRust = public_values_solidity.into();
 
-    assert!(public_values_parsed == *expected_public_values);
+    assert!(public_values_rust == *expected_public_values);
     log::debug!(
         "Expected hash: {}",
-        hex::encode(expected_public_values.beacon_block_hash)
+        hex::encode(public_values_rust.metadata.beacon_block_hash)
     );
-    log::debug!("Computed hash: {}", hex::encode(public_values_parsed.beacon_block_hash));
+    log::debug!(
+        "Computed hash: {}",
+        hex::encode(public_values_rust.metadata.beacon_block_hash)
+    );
 
     log::info!("Public values match!");
+}
+
+fn h256_to_alloy_type(value: Hash256) -> alloy_primitives::FixedBytes<32> {
+    let bytes: [u8; 32] = value.into();
+    bytes.into()
 }
 
 #[tokio::main]
@@ -258,10 +268,19 @@ async fn main() {
         &lido_withdrawal_creds,
     );
 
-    let expected_public_values = PublicValuesRust {
-        slot: bs.slot,
-        beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
-        report: expected_report,
+    let expected_public_values: PublicValuesRust = PublicValuesRust {
+        report: ReportRust {
+            slot: expected_report.slot,
+            all_lido_validators: expected_report.all_lido_validators,
+            exited_lido_validators: expected_report.exited_lido_validators,
+            lido_cl_valance: expected_report.lido_cl_valance,
+        },
+        metadata: ReportMetadataRust {
+            slot: expected_report.slot,
+            epoch: expected_report.epoch,
+            lido_withdrawal_credentials: expected_report.lido_withdrawal_credentials.into(),
+            beacon_block_hash: beacon_block_hash.into(),
+        },
     };
 
     if args.evm {
@@ -275,10 +294,9 @@ async fn main() {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProofFixture {
-    slot: u64,
-    beacon_block_hash: String,
-    report: ReportData,
     vkey: String,
+    report: ReportRust,
+    metadata: ReportMetadataRust,
     public_values: String,
     proof: String,
 }
@@ -291,10 +309,9 @@ fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) 
 
     // Create the testing fixture so we can test things end-ot-end.
     let fixture = ProofFixture {
-        slot: public_values.slot,
-        beacon_block_hash: public_values.beacon_block_hash.to_string(),
-        report: public_values.report.into(),
         vkey: vk.bytes32().to_string(),
+        report: public_values.report.into(),
+        metadata: public_values.metadata.into(),
         public_values: format!("0x{}", hex::encode(bytes)),
         proof: format!("0x{}", hex::encode(proof.bytes())),
     };
