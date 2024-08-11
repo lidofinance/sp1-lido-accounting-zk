@@ -49,11 +49,36 @@ sol! {
     }
 }
 
+mod serde_hex_as_string {
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<'a, S>(value: &'a [u8], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let res = format!("0x{}", hex::encode(value));
+        serializer.serialize_str(&res)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        let mut slice: [u8; 32] = [0; 32];
+        hex::decode_to_slice(s, &mut slice).map_err(Error::custom)?;
+        Ok(slice)
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct ReportMetadataRust {
     pub slot: u64,
     pub epoch: u64,
+    #[serde(with = "serde_hex_as_string")]
     pub lido_withdrawal_credentials: [u8; 32],
+    #[serde(with = "serde_hex_as_string")]
     pub beacon_block_hash: [u8; 32],
 }
 

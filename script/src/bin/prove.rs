@@ -197,11 +197,6 @@ fn verify_public_values(public_values: &SP1PublicValues, expected_public_values:
     log::info!("Public values match!");
 }
 
-fn h256_to_alloy_type(value: Hash256) -> alloy_primitives::FixedBytes<32> {
-    let bytes: [u8; 32] = value.into();
-    bytes.into()
-}
-
 #[tokio::main]
 async fn main() {
     dotenv().ok();
@@ -303,11 +298,9 @@ struct ProofFixture {
 
 /// Create a fixture for the given proof.
 fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) {
-    // Deserialize the public values.
     let bytes = proof.public_values.as_slice();
     let public_values: PublicValuesSolidity = PublicValuesSolidity::abi_decode(bytes, false).unwrap();
 
-    // Create the testing fixture so we can test things end-ot-end.
     let fixture = ProofFixture {
         vkey: vk.bytes32().to_string(),
         report: public_values.report.into(),
@@ -316,21 +309,9 @@ fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) 
         proof: format!("0x{}", hex::encode(proof.bytes())),
     };
 
-    // The verification key is used to verify that the proof corresponds to the execution of the
-    // program on the given input.
-    //
-    // Note that the verification key stays the same regardless of the input.
-    println!("Verification Key: {}", fixture.vkey);
-
-    // The public values are the values whicha are publically commited to by the zkVM.
-    //
-    // If you need to expose the inputs or outputs of your program, you should commit them in
-    // the public values.
-    println!("Public Values: {}", fixture.public_values);
-
-    // The proof proves to the verifier that the program was executed with some inputs that led to
-    // the give public values.
-    println!("Proof Bytes: {}", fixture.proof);
+    log::debug!("Verification Key: {}", fixture.vkey);
+    log::debug!("Public Values: {}", fixture.public_values);
+    log::debug!("Proof Bytes: {}", fixture.proof);
 
     // Save the fixture to a file.
     let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src/fixtures");
@@ -340,4 +321,5 @@ fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) 
         serde_json::to_string_pretty(&fixture).unwrap(),
     )
     .expect("failed to write fixture");
+    log::info!("Successfully written test fixture");
 }
