@@ -3,30 +3,30 @@ pragma solidity ^0.8.20;
 
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
 
+struct Report {
+    uint256 slot;
+    uint256 all_lido_validators;
+    uint256 exited_lido_validators;
+    uint256 lido_cl_valance;
+}
+struct ReportMetadata {
+    uint256 slot;
+    uint256 epoch;
+    bytes32 lido_withdrawal_credentials;
+    bytes32 beacon_block_hash;
+}
+
+struct PublicValues {
+    Report report;
+    ReportMetadata metadata;
+}
+
 abstract contract Sp1LidoAccountingReportContractBase {
-    struct Report {
-        uint64 slot;
-        uint64 all_lido_validators;
-        uint64 exited_lido_validators;
-        uint64 lido_cl_valance;
-    }
-    struct ReportMetadata {
-        uint64 slot;
-        uint64 epoch;
-        bytes32 lido_withdrawal_credentials;
-        bytes32 beacon_block_hash;
-    }
-
-    struct PublicValues {
-        Report report;
-        ReportMetadata metadata;
-    }
-
     event ReportAccepted(Report report);
     // This should later become an error
-    event ReportRejected(OracleReport report, string reason);
+    event ReportRejected(string reason);
 
-    mapping (uint64 => Report) private _reports;
+    mapping (uint256 => Report) private _reports;
     address public verifier;
     bytes32 public vkey;
 
@@ -36,7 +36,7 @@ abstract contract Sp1LidoAccountingReportContractBase {
     }
 
     function submitReportData(
-        uint64 slot,
+        uint256 slot,
         Report calldata report,
         ReportMetadata calldata metadata,
         bytes calldata proof,
@@ -49,14 +49,15 @@ abstract contract Sp1LidoAccountingReportContractBase {
     }
 
     function _verify(
-        uint64 slot,
+        uint256 slot,
         Report calldata report,
         ReportMetadata calldata metadata,
         bytes calldata proof,
         bytes calldata publicValues
-    ) public {
+    ) public view {
         // Check the report was not previously set
-        _require(_reports[slot] != 0, "Report was already accepted for a given slot");
+        Report storage report_at_slot = _reports[slot];
+        _require(report_at_slot.slot == 0, "Report was already accepted for a given slot");
 
         // Check the report is for the target slot
         _require(report.slot == slot, "Slot mismatch");
@@ -70,13 +71,13 @@ abstract contract Sp1LidoAccountingReportContractBase {
 
         // Check that correct withdrawal credentials were used
         _require(
-            metadata.lido_withdrawal_credentials == _getExpectedWithdrawalCredentials(slot),
+            metadata.lido_withdrawal_credentials == _getExpectedWithdrawalCredentials(),
             "Withdrawal credentials mismatch"
         );
 
         // Check that report and metadata match public values committed in the ZK-program
-        PublicValues public_values = abi.decode(publicValues,PublicValues);
-        _verify_public_values(report, medatada, publicValues);
+        PublicValues memory public_values = abi.decode(publicValues, (PublicValues));
+        _verify_public_values(report, metadata, public_values);
 
         // Verify ZK-program and public values
         ISP1Verifier(verifier).verifyProof(vkey, publicValues, proof);
@@ -84,9 +85,9 @@ abstract contract Sp1LidoAccountingReportContractBase {
 
 
     function _verify_public_values(
-        Report report,
-        ReportMetadata metadata,
-        PublicValues publicValues
+        Report memory report,
+        ReportMetadata memory metadata,
+        PublicValues memory publicValues
     ) internal pure {
         _require(
             report.slot == publicValues.report.slot, 
@@ -123,23 +124,21 @@ abstract contract Sp1LidoAccountingReportContractBase {
         );
     }
 
-    function getReport(uint64 slot) public view returns (Report memory result) {
+    function getReport(uint256 slot) public view returns (Report memory result) {
         return (_reports[slot]);
     }
 
-    function _updateReport(uint64 slot, Report memory report) internal {
+    function _updateReport(uint256 slot, Report memory report) internal {
         _reports[slot] = report;
-        emit ReportAccepted(slot, report);
+        emit ReportAccepted(report);
     }
 
-    function _require(bool condition, string memory reason) internal {
+    function _require(bool condition, string memory reason) internal pure {
         if (!condition) {
-            // this is largely for documentation purposes, events in rejected transactions are discarded
-            emit ReportRejected(reason);
             revert(reason);
         }
     }
 
-    function _getBeaconBlockHash(uint64 slot) internal virtual view returns (bytes32);
+    function _getBeaconBlockHash(uint256 slot) internal virtual view returns (bytes32);
     function _getExpectedWithdrawalCredentials() internal virtual view returns (bytes32);
 }
