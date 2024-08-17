@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 sol! {
     struct ReportSolidity {
         uint64 slot;
-        uint64 all_lido_validators;
+        uint64 deposited_lido_validators;
         uint64 exited_lido_validators;
         uint64 lido_cl_valance;
     }
@@ -13,7 +13,7 @@ sol! {
 #[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct ReportRust {
     pub slot: u64,
-    pub all_lido_validators: u64,
+    pub deposited_lido_validators: u64,
     pub exited_lido_validators: u64,
     pub lido_cl_valance: u64,
 }
@@ -22,7 +22,7 @@ impl From<ReportSolidity> for ReportRust {
     fn from(value: ReportSolidity) -> Self {
         Self {
             slot: value.slot,
-            all_lido_validators: value.all_lido_validators,
+            deposited_lido_validators: value.deposited_lido_validators,
             exited_lido_validators: value.exited_lido_validators,
             lido_cl_valance: value.lido_cl_valance,
         }
@@ -33,7 +33,7 @@ impl From<ReportRust> for ReportSolidity {
     fn from(value: ReportRust) -> Self {
         Self {
             slot: value.slot,
-            all_lido_validators: value.all_lido_validators,
+            deposited_lido_validators: value.deposited_lido_validators,
             exited_lido_validators: value.exited_lido_validators,
             lido_cl_valance: value.lido_cl_valance,
         }

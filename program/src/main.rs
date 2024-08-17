@@ -17,96 +17,10 @@ use sp1_lido_accounting_zk_shared::report::ReportData;
 use sp1_lido_accounting_zk_shared::{consts, eth_spec};
 use tree_hash::TreeHash;
 
-#[cfg(target_arch = "riscv32")]
-use ethereum_hashing::{hash32_concat, ZERO_HASHES};
-#[cfg(target_arch = "riscv32")]
-use tree_hash::MerkleHasher;
-
+use sp1_lido_accounting_zk_shared::hashing::{HashHelper, HashHelperImpl};
 use sp1_lido_accounting_zk_shared::io::eth_io::{PublicValuesSolidity, ReportMetadataSolidity, ReportSolidity};
-use sp1_lido_accounting_zk_shared::io::program_io::{ProgramInput, ValsAndBals};
+use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
 use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
-
-trait ValidatorsAndBalancesHash {
-    fn balances_hash(&self) -> Hash256;
-    fn validators_hash(&self) -> Hash256;
-}
-
-#[cfg(not(target_arch = "riscv32"))]
-impl ValidatorsAndBalancesHash for ValsAndBals {
-    fn balances_hash(&self) -> Hash256 {
-        self.balances.tree_hash_root()
-    }
-    fn validators_hash(&self) -> Hash256 {
-        self.validators.tree_hash_root()
-    }
-}
-
-#[cfg(target_arch = "riscv32")]
-struct HashHelper {}
-#[cfg(target_arch = "riscv32")]
-impl HashHelper {
-    const MAX_DEPTH: usize = 29;
-
-    fn pad_to_depth(hash: &Hash256, current_depth: usize, target_depth: usize) -> Hash256 {
-        let mut curhash: [u8; 32] = hash.to_fixed_bytes();
-        for depth in current_depth..target_depth {
-            curhash = hash32_concat(&curhash, ZERO_HASHES[depth].as_slice());
-        }
-        return curhash.into();
-    }
-}
-
-#[cfg(target_arch = "riscv32")]
-impl ValidatorsAndBalancesHash for ValsAndBals {
-    fn balances_hash(&self) -> Hash256 {
-        assert!((self.balances.len() as u64) < (u32::MAX as u64));
-
-        let main_tree_depth: usize = HashHelper::MAX_DEPTH;
-        let main_tree_elems: usize = (2_usize).pow(main_tree_depth as u32);
-
-        // trailing zeroes is essentially a log2
-        let packing_factor = (u64::tree_hash_packing_factor()).trailing_zeros() as usize;
-        let target_tree_depth = 40 - packing_factor;
-
-        let mut hasher = MerkleHasher::with_leaves(main_tree_elems);
-
-        // for item in &self.balances {
-        for item in &self.balances {
-            hasher
-                .write(&item.tree_hash_packed_encoding())
-                .expect("Failed to write item into hasher");
-        }
-
-        let actual_elements_root = hasher.finish().expect("Failed to finalize the hasher");
-        let expanded_tree_root = HashHelper::pad_to_depth(&actual_elements_root, main_tree_depth, target_tree_depth);
-
-        tree_hash::mix_in_length(&expanded_tree_root, self.balances.len())
-    }
-
-    fn validators_hash(&self) -> Hash256 {
-        assert!((self.validators.len() as u64) < (u32::MAX as u64));
-
-        let main_tree_depth: usize = HashHelper::MAX_DEPTH;
-        let main_tree_elems: usize = (2_usize).pow(main_tree_depth as u32);
-
-        // trailing zeroes is essentially a log2
-        let target_tree_depth = 40;
-
-        let mut hasher = MerkleHasher::with_leaves(main_tree_elems);
-
-        // for item in &self.balances {
-        for item in &self.validators {
-            hasher
-                .write(item.tree_hash_root().as_fixed_bytes())
-                .expect("Failed to write item into hasher");
-        }
-
-        let actual_elements_root = hasher.finish().expect("Failed to finalize the hasher");
-        let expanded_tree_root = HashHelper::pad_to_depth(&actual_elements_root, main_tree_depth, target_tree_depth);
-
-        tree_hash::mix_in_length(&expanded_tree_root, self.validators.len())
-    }
-}
 
 #[sp1_derive::cycle_tracker]
 fn read_input() -> ProgramInput {
@@ -124,7 +38,7 @@ fn commit_public_values(report: &ReportData, beacon_block_hash: &[u8; 32]) {
     let public_values_solidity: PublicValuesSolidity = PublicValuesSolidity {
         report: ReportSolidity {
             slot: report.slot,
-            all_lido_validators: report.all_lido_validators,
+            deposited_lido_validators: report.deposited_lido_validators,
             exited_lido_validators: report.exited_lido_validators,
             lido_cl_valance: report.lido_cl_valance,
         },
@@ -192,7 +106,7 @@ fn prove_data_correctness(input: &ProgramInput) {
 
     // Step 2: confirm passed validators and balances hashes match the ones in BeaconState
     println!("cycle-tracker-start: prove_data_correctness.vals_and_bals.validators_root");
-    let validators_hash = input.validators_and_balances.validators_hash();
+    let validators_hash = HashHelperImpl::hash_list(&input.validators_and_balances.validators);
     assert!(
         validators_hash == beacon_state.validators,
         "Validators hash mismatch, got {}, expected {}",
@@ -202,7 +116,7 @@ fn prove_data_correctness(input: &ProgramInput) {
     println!("cycle-tracker-end: prove_data_correctness.vals_and_bals.validators_root");
 
     println!("cycle-tracker-start: prove_data_correctness.vals_and_bals.balances_root");
-    let balances_hash = input.validators_and_balances.balances_hash();
+    let balances_hash = HashHelperImpl::hash_list(&input.validators_and_balances.balances);
     assert!(
         balances_hash == beacon_state.balances,
         "Balances hash mismatch, got {}, expected {}",

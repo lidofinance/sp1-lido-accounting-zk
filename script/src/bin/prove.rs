@@ -266,7 +266,7 @@ async fn main() {
     let expected_public_values: PublicValuesRust = PublicValuesRust {
         report: ReportRust {
             slot: expected_report.slot,
-            all_lido_validators: expected_report.all_lido_validators,
+            deposited_lido_validators: expected_report.deposited_lido_validators,
             exited_lido_validators: expected_report.exited_lido_validators,
             lido_cl_valance: expected_report.lido_cl_valance,
         },

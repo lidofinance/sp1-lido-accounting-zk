@@ -20,7 +20,7 @@ impl ReportData {
         lido_withdrawal_credentials: &Hash256,
     ) -> Self {
         let mut cl_balance: u64 = 0;
-        let mut active: u64 = 0;
+        let mut deposited: u64 = 0;
         let mut exited: u64 = 0;
 
         // make a clone to disentangle report lifetime from withdrawal credential lifetime
@@ -33,7 +33,7 @@ impl ReportData {
 
             cl_balance += *balance;
             if validator.activation_eligibility_epoch >= epoch {
-                active += 1;
+                deposited += 1;
             }
             if validator.exit_epoch <= epoch {
                 exited += 1
@@ -43,7 +43,7 @@ impl ReportData {
             slot,
             epoch,
             lido_withdrawal_credentials: creds,
-            deposited_lido_validators: active,
+            deposited_lido_validators: deposited,
             exited_lido_validators: exited,
             lido_cl_valance: cl_balance,
         }

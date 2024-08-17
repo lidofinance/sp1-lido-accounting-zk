@@ -17,11 +17,15 @@ pub type ParticipationFlags = u8;
 
 use crate::eth_spec;
 
-type Slot = u64;
-type Epoch = u64;
+pub type Slot = u64;
+pub type Epoch = u64;
 
 // Re-export
 pub type SlotsPerEpoch = eth_spec::SlotsPerEpoch;
+
+pub fn epoch(slot: Slot) -> Option<Epoch> {
+    slot.checked_div(eth_spec::SlotsPerEpoch::to_u64())
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct Fork {

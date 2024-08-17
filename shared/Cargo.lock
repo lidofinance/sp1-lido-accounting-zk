@@ -1523,6 +1523,7 @@ dependencies = [
  "alloy-sol-types",
  "anyhow",
  "ethereum-types",
+ "ethereum_hashing",
  "ethereum_serde_utils",
  "ethereum_ssz",
  "ethereum_ssz_derive",
