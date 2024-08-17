@@ -6,7 +6,7 @@ pub struct ReportData {
     pub slot: u64,
     pub epoch: u64,
     pub lido_withdrawal_credentials: Hash256,
-    pub all_lido_validators: u64,
+    pub deposited_lido_validators: u64,
     pub exited_lido_validators: u64,
     pub lido_cl_valance: u64,
 }
@@ -32,7 +32,9 @@ impl ReportData {
             }
 
             cl_balance += *balance;
-            active += 1;
+            if validator.activation_eligibility_epoch >= epoch {
+                active += 1;
+            }
             if validator.exit_epoch <= epoch {
                 exited += 1
             }
@@ -41,7 +43,7 @@ impl ReportData {
             slot,
             epoch,
             lido_withdrawal_credentials: creds,
-            all_lido_validators: active,
+            deposited_lido_validators: active,
             exited_lido_validators: exited,
             lido_cl_valance: cl_balance,
         }
