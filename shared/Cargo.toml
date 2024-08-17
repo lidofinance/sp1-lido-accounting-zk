@@ -16,6 +16,14 @@ path = "examples/ssz_e2e_test.rs"
 name = "report_e2e_test"
 path = "examples/report.rs"
 
+[[example]]
+name = "lido_state_e2e_test"
+path = "examples/lido_state.rs"
+
+[[example]]
+name = "gen_pair"
+path = "examples/gen_synthetic_bs_pair.rs"
+
 [dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }

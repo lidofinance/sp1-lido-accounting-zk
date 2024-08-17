@@ -25,16 +25,17 @@ impl BalanceGenerationMode {
     }
 }
 
-pub struct SyntheticBeaconStateReader {
+pub struct SyntheticBeaconStateCreator {
     ssz_store_location: PathBuf,
     total_validator_number: u64,
     lido_validator_number: u64,
     balances_generation_mode: BalanceGenerationMode,
     with_check: bool,
     suppress_generator_output: bool,
+    shuffle: bool,
 }
 
-impl SyntheticBeaconStateReader {
+impl SyntheticBeaconStateCreator {
     // TODO: derive?
     pub fn new(
         ssz_store_location: PathBuf,
@@ -43,6 +44,7 @@ impl SyntheticBeaconStateReader {
         balances_generation_mode: BalanceGenerationMode,
         with_check: bool,
         suppress_generator_output: bool,
+        shuffle: bool,
     ) -> Self {
         Self {
             ssz_store_location,
@@ -51,6 +53,7 @@ impl SyntheticBeaconStateReader {
             balances_generation_mode,
             with_check,
             suppress_generator_output,
+            shuffle,
         }
     }
 
@@ -91,7 +94,7 @@ impl SyntheticBeaconStateReader {
             .expect("Failed to canonicalize manifesto path")
     }
 
-    async fn generate_beacon_state(&self, file_path: &Path, slot: u64) {
+    async fn generate_beacon_state(&self, file_path: &Path, slot: u64, base: Option<&Path>) {
         log::info!("Generating synthetic beacon state to file {:?}", file_path);
         let python = self.get_python();
         let script = self.get_script();
@@ -105,6 +108,12 @@ impl SyntheticBeaconStateReader {
             .args(["-s", &slot.to_string()]);
         if self.with_check {
             command.arg("--check");
+        }
+        if self.shuffle {
+            command.arg("--shuffle");
+        }
+        if let Some(path) = base {
+            command.args(["--start_from", path.as_os_str().to_str().unwrap()]);
         }
         if self.suppress_generator_output {
             command.stdout(Stdio::null());
@@ -131,26 +140,44 @@ impl SyntheticBeaconStateReader {
 
     pub fn evict_cache(&self, slot: u64) -> io::Result<()> {
         let file_reader = self.create_file_reader(slot);
-        fs::remove_file(file_reader.beacon_state_path())?;
-        fs::remove_file(file_reader.beacon_block_header_path())?;
+        if file_reader.beacon_state_exists() {
+            log::debug!("Evicting beacon state file");
+            fs::remove_file(file_reader.beacon_state_path())?;
+        }
+        if file_reader.beacon_state_exists() {
+            log::debug!("Evicting beacon block state file");
+            fs::remove_file(file_reader.beacon_block_header_path())?;
+        }
         Ok(())
     }
-}
 
-impl BeaconStateReader for SyntheticBeaconStateReader {
-    async fn read_beacon_state(&self, slot: u64) -> Result<BeaconState> {
-        let file_reader = self.create_file_reader(slot);
-        if !file_reader.beacon_state_exists() {
-            self.generate_beacon_state(file_reader.beacon_state_path(), slot).await;
+    pub async fn create_beacon_state(&self, slot: u64, overwrite: bool) -> Result<()> {
+        if overwrite {
+            self.evict_cache(slot)?
         }
-        file_reader.read_beacon_state(slot).await
+        let file_reader = self.create_file_reader(slot);
+        self.generate_beacon_state(file_reader.beacon_state_path(), slot, None)
+            .await;
+        Ok(())
     }
 
-    async fn read_beacon_block_header(&self, slot: u64) -> Result<BeaconBlockHeader> {
-        let file_reader = self.create_file_reader(slot);
-        if !file_reader.beacon_block_header_exists() {
-            self.generate_beacon_state(file_reader.beacon_state_path(), slot).await;
+    pub async fn create_beacon_state_from_base(&self, slot: u64, old_slot: u64, overwrite: bool) -> Result<()> {
+        if overwrite {
+            self.evict_cache(slot)?
         }
-        file_reader.read_beacon_block_header(slot).await
+        let file_reader = self.create_file_reader(slot);
+        let file_reader_for_old = self.create_file_reader(old_slot);
+
+        self.generate_beacon_state(
+            file_reader.beacon_state_path(),
+            slot,
+            Some(file_reader_for_old.beacon_state_path()),
+        )
+        .await;
+        Ok(())
+    }
+
+    pub fn get_file_reader(&self, slot: u64) -> FileBasedBeaconStateReader {
+        return FileBasedBeaconStateReader::for_slot(&self.ssz_store_location, slot);
     }
 }

@@ -7,7 +7,7 @@ use tree_hash::TreeHash;
 
 mod util;
 
-use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateReader};
+use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateCreator};
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
@@ -193,18 +193,29 @@ async fn main() {
     // For now using a "synthetic" generator based on reference implementation (py-ssz)
     let total_validators_log2 = 12;
     let lido_validators_log2 = total_validators_log2 / 2;
-    let reader = SyntheticBeaconStateReader::new(
+    let creator = SyntheticBeaconStateCreator::new(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp"),
         2_u64.pow(total_validators_log2),
         2_u64.pow(lido_validators_log2),
         BalanceGenerationMode::SEQUENTIAL,
         true,
         true,
+        false,
     );
 
     let slot = 1000000;
+
+    creator.evict_cache(slot).expect("Failed to evict cached data");
+    creator
+        .create_beacon_state(slot, false)
+        .await
+        .expect("Failed to create beacon state");
+
+    let reader = creator.get_file_reader(slot);
+
     reader
-        .evict_cache(slot)
+        .read_beacon_state(slot)
+        .await
         .expect(&format!("Failed to evict cache for slot {}", slot));
 
     let beacon_state = reader
@@ -226,7 +237,7 @@ async fn main() {
     let bh_merkle: Hash256 = beacon_block_header.tree_hash_root();
 
     // Step 2.1: compare against expected ones
-    let manifesto = reader
+    let manifesto = creator
         .read_manifesto(slot)
         .await
         .expect("Failed to read manifesto json");

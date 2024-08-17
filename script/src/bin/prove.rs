@@ -21,8 +21,7 @@ use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::{
     beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader},
-    eth_consensus_layer::{BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Hash256},
-    eth_spec,
+    eth_consensus_layer::{epoch, Balances, BeaconBlockHeader, BeaconState, Hash256, Slot, Validators},
     io::{
         eth_io::{PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust},
         program_io::{ProgramInput, ValsAndBals},
@@ -30,7 +29,6 @@ use sp1_lido_accounting_zk_shared::{
     report::ReportData,
 };
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Unsigned;
 use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
 
 use anyhow::Result;
@@ -54,7 +52,9 @@ struct ProveArgs {
     #[clap(long)]
     path: PathBuf,
     #[clap(long)]
-    slot: u64,
+    current_slot: u64,
+    #[clap(long)]
+    previous_slot: u64,
 }
 
 trait ScriptSteps {
@@ -197,6 +197,68 @@ fn verify_public_values(public_values: &SP1PublicValues, expected_public_values:
     log::info!("Public values match!");
 }
 
+fn compute_report_and_public_values(
+    slot: Slot,
+    validators: &Validators,
+    balances: &Balances,
+    beacon_block_hash: &Hash256,
+) -> (ReportData, PublicValuesRust) {
+    let lido_withdrawal_credentials: Hash256 =
+        sp1_lido_accounting_zk_shared::consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
+    let report = ReportData::compute(
+        slot,
+        epoch(slot).unwrap(),
+        &validators,
+        &balances,
+        &lido_withdrawal_credentials,
+    );
+
+    let public_values: PublicValuesRust = PublicValuesRust {
+        report: ReportRust {
+            slot: report.slot,
+            deposited_lido_validators: report.deposited_lido_validators,
+            exited_lido_validators: report.exited_lido_validators,
+            lido_cl_valance: report.lido_cl_balance,
+        },
+        metadata: ReportMetadataRust {
+            slot: report.slot,
+            epoch: report.epoch,
+            lido_withdrawal_credentials: lido_withdrawal_credentials.into(),
+            beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
+        },
+    };
+
+    return (report, public_values);
+}
+
+async fn read_beacon_states(args: &ProveArgs) -> (BeaconState, BeaconBlockHeader, BeaconState) {
+    let current_slot = args.current_slot;
+    let previous_slot = args.previous_slot;
+
+    let file_path = fs::canonicalize(args.path.clone()).expect("Couldn't canonicalize path");
+    let bs_reader = FileBasedBeaconStateReader::for_slot(&file_path, current_slot);
+    let previous_bs_reader = FileBasedBeaconStateReader::for_slot(&file_path, previous_slot);
+    let bs = bs_reader
+        .read_beacon_state(current_slot) // File reader ignores slot; TODO: refactor readers
+        .await
+        .expect("Failed to read beacon state");
+    let bh = bs_reader
+        .read_beacon_block_header(current_slot) // File reader ignores slot; TODO: refactor readers
+        .await
+        .expect("Failed to read beacon block header");
+
+    let old_bs = previous_bs_reader
+        .read_beacon_state(previous_slot) // File reader ignores slot; TODO: refactor readers
+        .await
+        .expect("Failed to read previous beacon state");
+
+    assert_eq!(bs.slot, current_slot);
+    assert_eq!(bh.slot, current_slot);
+    assert_eq!(old_bs.slot, previous_slot);
+
+    return (bs, bh, old_bs);
+}
+
 #[tokio::main]
 async fn main() {
     dotenv().ok();
@@ -208,43 +270,29 @@ async fn main() {
 
     println!("evm: {}", args.evm);
 
-    let file_path = fs::canonicalize(args.path).expect("Couldn't canonicalize path");
-    let bs_reader = FileBasedBeaconStateReader::for_slot(&file_path, args.slot);
-    let bs = bs_reader
-        .read_beacon_state(args.slot) // File reader ignores slot; TODO: refactor readers
-        .await
-        .expect("Failed to read beacon state");
-    let bh = bs_reader
-        .read_beacon_block_header(args.slot) // File reader ignores slot; TODO: refactor readers
-        .await
-        .expect("Failed to read beacon block header");
-
-    assert_eq!(bs.slot, args.slot);
-    assert_eq!(bh.slot, args.slot);
+    let (bs, bh, old_bs) = read_beacon_states(&args).await;
 
     let beacon_block_hash = bh.tree_hash_root();
 
     log::info!(
-        "Processing BeaconState. Slot: {}, Block Hash: {}, Validator count:{}",
+        "Processing BeaconState. Current slot: {}, Previous Slot: {}, Block Hash: {}, Validator count:{}",
         bs.slot,
+        old_bs.slot,
         hex::encode(beacon_block_hash),
         bs.validators.len()
     );
 
-    let bs_with_precomputed: BeaconStatePrecomputedHashes = (&bs).into();
-    let bh_with_precomputed: BeaconBlockHeaderPrecomputedHashes = (&bh).into();
     let bs_indices = bs
         .get_leafs_indices(["validators", "balances"])
         .expect("Failed to get BeaconState field indices");
-
     let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&bs_indices);
 
     let program_input = ProgramInput {
         slot: bs.slot,
         beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
         // beacon_block_hash: h!("0000000000000000000000000000000000000000000000000000000000000000"),
-        beacon_block_header: bh_with_precomputed,
-        beacon_state: bs_with_precomputed,
+        beacon_block_header: (&bh).into(),
+        beacon_state: (&bs).into(),
         validators_and_balances_proof: validators_and_balances_proof,
         validators_and_balances: ValsAndBals {
             balances: bs.balances,
@@ -252,36 +300,18 @@ async fn main() {
         },
     };
 
-    let epoch = bs.slot.checked_div(eth_spec::SlotsPerEpoch::to_u64()).unwrap();
-    let lido_withdrawal_creds: Hash256 = sp1_lido_accounting_zk_shared::consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
-
-    let expected_report = ReportData::compute(
+    let (report, public_values) = compute_report_and_public_values(
+        // TODO: could've just passed bs, but bs.balances and bs.validators are moved into program_input
         bs.slot,
-        epoch,
         &program_input.validators_and_balances.validators,
         &program_input.validators_and_balances.balances,
-        &lido_withdrawal_creds,
+        &beacon_block_hash,
     );
 
-    let expected_public_values: PublicValuesRust = PublicValuesRust {
-        report: ReportRust {
-            slot: expected_report.slot,
-            deposited_lido_validators: expected_report.deposited_lido_validators,
-            exited_lido_validators: expected_report.exited_lido_validators,
-            lido_cl_valance: expected_report.lido_cl_valance,
-        },
-        metadata: ReportMetadataRust {
-            slot: expected_report.slot,
-            epoch: expected_report.epoch,
-            lido_withdrawal_credentials: expected_report.lido_withdrawal_credentials.into(),
-            beacon_block_hash: beacon_block_hash.into(),
-        },
-    };
-
     if args.evm {
-        run_script(EvmScript::new(), args.prove, &program_input, &expected_public_values)
+        run_script(EvmScript::new(), args.prove, &program_input, &public_values)
     } else {
-        run_script(LocalScript::new(), args.prove, &program_input, &expected_public_values)
+        run_script(LocalScript::new(), args.prove, &program_input, &public_values)
     }
 }
 

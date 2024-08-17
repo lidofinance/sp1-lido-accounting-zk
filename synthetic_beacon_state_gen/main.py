@@ -2,7 +2,7 @@ import os
 import json
 import itertools
 import random
-from typing import Generator
+from typing import Generator, Optional
 
 import click
 import dataclasses
@@ -15,7 +15,7 @@ import ssz
 from hexbytes import HexBytes
 
 from eth_ssz_utils import (
-    make_validator,
+    make_validator_simple,
     make_beacon_block_state,
     Constants,
 )
@@ -42,6 +42,58 @@ class BytesHexEncoder(json.JSONEncoder):
             return o.hex()
         else:
             return super().default(o)
+        
+
+def generate_validators_and_balances(
+    slot: int,
+    epoch: int,
+    total_validators: int,
+    lido_validators: int,
+    balance_generator: Generator[int, None, None],
+    shuffle: bool = False
+):
+    assert lido_validators <= total_validators
+    assert lido_validators >= 32
+    
+    # first 5 have not yet deposited
+    deposited = 5
+    # up to 50 percent have deposited, but not yet activated
+    active = int(lido_validators * 0.5)
+    # next 50 percent are active, except
+    exited = lido_validators - 10
+    # last 10 have already exited
+    balances = list(itertools.islice(balance_generator, total_validators))
+    validators_lido = validators = [
+        make_validator_simple(
+            epoch,
+            withdrawal_credentials = WithdrawalCreds.Lido, 
+            deposited = idx >= deposited, 
+            active = idx >= active,
+            exited = idx >= exited,
+            pubkey=b"\x01" * 48
+        )
+        for idx in range(lido_validators)
+    ]
+    other_validators = [
+        make_validator_simple(
+            epoch,
+            withdrawal_credentials = WithdrawalCreds.Other, 
+            deposited = True, 
+            active = True,
+            exited = False,
+            pubkey=b"\x01" * 48
+        )
+        for i in range(lido_validators, total_validators)
+    ]
+
+    validators = validators_lido + other_validators
+
+    if shuffle:
+        vals_and_bals = list(zip(validators, balances))
+        random.shuffle(vals_and_bals)
+        validators, balances = zip(*vals_and_bals)
+
+    return validators, balances
 
 
 def create_beacon_state(
@@ -50,35 +102,40 @@ def create_beacon_state(
     total_validators: int,
     lido_validators: int,
     balance_generator: Generator[int, None, None],
+    shuffle: bool = False
 ) -> BeaconState:
-    assert lido_validators <= total_validators
-# withdrawal_credentials: bytes, activation_eligibility_epoch: int, activation_epoch: int,
-        # exit_epoch
-    balances = list(itertools.islice(balance_generator, total_validators))
-    validators = [
-        make_validator(
-            withdrawal_credentials = WithdrawalCreds.Lido, 
-            activation_eligibility_epoch = epoch, 
-            activation_epoch = epoch + 1, 
-            exit_epoch=None, 
-            pubkey=b"\x01" * 48
-        )
-        for i in range(lido_validators)
-    ] + [
-        make_validator(
-            withdrawal_credentials = WithdrawalCreds.Other, 
-            activation_eligibility_epoch = epoch, 
-            activation_epoch = epoch + 1, 
-            exit_epoch=None, 
-            pubkey=b"\x01" * 48
-        )
-        for i in range(lido_validators, total_validators)
-    ]
-
-    lido_sum = sum(balances[:lido_validators])
-
+    validators, balances = generate_validators_and_balances(
+        slot,
+        epoch,
+        total_validators,
+        lido_validators,
+        balance_generator,
+        shuffle
+    )
+        
     return make_beacon_block_state(
         slot, epoch, Constants.Genesis.BLOCK_ROOT, validators, balances
+    )
+
+def append_to_existing(
+    old_bs: BeaconState,
+    slot: int,
+    epoch: int,
+    total_validators: int,
+    lido_validators: int,
+    balance_generator: Generator[int, None, None],
+    shuffle: bool = False
+) -> BeaconState:
+    validators, balances = generate_validators_and_balances(
+        slot,
+        epoch,
+        total_validators,
+        lido_validators,
+        balance_generator,
+        shuffle
+    )
+    return make_beacon_block_state(
+        slot, epoch, old_bs.hash_tree_root, old_bs.validators + validators, old_bs.balances + balances
     )
 
 
@@ -109,22 +166,29 @@ class Report:
     total_balance: int
     lido_cl_balance: int
     total_validators: int
-    lido_validators: int
+    lido_total_validators: int
+    lido_deposited_validators: int
+    lido_future_deposit_validators: int
     lido_exited_validators: int
     lido_withdrawal_credentials: bytes
 
     @classmethod
     def create(cls, epoch: int, beacon_state: BeaconState, beacon_block_header: BeaconBlockHeader) -> "Report":
-        total_balance, lido_cl_balance, validators, exited_validators = 0, 0, 0, 0
+        total_balance, lido_cl_balance = 0, 0
+        lido_validators, deposited_validators, future_deposit_validators, exited_validators = 0, 0, 0, 0
 
-        beacon_state_slot = beacon_state.slot // constants.SLOTS_PER_EPOCH
+        epoch = beacon_state.slot // constants.SLOTS_PER_EPOCH
 
         for validator, balance in zip(beacon_state.validators, beacon_state.balances):
             total_balance += balance
             if validator.withdrawal_credentials == WithdrawalCreds.Lido:
-                validators += 1
+                lido_validators += 1
                 lido_cl_balance += balance
-                if validator.exit_epoch <= beacon_state_slot:
+                if epoch >= validator.activation_eligibility_epoch:
+                    deposited_validators += 1
+                else:
+                    future_deposit_validators += 1
+                if epoch >= validator.exit_epoch:
                     exited_validators += 1
 
         beacon_state_hash = HexBytes(ssz.get_hash_tree_root(beacon_state))
@@ -137,14 +201,20 @@ class Report:
             beacon_state_hash,
             total_balance,
             lido_cl_balance,
-            len(beacon_state.validators),
-            validators,
-            exited_validators,
-            WithdrawalCreds.Lido,
+            total_validators = len(beacon_state.validators),
+            lido_total_validators = lido_validators,
+            lido_deposited_validators = deposited_validators,
+            lido_future_deposit_validators = future_deposit_validators,
+            lido_exited_validators = exited_validators,
+            lido_withdrawal_credentials = WithdrawalCreds.Lido,
         )
     
 
 BALANCE_MODES = [mode.value for mode in BalanceMode]
+
+def read_bs(file: pathlib.Path) -> BeaconState: 
+    with open(file, "rb") as target:
+        return ssz.decode(target.read(), BeaconState)
 
 @click.command()
 @click.option(
@@ -175,13 +245,24 @@ BALANCE_MODES = [mode.value for mode in BalanceMode]
 )
 @click.option("-s", "--slot", type=int, default=123456, help="Slot number")
 @click.option("--check", is_flag=True, default=False)
+@click.option("--shuffle", is_flag=True, default=False)
+@click.option(
+    "--start_from",
+    required=False,
+    type=click.Path(
+        writable=True, file_okay=True, dir_okay=True, path_type=pathlib.Path
+    ),
+    default=None,
+)
 def main(
     file: pathlib.Path,
     validators: int,
     lido_validators: int,
     balances_mode: str,
     slot: int,
-    check: bool,
+    check: bool = True,
+    shuffle: bool = False,
+    start_from: Optional[pathlib.Path] = None
 ):
     mode = BalanceMode(balances_mode)
 
@@ -196,9 +277,22 @@ def main(
 
     epoch = slot // constants.SLOTS_PER_EPOCH
 
-    beacon_state = create_beacon_state(
-        slot, epoch, validators, lido_validators, balance_gen
+    validators_list, balances_list = generate_validators_and_balances(
+        slot, epoch, validators, lido_validators, balance_gen, shuffle
     )
+
+    if start_from is not None:
+        old_bs = read_bs(start_from)
+        beacon_state = make_beacon_block_state(
+            slot, epoch, Constants.Genesis.BLOCK_ROOT, 
+            old_bs.validators + validators_list, 
+            old_bs.balances + balances_list
+        )
+    else:
+        beacon_state = make_beacon_block_state(
+            slot, epoch, Constants.Genesis.BLOCK_ROOT, validators_list, balances_list
+        )
+
     beacon_state_hash = ssz.get_hash_tree_root(beacon_state)
     balances_hash = ssz.get_hash_tree_root(beacon_state.balances)
 
@@ -211,6 +305,7 @@ def main(
 
     manifesto = {
         "report": report.to_dict(),
+        ""
         "beacon_block_header": {
             "hash": report.beacon_block_hash.hex(),
             "parts": {
@@ -266,8 +361,7 @@ def main(
         json.dump(manifesto, manifesto_fp, cls=BytesHexEncoder, indent=2)
 
     if check:
-        with open(file, "rb") as target:
-            reread_beacon_state = ssz.decode(target.read(), BeaconState)
+        reread_beacon_state = read_bs(file)
 
         assert reread_beacon_state.slot == beacon_state.slot
         reread_beacon_state_hash = ssz.get_hash_tree_root(reread_beacon_state)

@@ -8,7 +8,7 @@ pub struct ReportData {
     pub lido_withdrawal_credentials: Hash256,
     pub deposited_lido_validators: u64,
     pub exited_lido_validators: u64,
-    pub lido_cl_valance: u64,
+    pub lido_cl_balance: u64,
 }
 
 impl ReportData {
@@ -45,7 +45,7 @@ impl ReportData {
             lido_withdrawal_credentials: creds,
             deposited_lido_validators: deposited,
             exited_lido_validators: exited,
-            lido_cl_valance: cl_balance,
+            lido_cl_balance: cl_balance,
         }
     }
 }

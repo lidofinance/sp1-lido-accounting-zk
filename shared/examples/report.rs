@@ -4,9 +4,10 @@ use serde_json::Value;
 
 use ssz_types::typenum::Unsigned;
 use std::path::PathBuf;
+use util::synthetic_beacon_state_reader::SyntheticBeaconStateCreator;
 
 mod util;
-use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateReader};
+use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateCreator};
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{Hash256, SlotsPerEpoch};
 use sp1_lido_accounting_zk_shared::report::ReportData;
@@ -27,7 +28,7 @@ fn verify_report(report: &ReportData, manifesto: &Value) {
         hex_str_to_h256(manifesto["report"]["lido_withdrawal_credentials"].as_str().unwrap())
     );
     assert_eq!(
-        report.all_lido_validators,
+        report.deposited_lido_validators,
         manifesto["report"]["lido_validators"].as_u64().unwrap()
     );
     assert_eq!(
@@ -35,7 +36,7 @@ fn verify_report(report: &ReportData, manifesto: &Value) {
         manifesto["report"]["lido_exited_validators"].as_u64().unwrap()
     );
     assert_eq!(
-        report.lido_cl_valance,
+        report.lido_cl_balance,
         manifesto["report"]["lido_cl_balance"].as_u64().unwrap()
     );
 }
@@ -45,16 +46,20 @@ async fn main() {
     SimpleLogger::new().env().init().unwrap();
     // Step 1. obtain SSZ-serialized beacon state
     // For now using a "synthetic" generator based on reference implementation (py-ssz)
-    let reader = SyntheticBeaconStateReader::new(
+    let creator = SyntheticBeaconStateCreator::new(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp"),
         2_u64.pow(12),
         2_u64.pow(6),
         BalanceGenerationMode::SEQUENTIAL,
         true,
         true,
+        false,
     );
 
     let slot = 1000000;
+    creator.create_beacon_state(slot, true);
+    let reader = creator.get_file_reader(slot);
+
     let beacon_state = reader
         .read_beacon_state(slot)
         .await
@@ -86,7 +91,7 @@ async fn main() {
     verify_report(&report, &manifesto);
     log::info!(
         "Report   : {:>16} balance, {:>8} all validators, {:>8} exited validators",
-        report.lido_cl_valance,
+        report.lido_cl_balance,
         report.deposited_lido_validators,
         report.exited_lido_validators
     );

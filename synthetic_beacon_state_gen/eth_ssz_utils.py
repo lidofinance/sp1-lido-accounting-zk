@@ -40,6 +40,17 @@ class Generators:
     @classmethod
     def empty_bls_sig_vector(cls, length):
         return [b"\x00" * 48 for _ in range(length)]
+    
+def make_validator_simple(
+        current_epoch: int,
+        withdrawal_credentials: bytes, 
+        deposited: bool = False, active: bool = False, exited: bool = False,
+        pubkey = None
+) -> Validator:
+    activation_eligibility = current_epoch - 1 if deposited else constants.FAR_FUTURE_EPOCH - 1
+    activation = current_epoch if active else constants.FAR_FUTURE_EPOCH
+    exit = current_epoch if exited else constants.FAR_FUTURE_EPOCH
+    return make_validator(withdrawal_credentials, activation_eligibility, activation, exit, pubkey)
 
 def make_validator(
         withdrawal_credentials: bytes, activation_eligibility_epoch: int, activation_epoch: int,
@@ -58,7 +69,7 @@ def make_validator(
         activation_eligibility_epoch =  activation_eligibility_epoch,
         activation_epoch =  activation_epoch,
         exit_epoch =  exit_epoch if exit_epoch is not None else constants.FAR_FUTURE_EPOCH,
-        withdrawable_epoch =  activation_epoch + 1,
+        withdrawable_epoch =  constants.FAR_FUTURE_EPOCH,
     )
 
 def make_beacon_block_state(

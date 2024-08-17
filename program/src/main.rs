@@ -40,7 +40,7 @@ fn commit_public_values(report: &ReportData, beacon_block_hash: &[u8; 32]) {
             slot: report.slot,
             deposited_lido_validators: report.deposited_lido_validators,
             exited_lido_validators: report.exited_lido_validators,
-            lido_cl_valance: report.lido_cl_valance,
+            lido_cl_valance: report.lido_cl_balance,
         },
         metadata: ReportMetadataSolidity {
             slot: report.slot,

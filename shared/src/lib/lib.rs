@@ -6,4 +6,5 @@ pub mod hashing;
 pub mod io;
 pub mod lido;
 pub mod report;
+pub mod util;
 pub mod verification;

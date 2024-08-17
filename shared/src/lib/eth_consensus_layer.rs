@@ -19,6 +19,7 @@ use crate::eth_spec;
 
 pub type Slot = u64;
 pub type Epoch = u64;
+pub type ValidatorIndex = u64;
 
 // Re-export
 pub type SlotsPerEpoch = eth_spec::SlotsPerEpoch;
