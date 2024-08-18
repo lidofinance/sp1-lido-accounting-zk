@@ -1,7 +1,6 @@
 use anyhow::Result;
 use log;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
+use sp1_lido_accounting_zk_shared::beacon_state_reader::FileBasedBeaconStateReader;
 use std::fs::File;
 use std::io;
 use std::io::BufReader;
