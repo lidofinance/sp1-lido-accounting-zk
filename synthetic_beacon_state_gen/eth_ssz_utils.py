@@ -147,6 +147,8 @@ def make_beacon_block_state(
             block_hash = Generators.hash_root(),
             transactions_root = Generators.hash_root(),
             withdrawals_root = Generators.hash_root(),
+            blob_gas_used = 1234,
+            excess_blob_gas = 6789,
         ),
         next_withdrawal_index = 0,
         next_withdrawal_validator_index = 1,

@@ -22,7 +22,8 @@ from ssz.sedes import (
 
 from eth_typing import HexStr
 import constants
-from typing import NewType
+from typing import NewType, Dict, Any
+from dataclasses import fields
 
 Hash32 = bytes32
 Root = bytes32
@@ -153,6 +154,10 @@ class BeaconBlockHeader(HashableContainer, InclusionProofUtilsTrait):
             body_root = HexBytes(api_response.body_root),
         )
 
+    @classmethod
+    def from_json(cls, json_response: Dict[str, Any]) -> 'BeaconBlockHeader':
+        return cls.from_api(BlockHeaderMessage.from_response(**json_response))
+
 
 class Eth1Data(HashableContainer):
     fields = [
@@ -222,7 +227,9 @@ class ExecutionPayloadHeader(HashableContainer):
         ("block_hash", Hash32),
         ("transactions_root", Root),
         ("withdrawals_root", Root),
-        # ("excess_data_gas: uint256", uint256),
+        # Since Deneb
+        ("blob_gas_used", uint64),
+        ("excess_blob_gas", uint64),
     ]
 
 

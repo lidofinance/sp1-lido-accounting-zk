@@ -121,7 +121,9 @@ pub struct ExecutionPayloadHeader {
     block_hash: Hash256,
     transactions_root: Root,
     withdrawals_root: Root,
-    // excess_data_gas: Uint256
+    // Since Deneb
+    blob_gas_used: u64,
+    excess_blob_gas: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
