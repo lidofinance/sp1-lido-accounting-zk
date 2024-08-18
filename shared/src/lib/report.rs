@@ -32,10 +32,10 @@ impl ReportData {
             }
 
             cl_balance += *balance;
-            if validator.activation_eligibility_epoch >= epoch {
+            if epoch >= validator.activation_eligibility_epoch {
                 deposited += 1;
             }
-            if validator.exit_epoch <= epoch {
+            if epoch >= validator.exit_epoch {
                 exited += 1
             }
         }
