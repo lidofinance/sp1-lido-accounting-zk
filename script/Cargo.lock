@@ -4925,6 +4925,7 @@ dependencies = [
  "ethereum_ssz_derive",
  "hex",
  "hex-literal",
+ "itertools 0.13.0",
  "log",
  "rs_merkle",
  "serde",

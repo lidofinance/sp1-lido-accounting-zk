@@ -24,6 +24,11 @@ path = "examples/lido_state.rs"
 name = "gen_pair"
 path = "examples/gen_synthetic_bs_pair.rs"
 
+[[example]]
+name = "list_multiproofs"
+path = "examples/list_multiproofs.rs"
+
+
 [dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
@@ -43,6 +48,7 @@ rs_merkle = "1.4.2"
 hex-literal = "0.4.1"
 log = "0.4.21"
 ethereum_hashing = "0.6.0"
+itertools = "0.13.0"
 
 [dev-dependencies]
 log = "0.4.21"

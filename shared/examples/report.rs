@@ -1,7 +1,8 @@
+use ethereum_types::H256;
 use hex::FromHex;
-use hex_literal::hex as h;
 use log;
 use serde_json::Value;
+use sp1_lido_accounting_zk_shared::consts;
 
 use std::path::PathBuf;
 use util::synthetic_beacon_state_reader::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator};
@@ -44,7 +45,7 @@ fn verify_report(report: &ReportData, manifesto: &Value) {
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
     let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
-    let lido_withdrawal_creds = h!("010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f").into();
+    let withdrawal_creds: H256 = consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true);
     let reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&ssz_folder);
 
@@ -65,7 +66,7 @@ async fn main() {
         epoch(old_beacon_state.slot).unwrap(),
         &old_beacon_state.validators,
         &old_beacon_state.balances,
-        &lido_withdrawal_creds,
+        &withdrawal_creds,
     );
 
     // Step 1.5. generate a "new" beacon state with controlled parameters
@@ -117,7 +118,7 @@ async fn main() {
         epoch(new_beacon_state.slot).unwrap(),
         &new_beacon_state.validators,
         &new_beacon_state.balances,
-        &lido_withdrawal_creds,
+        &withdrawal_creds,
     );
 
     // Step 4: verify report matches
