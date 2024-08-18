@@ -6,10 +6,11 @@ use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
+use util::synthetic_beacon_state_reader::GenerationSpec;
 
 mod util;
 use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateCreator};
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::util::usize_to_u64;
 
@@ -72,29 +73,27 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
 #[tokio::main]
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
-    // Step 1. obtain SSZ-serialized beacon state
-    // For now using a "synthetic" generator based on reference implementation (py-ssz)
-    let total_validators_log2 = 7;
-    let lido_validators_log2 = total_validators_log2 - 1;
-    let creator = SyntheticBeaconStateCreator::new(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp"),
-        2_u64.pow(total_validators_log2),
-        2_u64.pow(lido_validators_log2),
-        BalanceGenerationMode::SEQUENTIAL,
-        true,
-        true,
-        true,
-    );
+    let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
+    let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true);
+    let reader = FileBasedBeaconStateReader::new(&ssz_folder);
 
+    // Step 1. obtain SSZ-serialized beacon state
     let slot = 123456;
-    creator.evict_cache(slot).expect("Failed to evict cache");
+    let generation_spec = GenerationSpec {
+        slot: slot,
+        non_lido_validators: 2_u64.pow(7),
+        deposited_lido_validators: 2_u64.pow(6),
+        exited_lido_validators: 4,
+        future_deposit_lido_validators: 8,
+        balances_generation_mode: BalanceGenerationMode::FIXED,
+        shuffle: true,
+        base_slot: None,
+        overwrite: true,
+    };
     creator
-        .create_beacon_state(slot, true)
+        .create_beacon_state(generation_spec)
         .await
         .expect("Failed to create beacon state");
-
-    let reader = creator.get_file_reader(slot);
-
     let beacon_state = reader
         .read_beacon_state(slot)
         .await

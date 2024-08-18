@@ -157,6 +157,16 @@ class BeaconBlockHeader(HashableContainer, InclusionProofUtilsTrait):
     @classmethod
     def from_json(cls, json_response: Dict[str, Any]) -> 'BeaconBlockHeader':
         return cls.from_api(BlockHeaderMessage.from_response(**json_response))
+    
+    # TODO: use dataclasses_json? For now a one off conversion works still ok
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            "slot": self.slot,
+            "proposer_index": self.proposer_index,
+            "parent_root": self.parent_root,
+            "state_root": self.state_root,
+            "body_root": self.body_root,
+        }
 
 
 class Eth1Data(HashableContainer):
@@ -179,6 +189,15 @@ class Validator(HashableContainer):
         ("exit_epoch", Epoch),
         ("withdrawable_epoch", Epoch),  # When validator can withdraw funds
     ]
+
+    def exited(self, epoch: int) -> bool:
+        return epoch >= self.exit_epoch
+    
+    def deposited(self, epoch: int) -> bool:
+        return epoch >= self.activation_eligibility_epoch
+    
+    def active(self, epoch: int) -> bool:
+        return epoch >= self.activation_epoch
 
 
 class AttestationData(HashableContainer):

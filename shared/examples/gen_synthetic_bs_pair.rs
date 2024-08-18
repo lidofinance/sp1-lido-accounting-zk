@@ -1,6 +1,7 @@
 use hex::FromHex;
 use log;
 use serde_json::Value;
+use util::synthetic_beacon_state_reader::GenerationSpec;
 
 use std::path::PathBuf;
 use tree_hash::TreeHash;
@@ -8,7 +9,7 @@ use tree_hash::TreeHash;
 mod util;
 
 use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateCreator};
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
 
@@ -17,60 +18,52 @@ use simple_logger::SimpleLogger;
 #[tokio::main]
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
-    // Step 1. obtain SSZ-serialized beacon state
-    // For now using a "synthetic" generator based on reference implementation (py-ssz)
-    let total_validators_log2 = 8;
-    let lido_validators_log2 = total_validators_log2 - 1;
-    let creator1 = SyntheticBeaconStateCreator::new(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp"),
-        2_u64.pow(total_validators_log2),
-        2_u64.pow(lido_validators_log2),
-        BalanceGenerationMode::SEQUENTIAL,
-        true,
-        true,
-        false,
-    );
-    let creator2 = SyntheticBeaconStateCreator::new(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp"),
-        2_u64.pow(6),
-        2_u64.pow(5),
-        BalanceGenerationMode::SEQUENTIAL,
-        true,
-        true,
-        false,
-    );
+    let file_store = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
 
-    let slot1 = 1000000;
-    let slot2 = 1100000;
+    let creator = SyntheticBeaconStateCreator::new(&file_store, false, true);
+    let old_slot = 2000000;
+    let new_slot = 2100000;
+    let base_state_spec = GenerationSpec {
+        slot: old_slot,
+        non_lido_validators: 2_u64.pow(10),
+        deposited_lido_validators: 2_u64.pow(9),
+        exited_lido_validators: 2_u64.pow(3),
+        future_deposit_lido_validators: 2_u64.pow(2),
+        balances_generation_mode: BalanceGenerationMode::FIXED,
+        shuffle: false,
+        base_slot: None,
+        overwrite: true,
+    };
+    let update_state_spec = GenerationSpec {
+        slot: new_slot,
+        non_lido_validators: 2_u64.pow(5),
+        deposited_lido_validators: 2_u64.pow(4),
+        exited_lido_validators: 2_u64.pow(2),
+        future_deposit_lido_validators: 2_u64.pow(1),
+        balances_generation_mode: BalanceGenerationMode::FIXED,
+        shuffle: false,
+        base_slot: Some(base_state_spec.slot),
+        overwrite: true,
+    };
 
-    creator1
-        .evict_cache(slot1)
-        .expect(&format!("Failed to evict cache for slot {}", slot1));
-
-    creator1
-        .evict_cache(slot2)
-        .expect(&format!("Failed to evict cache for slot {}", slot2));
-
-    creator1
-        .create_beacon_state(slot1, true)
+    creator
+        .create_beacon_state(base_state_spec)
         .await
-        .expect(&format!("Failed to create beacon state for slot {}", slot1));
+        .expect(&format!("Failed to create beacon state for slot {}", old_slot));
 
-    creator2
-        .create_beacon_state_from_base(slot2, slot1, true)
+    creator
+        .create_beacon_state(update_state_spec)
         .await
-        .expect(&format!(
-            "Failed to create beacon state for slot {} from slot {}",
-            slot2, slot1
-        ));
+        .expect(&format!("Failed to create beacon state for slot {}", new_slot));
 
-    let reader1 = creator1.get_file_reader(slot1);
-    let beacon_state1 = reader1
-        .read_beacon_state(slot1)
+    let bs_reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&file_store);
+
+    let beacon_state1 = bs_reader
+        .read_beacon_state(old_slot)
         .await
         .expect("Failed to read beacon state");
-    let beacon_block_header1 = reader1
-        .read_beacon_block_header(slot1)
+    let beacon_block_header1 = bs_reader
+        .read_beacon_block_header(old_slot)
         .await
         .expect("Failed to read beacon block header");
     log::info!(
@@ -80,13 +73,12 @@ async fn main() {
         hex::encode(beacon_block_header1.tree_hash_root())
     );
 
-    let reader2 = creator2.get_file_reader(slot2);
-    let beacon_state2 = reader2
-        .read_beacon_state(slot1)
+    let beacon_state2 = bs_reader
+        .read_beacon_state(new_slot)
         .await
         .expect("Failed to read beacon state");
-    let beacon_block_header2 = reader2
-        .read_beacon_block_header(slot2)
+    let beacon_block_header2 = bs_reader
+        .read_beacon_block_header(new_slot)
         .await
         .expect("Failed to read beacon block header");
     log::info!(

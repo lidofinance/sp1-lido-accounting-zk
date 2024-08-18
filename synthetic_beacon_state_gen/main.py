@@ -39,32 +39,33 @@ class BytesHexEncoder(json.JSONEncoder):
 def generate_validators_and_balances(
     slot: int,
     epoch: int,
-    total_validators: int,
-    lido_validators: int,
+    non_lido_validators: int,
+    deposited_lido_validators: int,
+    exited_lido_validators: int,
+    future_deposit_lido_validators: int,
     balance_generator: Generator[int, None, None],
     shuffle: bool = False
 ):
-    assert lido_validators <= total_validators
-    assert lido_validators >= 32
-    
-    # first 5 have not yet deposited
-    deposited = 5
-    # up to 50 percent have deposited, but not yet activated
-    active = int(lido_validators * 0.5)
-    # next 50 percent are active, except
-    exited = lido_validators - 10
-    # last 10 have already exited
-    balances = list(itertools.islice(balance_generator, total_validators))
-    validators_lido = validators = [
+    deposited = [
         make_validator_simple(
-            epoch,
-            withdrawal_credentials = WithdrawalCreds.Lido, 
-            deposited = idx >= deposited, 
-            active = idx >= active,
-            exited = idx >= exited,
-            pubkey=b"\x01" * 48
+            epoch, withdrawal_credentials = WithdrawalCreds.Lido, 
+            deposited = True,  active = True, exited = False, pubkey=idx.to_bytes(10, signed=False) + b"\x01" * 38
         )
-        for idx in range(lido_validators)
+        for idx in range(deposited_lido_validators)
+    ]
+    exited = [
+        make_validator_simple(
+            epoch, withdrawal_credentials = WithdrawalCreds.Lido, 
+            deposited = True,  active = True, exited = True, pubkey=idx.to_bytes(10, signed=False) + b"\x01" * 38
+        )
+        for idx in range(exited_lido_validators)
+    ]
+    future = [
+        make_validator_simple(
+            epoch, withdrawal_credentials=WithdrawalCreds.Lido,
+            deposited=False, active=False, exited=False, pubkey=idx.to_bytes(10, signed=False) + b"\x01" * 38
+        )
+        for idx in range(future_deposit_lido_validators)
     ]
     other_validators = [
         make_validator_simple(
@@ -75,10 +76,13 @@ def generate_validators_and_balances(
             exited = False,
             pubkey=b"\x01" * 48
         )
-        for i in range(lido_validators, total_validators)
+        for i in range(non_lido_validators)
     ]
-
-    validators = validators_lido + other_validators
+    validators = deposited + exited + future + other_validators
+    balances = [
+        next(balance_generator) if not validator.exited(epoch) and validator.deposited(epoch) else 0
+        for validator in validators
+    ]
 
     if shuffle:
         vals_and_bals = list(zip(validators, balances))
@@ -145,7 +149,7 @@ def create_beacon_block_header(
 
 GWEI_IN_1_ETH = 10**9
 MILLIETH = 10**6
-FIXED_BALANCE = 16 * GWEI_IN_1_ETH
+FIXED_BALANCE = 32 * GWEI_IN_1_ETH
 
 BALANCE_MODES = [mode.value for mode in BalanceMode]
 
@@ -164,14 +168,28 @@ def read_bs(file: pathlib.Path) -> BeaconState:
     default=pathlib.Path(PROJECT_ROOT) / "temp/beacon_block_state.ssz",
 )
 @click.option(
-    "-v", "--validators", type=int, default=2**10, help="Total number of validators"
+    "-nl", "--non_lido_validators", type=int, default=2**10, help="Number of non-Lido validators"
 )
 @click.option(
-    "-l",
-    "--lido_validators",
+    "-d",
+    "--deposited_lido_validators",
     type=int,
     default=2**5,
-    help="Total number of Lido validators",
+    help="Number of deposited Lido validators",
+)
+@click.option(
+    "-e",
+    "--exited_lido_validators",
+    type=int,
+    default=2**3,
+    help="Number of exited Lido validators",
+)
+@click.option(
+    "-fd",
+    "--future_deposit_lido_validators",
+    type=int,
+    default=2**2,
+    help="Number of created, but not deposited Lido validators",
 )
 @click.option(
     "-b",
@@ -193,14 +211,17 @@ def read_bs(file: pathlib.Path) -> BeaconState:
 )
 def main(
     file: pathlib.Path,
-    validators: int,
-    lido_validators: int,
+    non_lido_validators: int,
+    deposited_lido_validators: int,
+    exited_lido_validators: int,
+    future_deposit_lido_validators: int,
     balances_mode: str,
     slot: int,
     check: bool = True,
     shuffle: bool = False,
     start_from: Optional[pathlib.Path] = None
 ):
+    # python main.py -nl 64 -d 26 -e 2 -fd 4 -b fixed -s 1000
     mode = BalanceMode(balances_mode)
 
     if mode == BalanceMode.FIXED:
@@ -215,7 +236,11 @@ def main(
     epoch = slot // constants.SLOTS_PER_EPOCH
 
     validators_list, balances_list = generate_validators_and_balances(
-        slot, epoch, validators, lido_validators, balance_gen, shuffle
+        slot, epoch, non_lido_validators,
+        deposited_lido_validators,
+        exited_lido_validators,
+        future_deposit_lido_validators, 
+        balance_gen, shuffle
     )
 
     if start_from is not None:
@@ -290,8 +315,9 @@ def main(
 
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_bytes(ssz.encode(beacon_state))
-    beacon_header_file = file.with_stem(f"{file.stem}_header")
-    beacon_header_file.write_bytes(ssz.encode(beacon_block_header))
+    beacon_header_file = file.with_stem(f"{file.stem}_header").with_suffix(".json")
+    with open(beacon_header_file, "w") as header_fp:
+        json.dump(beacon_block_header.to_json(), header_fp, cls=BytesHexEncoder, indent=2)
 
     manifesto_file = file.with_name(f"{file.stem}_manifesto.json")
     with open(manifesto_file, "w") as manifesto_fp:

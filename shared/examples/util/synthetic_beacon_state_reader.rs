@@ -1,12 +1,10 @@
 use anyhow::Result;
 use log;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::FileBasedBeaconStateReader;
-use std::fs::File;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::{read_untyped_json, FileBasedBeaconChainStore};
+use std::env;
 use std::io;
-use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::{env, fs};
 
 pub enum BalanceGenerationMode {
     RANDOM,
@@ -25,34 +23,30 @@ impl BalanceGenerationMode {
 }
 
 pub struct SyntheticBeaconStateCreator {
-    ssz_store_location: PathBuf,
-    total_validator_number: u64,
-    lido_validator_number: u64,
-    balances_generation_mode: BalanceGenerationMode,
+    file_store: FileBasedBeaconChainStore,
     with_check: bool,
     suppress_generator_output: bool,
-    shuffle: bool,
+}
+
+pub struct GenerationSpec {
+    pub slot: u64,
+    pub non_lido_validators: u64,
+    pub deposited_lido_validators: u64,
+    pub exited_lido_validators: u64,
+    pub future_deposit_lido_validators: u64,
+    pub balances_generation_mode: BalanceGenerationMode,
+    pub shuffle: bool,
+    pub base_slot: Option<u64>,
+    pub overwrite: bool,
 }
 
 impl SyntheticBeaconStateCreator {
     // TODO: derive?
-    pub fn new(
-        ssz_store_location: PathBuf,
-        total_validator_number: u64,
-        lido_validator_number: u64,
-        balances_generation_mode: BalanceGenerationMode,
-        with_check: bool,
-        suppress_generator_output: bool,
-        shuffle: bool,
-    ) -> Self {
+    pub fn new(ssz_store_location: &Path, with_check: bool, suppress_generator_output: bool) -> Self {
         Self {
-            ssz_store_location,
-            total_validator_number,
-            lido_validator_number,
-            balances_generation_mode,
+            file_store: FileBasedBeaconChainStore::new(ssz_store_location),
             with_check,
             suppress_generator_output,
-            shuffle,
         }
     }
 
@@ -82,37 +76,54 @@ impl SyntheticBeaconStateCreator {
         self.synth_gen_folder().join("main.py")
     }
 
-    fn create_file_reader(&self, slot: u64) -> FileBasedBeaconStateReader {
-        FileBasedBeaconStateReader::for_slot(&self.ssz_store_location, slot)
-    }
-
     fn create_manifesto_file_name(&self, slot: u64) -> PathBuf {
-        PathBuf::from(&self.ssz_store_location)
+        PathBuf::from(&self.file_store.store_location)
             .join(format!("bs_{}_manifesto.json", slot))
             .canonicalize()
             .expect("Failed to canonicalize manifesto path")
     }
 
-    async fn generate_beacon_state(&self, file_path: &Path, slot: u64, base: Option<&Path>) {
+    async fn generate_beacon_state(&self, file_path: &Path, generation_spec: GenerationSpec) {
         log::info!("Generating synthetic beacon state to file {:?}", file_path);
         let python = self.get_python();
         let script = self.get_script();
         let mut command = Command::new(python);
         command
             .arg(script.as_os_str().to_str().unwrap())
-            .args(["-f", &file_path.as_os_str().to_str().unwrap()])
-            .args(["-v", &self.total_validator_number.to_string()])
-            .args(["-l", &self.lido_validator_number.to_string()])
-            .args(["-b", self.balances_generation_mode.to_cmdline()])
-            .args(["-s", &slot.to_string()]);
+            .args(["--file", &file_path.as_os_str().to_str().unwrap()])
+            .args([
+                "--non_lido_validators",
+                &generation_spec.non_lido_validators.to_string(),
+            ])
+            .args([
+                "--deposited_lido_validators",
+                &generation_spec.deposited_lido_validators.to_string(),
+            ])
+            .args([
+                "--exited_lido_validators",
+                &generation_spec.exited_lido_validators.to_string(),
+            ])
+            .args([
+                "--future_deposit_lido_validators",
+                &generation_spec.future_deposit_lido_validators.to_string(),
+            ])
+            .args(["--balances_mode", generation_spec.balances_generation_mode.to_cmdline()])
+            .args(["--slot", &generation_spec.slot.to_string()]);
         if self.with_check {
             command.arg("--check");
         }
-        if self.shuffle {
+        if generation_spec.shuffle {
             command.arg("--shuffle");
         }
-        if let Some(path) = base {
-            command.args(["--start_from", path.as_os_str().to_str().unwrap()]);
+        if let Some(base_slot) = generation_spec.base_slot {
+            let old_beacon_state_file = self.file_store.get_beacon_state_path(base_slot);
+            assert!(
+                self.exists(&old_beacon_state_file),
+                "Beacon state for base slot {} was not found at {:?}",
+                base_slot,
+                old_beacon_state_file
+            );
+            command.args(["--start_from", old_beacon_state_file.as_os_str().to_str().unwrap()]);
         }
         if self.suppress_generator_output {
             command.stdout(Stdio::null());
@@ -129,54 +140,37 @@ impl SyntheticBeaconStateCreator {
 
     async fn read_manifesto_from_file(&self, file_path: &Path) -> Result<serde_json::Value> {
         log::info!("Reading manifesto from file {:?}", file_path);
-        let file = File::open(file_path)?;
-        let reader = BufReader::new(file);
-
-        // Read the JSON contents of the file as an instance of `User`.
-        let res = serde_json::from_reader(reader)?;
+        let res = read_untyped_json(file_path).await?;
         Ok(res)
     }
 
     pub fn evict_cache(&self, slot: u64) -> io::Result<()> {
-        let file_reader = self.create_file_reader(slot);
-        if file_reader.beacon_state_exists() {
+        let beacon_state_file = self.file_store.get_beacon_state_path(slot);
+        if self.exists(&beacon_state_file) {
             log::debug!("Evicting beacon state file");
-            fs::remove_file(file_reader.beacon_state_path())?;
+            FileBasedBeaconChainStore::delete(&beacon_state_file)?;
         }
-        if file_reader.beacon_state_exists() {
+
+        let beacon_block_header_file = self.file_store.get_beacon_block_header_path(slot);
+        if self.exists(&beacon_block_header_file) {
             log::debug!("Evicting beacon block state file");
-            fs::remove_file(file_reader.beacon_block_header_path())?;
+            FileBasedBeaconChainStore::delete(&beacon_block_header_file)?;
         }
         Ok(())
     }
 
-    pub async fn create_beacon_state(&self, slot: u64, overwrite: bool) -> Result<()> {
-        if overwrite {
-            self.evict_cache(slot)?
-        }
-        let file_reader = self.create_file_reader(slot);
-        self.generate_beacon_state(file_reader.beacon_state_path(), slot, None)
-            .await;
-        Ok(())
+    pub fn exists(&self, path: &Path) -> bool {
+        FileBasedBeaconChainStore::exists(path)
     }
 
-    pub async fn create_beacon_state_from_base(&self, slot: u64, old_slot: u64, overwrite: bool) -> Result<()> {
-        if overwrite {
-            self.evict_cache(slot)?
+    pub async fn create_beacon_state(&self, generation_spec: GenerationSpec) -> Result<()> {
+        if generation_spec.overwrite {
+            self.evict_cache(generation_spec.slot)?;
         }
-        let file_reader = self.create_file_reader(slot);
-        let file_reader_for_old = self.create_file_reader(old_slot);
-
-        self.generate_beacon_state(
-            file_reader.beacon_state_path(),
-            slot,
-            Some(file_reader_for_old.beacon_state_path()),
-        )
-        .await;
+        let beacon_state_file = self.file_store.get_beacon_state_path(generation_spec.slot);
+        if !self.exists(&beacon_state_file) {
+            self.generate_beacon_state(&beacon_state_file, generation_spec).await;
+        }
         Ok(())
-    }
-
-    pub fn get_file_reader(&self, slot: u64) -> FileBasedBeaconStateReader {
-        return FileBasedBeaconStateReader::for_slot(&self.ssz_store_location, slot);
     }
 }

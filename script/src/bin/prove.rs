@@ -16,7 +16,7 @@ use sp1_sdk::{
     ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
     SP1VerifyingKey,
 };
-use std::fs;
+
 use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::{
@@ -50,10 +50,10 @@ struct ProveArgs {
     #[clap(long, default_value = "false")]
     prove: bool,
     #[clap(long)]
-    path: PathBuf,
-    #[clap(long)]
+    beacon_state_folder_path: PathBuf,
+    #[clap(long, default_value = "2000000")]
     current_slot: u64,
-    #[clap(long)]
+    #[clap(long, default_value = "2100000")]
     previous_slot: u64,
 }
 
@@ -235,9 +235,7 @@ async fn read_beacon_states(args: &ProveArgs) -> (BeaconState, BeaconBlockHeader
     let current_slot = args.current_slot;
     let previous_slot = args.previous_slot;
 
-    let file_path = fs::canonicalize(args.path.clone()).expect("Couldn't canonicalize path");
-    let bs_reader = FileBasedBeaconStateReader::for_slot(&file_path, current_slot);
-    let previous_bs_reader = FileBasedBeaconStateReader::for_slot(&file_path, previous_slot);
+    let bs_reader = FileBasedBeaconStateReader::new(&args.beacon_state_folder_path);
     let bs = bs_reader
         .read_beacon_state(current_slot) // File reader ignores slot; TODO: refactor readers
         .await
@@ -247,7 +245,7 @@ async fn read_beacon_states(args: &ProveArgs) -> (BeaconState, BeaconBlockHeader
         .await
         .expect("Failed to read beacon block header");
 
-    let old_bs = previous_bs_reader
+    let old_bs = bs_reader
         .read_beacon_state(previous_slot) // File reader ignores slot; TODO: refactor readers
         .await
         .expect("Failed to read previous beacon state");
