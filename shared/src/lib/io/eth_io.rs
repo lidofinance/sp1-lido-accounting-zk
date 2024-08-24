@@ -1,6 +1,29 @@
 use alloy_sol_types::sol;
 use serde::{Deserialize, Serialize};
 
+mod serde_hex_as_string {
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<'a, S>(value: &'a [u8], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let res = format!("0x{}", hex::encode(value));
+        serializer.serialize_str(&res)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        let mut slice: [u8; 32] = [0; 32];
+        hex::decode_to_slice(s, &mut slice).map_err(Error::custom)?;
+        Ok(slice)
+    }
+}
+
 sol! {
     struct ReportSolidity {
         uint64 slot;
@@ -41,34 +64,45 @@ impl From<ReportRust> for ReportSolidity {
 }
 
 sol! {
+    struct LidoValidatorStateSolidity {
+        uint64 slot;
+        bytes32 hash;
+    }
+}
+
+impl From<LidoValidatorStateSolidity> for LidoValidatorStateRust {
+    fn from(value: LidoValidatorStateSolidity) -> Self {
+        Self {
+            slot: value.slot,
+            hash: value.hash.into(),
+        }
+    }
+}
+
+impl From<LidoValidatorStateRust> for LidoValidatorStateSolidity {
+    fn from(value: LidoValidatorStateRust) -> Self {
+        Self {
+            slot: value.slot,
+            hash: value.hash.into(),
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+pub struct LidoValidatorStateRust {
+    pub slot: u64,
+    #[serde(with = "serde_hex_as_string")]
+    pub hash: [u8; 32],
+}
+
+sol! {
     struct ReportMetadataSolidity {
         uint64 slot;
         uint64 epoch;
         bytes32 lido_withdrawal_credentials;
         bytes32 beacon_block_hash;
-    }
-}
-
-mod serde_hex_as_string {
-    use serde::de::Error;
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<'a, S>(value: &'a [u8], serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let res = format!("0x{}", hex::encode(value));
-        serializer.serialize_str(&res)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s: &str = Deserialize::deserialize(deserializer)?;
-        let mut slice: [u8; 32] = [0; 32];
-        hex::decode_to_slice(s, &mut slice).map_err(Error::custom)?;
-        Ok(slice)
+        LidoValidatorStateSolidity state_for_previous_report;
+        LidoValidatorStateSolidity new_state;
     }
 }
 
@@ -80,6 +114,8 @@ pub struct ReportMetadataRust {
     pub lido_withdrawal_credentials: [u8; 32],
     #[serde(with = "serde_hex_as_string")]
     pub beacon_block_hash: [u8; 32],
+    pub state_for_previous_report: LidoValidatorStateRust,
+    pub new_state: LidoValidatorStateRust,
 }
 
 impl From<ReportMetadataSolidity> for ReportMetadataRust {
@@ -89,6 +125,8 @@ impl From<ReportMetadataSolidity> for ReportMetadataRust {
             epoch: value.epoch,
             lido_withdrawal_credentials: value.lido_withdrawal_credentials.into(),
             beacon_block_hash: value.beacon_block_hash.into(),
+            state_for_previous_report: value.state_for_previous_report.into(),
+            new_state: value.new_state.into(),
         }
     }
 }
@@ -100,6 +138,8 @@ impl From<ReportMetadataRust> for ReportMetadataSolidity {
             epoch: value.epoch,
             lido_withdrawal_credentials: value.lido_withdrawal_credentials.into(),
             beacon_block_hash: value.beacon_block_hash.into(),
+            state_for_previous_report: value.state_for_previous_report.into(),
+            new_state: value.new_state.into(),
         }
     }
 }

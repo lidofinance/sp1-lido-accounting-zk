@@ -26,6 +26,7 @@ use sp1_lido_accounting_zk_shared::{
         eth_io::{PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust},
         program_io::{ProgramInput, ValsAndBals},
     },
+    lido::{LidoValidatorState, ValidatorDelta, ValidatorOps},
     report::ReportData,
 };
 
@@ -199,6 +200,8 @@ fn verify_public_values(public_values: &SP1PublicValues, expected_public_values:
 
 fn compute_report_and_public_values(
     slot: Slot,
+    old_validator_state: &LidoValidatorState,
+    new_validator_state: &LidoValidatorState,
     validators: &Validators,
     balances: &Balances,
     beacon_block_hash: &Hash256,
@@ -225,6 +228,14 @@ fn compute_report_and_public_values(
             epoch: report.epoch,
             lido_withdrawal_credentials: lido_withdrawal_credentials.into(),
             beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
+            state_for_previous_report: LidoValidatorStateRust {
+                slot: old_validator_state.slot,
+                hash: old_validator_state.tree_hash_root(),
+            },
+            new_state: LidoValidatorStateRust {
+                slot: new_validator_state.slot,
+                hash: new_validator_state.tree_hash_root(),
+            },
         },
     };
 
@@ -269,6 +280,7 @@ async fn main() {
     println!("evm: {}", args.evm);
 
     let (bs, bh, old_bs) = read_beacon_states(&args).await;
+    let lido_withdrawal_credentials: Hash256 = consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
 
     let beacon_block_hash = bh.tree_hash_root();
 
@@ -279,11 +291,21 @@ async fn main() {
         hex::encode(beacon_block_hash),
         bs.validators.len()
     );
+    let old_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, &lido_withdrawal_credentials);
+    let new_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, &lido_withdrawal_credentials);
 
     let bs_indices = bs
         .get_leafs_indices(["validators", "balances"])
         .expect("Failed to get BeaconState field indices");
     let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&bs_indices);
+
+    let validator_delta = compute_validator_delta(old_bs, old_state, new_bs, &lido_withdrawal_credentials);
+    let added_validators_proof = bs
+        .validators
+        .get_field_multiproof(validator_delta.added_indices().as_slice());
+    let changed_validators_proof = bs
+        .validators
+        .get_field_multiproof(validator_delta.changed_indices().as_slice());
 
     let program_input = ProgramInput {
         slot: bs.slot,
@@ -291,16 +313,23 @@ async fn main() {
         // beacon_block_hash: h!("0000000000000000000000000000000000000000000000000000000000000000"),
         beacon_block_header: (&bh).into(),
         beacon_state: (&bs).into(),
-        validators_and_balances_proof: validators_and_balances_proof,
         validators_and_balances: ValsAndBals {
+            validators_and_balances_proof: validators_and_balances_proof,
+
+            validators_delta: delta,
+            added_validators_inclusion_proof: added_validators_proof,
+            changed_validators_inclusion_proof: changed_validators_proof,
+
             balances: bs.balances,
-            validators: bs.validators,
         },
+        old_lido_validator_state: old_lido_validator_state,
+        new_lido_validator_state_hash: new_lido_validator_state.tree_hash_root(),
     };
 
     let (report, public_values) = compute_report_and_public_values(
         // TODO: could've just passed bs, but bs.balances and bs.validators are moved into program_input
         bs.slot,
+        &old_validator_state,
         &program_input.validators_and_balances.validators,
         &program_input.validators_and_balances.balances,
         &beacon_block_hash,
@@ -310,6 +339,45 @@ async fn main() {
         run_script(EvmScript::new(), args.prove, &program_input, &public_values)
     } else {
         run_script(LocalScript::new(), args.prove, &program_input, &public_values)
+    }
+}
+
+fn compute_validator_delta(
+    old_bs: BeaconState,
+    old_state: LidoValidatorState,
+    new_bs: BeaconState,
+    lido_withdrawal_credentials: &Hash256,
+) -> ValidatorDelta {
+    let mut all_added: Vec<Validator> = vec![];
+    let mut lido_changed: Vec<Validator> = vec![];
+
+    let epoch = epoch(new_bs.epoch);
+
+    for index in old_state.all_lido_validators_indices() {
+        let old_validator: Validator = old_bs.validators[index];
+        let new_validator: Validator = new_bs.validators[index];
+
+        assert!(
+            old_validator.is_lido(lido_withdrawal_credentials),
+            "Validator at index {} does not belong to lido, but was listed in the old validator state",
+            index
+        );
+        assert!(
+            old_validator.pubkey == new_validator.pubkey,
+            "Validators at index {} in old and new beacon state have different pubkeys",
+            index
+        );
+        let old_status = old_validator.status(new_bs.epoch);
+        let new_status = new_validator.status(new_bs.epoch);
+
+        if (old_status != new_status) || old_validator.exit_epoch != new_validator.exit_epoch {
+            lido_changed.push(old_validator);
+        }
+    }
+
+    ValidatorDelta {
+        all_added: new_bs.validators[old_state.max_validator_index..].into(),
+        lido_changed,
     }
 }
 

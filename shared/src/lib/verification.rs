@@ -46,7 +46,60 @@ fn is_power_of_two(n: usize) -> bool {
     n != 0 && (n & (n - 1)) == 0
 }
 
-fn verify_hashes(expected: &Hash256, actual: &Hash256) -> Result<(), Error> {
+pub mod serde {
+    use super::{proof_serializers, Error, MerkleProof, Sha256};
+
+    pub fn deserialize_proof(proof_bytes: &[u8]) -> Result<MerkleProof<Sha256>, Error> {
+        MerkleProof::deserialize::<proof_serializers::DirectHashesOrder>(proof_bytes)
+            .map_err(Error::DeserializationError)
+    }
+
+    pub fn serialize_proof(proof: MerkleProof<Sha256>) -> Vec<u8> {
+        proof.serialize::<proof_serializers::DirectHashesOrder>()
+    }
+}
+
+pub fn build_root_from_proof(
+    proof: &MerkleProof<Sha256>,
+    total_leaves_count: usize,
+    indices: &[LeafIndex],
+    leaves_to_prove: &[RsMerkleHash],
+    expand_to_depth: Option<usize>,
+    mix_in_size: Option<usize>,
+) -> Result<Hash256, Error> {
+    assert!(
+        total_leaves_count >= leaves_to_prove.len(),
+        "Total number of elements {} must be >= the number of leafs to prove {}",
+        total_leaves_count,
+        leaves_to_prove.len()
+    );
+    assert!(
+        indices.len() == leaves_to_prove.len(),
+        "Number of leafs {} != number of indices {}",
+        indices.len(),
+        leaves_to_prove.len()
+    );
+
+    let mut root = proof
+        .root(indices, leaves_to_prove, total_leaves_count)
+        .map_err(Error::ProofError)?
+        .into();
+
+    log::debug!("Main data hash {}", hex::encode(root));
+    if let Some(target_depth) = expand_to_depth {
+        let main_data_depth: usize = total_leaves_count.trailing_zeros() as usize;
+        log::debug!("Expanding depth {} to {}", main_data_depth, target_depth);
+        root = hashing::pad_to_depth(&root, main_data_depth, target_depth);
+    }
+    if let Some(size) = mix_in_size {
+        log::debug!("Mixing in size {}", size);
+        root = tree_hash::mix_in_length(&root, size);
+    }
+
+    return Ok(root);
+}
+
+pub fn verify_hashes(expected: &Hash256, actual: &Hash256) -> Result<(), Error> {
     if actual == expected {
         return Ok(());
     }
@@ -64,8 +117,7 @@ pub trait FieldProof {
     fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex], leafs: &[RsMerkleHash]) -> Result<(), Error>;
 
     fn get_serialized_multiproof(&self, indices: &[LeafIndex]) -> Vec<u8> {
-        let proof = self.get_field_multiproof(indices);
-        proof.serialize::<proof_serializers::DirectHashesOrder>()
+        serde::serialize_proof(self.get_field_multiproof(indices))
     }
 
     fn verify_serialized(
@@ -74,12 +126,9 @@ pub trait FieldProof {
         indices: &[LeafIndex],
         leafs: &[RsMerkleHash],
     ) -> Result<(), Error> {
-        let maybe_proof = MerkleProof::deserialize::<proof_serializers::DirectHashesOrder>(proof_bytes.as_slice());
+        let proof = serde::deserialize_proof(proof_bytes.as_slice())?;
 
-        match maybe_proof {
-            Ok(proof) => self.verify(&proof, indices, leafs),
-            Err(error) => Err(Error::DeserializationError(error)),
-        }
+        self.verify(&proof, indices, leafs)
     }
 }
 
@@ -242,46 +291,6 @@ impl MerkleTreeFieldLeaves for BeaconBlockHeader {
         assert!(result.len() == Self::TREE_FIELDS_LENGTH);
         result
     }
-}
-
-fn build_root_from_proof(
-    proof: &MerkleProof<Sha256>,
-    total_leaves_count: usize,
-    indices: &[LeafIndex],
-    leaves_to_prove: &[RsMerkleHash],
-    expand_to_depth: Option<usize>,
-    mix_in_size: Option<usize>,
-) -> Result<Hash256, Error> {
-    assert!(
-        total_leaves_count >= leaves_to_prove.len(),
-        "Total number of elements {} must be >= the number of leafs to prove {}",
-        total_leaves_count,
-        leaves_to_prove.len()
-    );
-    assert!(
-        indices.len() == leaves_to_prove.len(),
-        "Number of leafs {} != number of indices {}",
-        indices.len(),
-        leaves_to_prove.len()
-    );
-
-    let mut root = proof
-        .root(indices, leaves_to_prove, total_leaves_count)
-        .map_err(Error::ProofError)?
-        .into();
-
-    log::debug!("Main data hash {}", hex::encode(root));
-    if let Some(target_depth) = expand_to_depth {
-        let main_data_depth: usize = total_leaves_count.trailing_zeros() as usize;
-        log::debug!("Expanding depth {} to {}", main_data_depth, target_depth);
-        root = hashing::pad_to_depth(&root, main_data_depth, target_depth);
-    }
-    if let Some(size) = mix_in_size {
-        log::debug!("Mixing in size {}", size);
-        root = tree_hash::mix_in_length(&root, size);
-    }
-
-    return Ok(root);
 }
 
 impl<T, N> FieldProof for VariableList<T, N>
