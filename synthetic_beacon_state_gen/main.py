@@ -149,7 +149,8 @@ def create_beacon_block_header(
 
 GWEI_IN_1_ETH = 10**9
 MILLIETH = 10**6
-FIXED_BALANCE = 32 * GWEI_IN_1_ETH
+# FIXED_BALANCE = 32 * GWEI_IN_1_ETH
+FIXED_BALANCE = 0
 
 BALANCE_MODES = [mode.value for mode in BalanceMode]
 

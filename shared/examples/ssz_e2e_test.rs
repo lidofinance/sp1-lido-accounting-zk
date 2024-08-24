@@ -11,7 +11,7 @@ mod util;
 use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateCreator};
 use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
-use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves};
+use sp1_lido_accounting_zk_shared::verification::{FieldProof, MerkleTreeFieldLeaves, RsMerkleHash};
 
 use simple_logger::SimpleLogger;
 
@@ -276,7 +276,11 @@ async fn main() {
     log::debug!("BeaconState proof hashes: {:?}", bs_proof.proof_hashes_hex());
 
     // Step 4.2: verify multiproof
-    let verification_result = beacon_state.verify(&bs_proof, &bs_indices);
+    let bs_leaves: Vec<RsMerkleHash> = vec![
+        beacon_state.validators.tree_hash_root().to_fixed_bytes(),
+        beacon_state.balances.tree_hash_root().to_fixed_bytes(),
+    ];
+    let verification_result = beacon_state.verify(&bs_proof, &bs_indices, bs_leaves.as_slice());
     match verification_result {
         Ok(()) => log::info!("BeaconState Verification succeeded"),
         Err(error) => log::error!("Verification failed: {:?}", error),
@@ -292,7 +296,8 @@ async fn main() {
     log::debug!("BeaconBlockHeader proof hashes: {:?}", bh_proof.proof_hashes_hex());
 
     // Step 5.2: verify multiproof
-    let verification_result = beacon_block_header.verify(&bh_proof, &bh_indices);
+    let bh_leaves = vec![bs_merkle.to_fixed_bytes()];
+    let verification_result = beacon_block_header.verify(&bh_proof, &bh_indices, bh_leaves.as_slice());
     match verification_result {
         Ok(()) => log::info!("BeaconBlockHeader Verification succeeded"),
         Err(error) => log::error!("Verification failed: {:?}", error),

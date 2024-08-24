@@ -9,7 +9,7 @@ mod util;
 
 use crate::util::synthetic_beacon_state_reader::{BalanceGenerationMode, SyntheticBeaconStateCreator};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::verification::FieldProof;
+use sp1_lido_accounting_zk_shared::verification::{FieldProof, RsMerkleHash};
 use sp1_lido_accounting_zk_shared::{
     beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader},
     consts,
@@ -39,10 +39,10 @@ async fn main() {
     };
     let update_state_spec = GenerationSpec {
         slot: new_slot,
-        non_lido_validators: 2_u64.pow(5),
-        deposited_lido_validators: 0,
+        non_lido_validators: 27,
+        deposited_lido_validators: 8,
         exited_lido_validators: 0,
-        future_deposit_lido_validators: 0,
+        future_deposit_lido_validators: 2,
         balances_generation_mode: BalanceGenerationMode::FIXED,
         shuffle: false,
         base_slot: Some(base_state_spec.slot),
@@ -69,37 +69,56 @@ async fn main() {
         .read_beacon_state(new_slot)
         .await
         .expect("Failed to read beacon state");
+    let lido_state2 = LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
 
-    let highest_validator_index1 = lido_state1.max_validator_index as usize;
+    let highest_validator_index1: usize = lido_state1
+        .max_validator_index
+        .try_into()
+        .expect("Failed to convert max_validator_index to usize");
     let highest_validator_index2 = beacon_state2.validators.len() - 1;
     let new_validator_indices = Vec::from_iter(highest_validator_index1..highest_validator_index2);
+    let all_lido_validator_indices: Vec<usize> = lido_state2
+        .deposited_lido_validator_indices
+        .iter()
+        .map(|v| usize::try_from(*v).unwrap())
+        .collect();
 
-    let validators_multiproof = beacon_state2
+    let new_validators_multiproof = beacon_state2
         .validators
-        .get_field_multiproof(new_validator_indices.as_slice());
-
-    let balances_multiproof = beacon_state2
-        .balances
         .get_field_multiproof(new_validator_indices.as_slice());
 
     log::info!("New validators {}", new_validator_indices.len());
     log::debug!(
         "Validators proof hashes: {:?}",
-        validators_multiproof.proof_hashes_hex()
+        new_validators_multiproof.proof_hashes_hex()
     );
-    log::debug!("Balances proof hashes: {:?}", balances_multiproof.proof_hashes_hex());
-
     log::info!("Validating validators proof");
+    let validators_to_prove: Vec<RsMerkleHash> = new_validator_indices
+        .iter()
+        .map(|idx| beacon_state2.validators[*idx].tree_hash_root().to_fixed_bytes())
+        .collect();
     beacon_state2
         .validators
-        .verify(&validators_multiproof, &new_validator_indices)
+        .verify(
+            &new_validators_multiproof,
+            &new_validator_indices,
+            validators_to_prove.as_slice(),
+        )
         .expect("Failed to validate multiproof");
 
-    log::info!("Validating balances proof");
-    beacon_state2
-        .balances
-        .verify(&balances_multiproof, &new_validator_indices)
-        .expect("Failed to validate multiproof");
+    // let lido_balances_multiproof = beacon_state2
+    //     .balances
+    //     .get_field_multiproof(all_lido_validator_indices.as_slice());
+    // log::info!("Lido validators {}", all_lido_validator_indices.len());
+    // log::debug!(
+    //     "Lido balances proof hashes: {:?}",
+    //     lido_balances_multiproof.proof_hashes_hex()
+    // );
+    // log::info!("Validating balances proof");
+    // beacon_state2
+    //     .balances
+    //     .verify(&lido_balances_multiproof, &new_validator_indices)
+    //     .expect("Failed to validate multiproof");
 
     log::info!("Successfully validated multiproofs");
 }

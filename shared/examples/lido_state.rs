@@ -44,7 +44,7 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
     );
 
     let epoch = epoch(beacon_state.slot).unwrap();
-    let withdrawal_creds: H256 = LIDO_WITHDRAWAL_CREDENTIALS.into();
+    let withdrawal_creds: Hash256 = LIDO_WITHDRAWAL_CREDENTIALS.into();
 
     let deposited_hash_set: HashSet<u64> = HashSet::from_iter(state.deposited_lido_validator_indices.clone());
     let future_deposit_hash_set: HashSet<u64> = HashSet::from_iter(state.future_deposit_lido_validator_indices.clone());

@@ -94,7 +94,6 @@ mod riscv {
 
             let mut hasher = MerkleHasher::with_leaves(main_tree_elems);
 
-            // for item in &self.balances {
             for item in list {
                 hasher
                     .write(&Self::item_encoding(item))
