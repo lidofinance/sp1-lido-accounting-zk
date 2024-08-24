@@ -26,7 +26,7 @@ pub fn packing_factor<T: TreeHash>() -> usize {
 
 pub fn tree_depth<N: Unsigned>() -> usize {
     // trailing zeroes is essentially a log2
-    N::to_u64().trailing_zeros() as usize
+    N::to_u64().next_power_of_two().trailing_zeros() as usize
 }
 
 pub fn target_tree_depth<T: TreeHash, N: Unsigned>() -> usize {

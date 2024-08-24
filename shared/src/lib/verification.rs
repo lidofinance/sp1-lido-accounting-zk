@@ -3,7 +3,6 @@ use std::any::type_name;
 use rs_merkle::{algorithms::Sha256, proof_serializers, MerkleProof, MerkleTree};
 
 use hex_literal::hex as h;
-use serde_json::value::Index;
 use ssz_types::VariableList;
 use typenum::Unsigned;
 
@@ -299,7 +298,7 @@ where
 
         // Quirk: rs_merkle does not pad to next power of two, ending up with a different merkle root
         let pad_to = self.len().next_power_of_two();
-        assert!(pad_to > self.len(), "Overflow finding the padding size");
+        assert!(pad_to >= self.len(), "Overflow finding the padding size");
         let leaves: Vec<RsMerkleHash> = self
             .iter()
             .map(|val| val.tree_hash_root().to_fixed_bytes())
@@ -331,5 +330,103 @@ where
         )?;
 
         verify_hashes(&self.tree_hash_root(), &with_height)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use ssz_types::VariableList;
+    use tree_hash::TreeHash;
+    use tree_hash_derive::TreeHash;
+    use typenum::Unsigned;
+
+    use crate::{eth_consensus_layer::Hash256, verification::ZEROHASH_H256};
+
+    use super::{Error, FieldProof, LeafIndex, MerkleTreeFieldLeaves, RsMerkleHash};
+
+    #[derive(Debug, Clone, PartialEq, TreeHash)]
+    pub struct GuineaPig {
+        pub uint1: u64,
+        pub uint2: u64,
+        pub hash: Hash256,
+    }
+
+    impl MerkleTreeFieldLeaves for GuineaPig {
+        const TREE_FIELDS_LENGTH: usize = 4;
+
+        fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
+            match field_name {
+                "uint1" => Ok(0),
+                "uint2" => Ok(1),
+                "hash" => Ok(2),
+                _ => Err(Error::FieldDoesNotExist(format!("Field {} does not exist", field_name))),
+            }
+        }
+
+        fn tree_field_leaves(&self) -> Vec<Hash256> {
+            let result: Vec<Hash256> = vec![
+                self.uint1.tree_hash_root(),
+                self.uint2.tree_hash_root(),
+                self.hash,
+                ZEROHASH_H256.clone(),
+            ];
+            // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
+            assert!(result.len() == Self::TREE_FIELDS_LENGTH);
+            result
+        }
+    }
+
+    impl GuineaPig {
+        fn new(uint1: u64, uint2: u64, hash: Hash256) -> Self {
+            GuineaPig { uint1, uint2, hash }
+        }
+    }
+
+    #[test]
+    fn struct_round_trip() {
+        let guinea_pig = GuineaPig::new(1, 2, Hash256::zero());
+
+        let indices = guinea_pig
+            .get_leafs_indices(["uint1", "hash"])
+            .expect("Failed to get field indices");
+
+        let proof = guinea_pig.get_field_multiproof(&indices);
+        let leafs = [
+            guinea_pig.uint1.tree_hash_root().to_fixed_bytes(),
+            guinea_pig.hash.tree_hash_root().to_fixed_bytes(),
+        ];
+        guinea_pig
+            .verify(&proof, &indices, leafs.as_slice())
+            .expect("Verification failed")
+    }
+
+    fn test_list<N: Unsigned>(input: &Vec<GuineaPig>, target_indices: &[usize]) {
+        let list: VariableList<GuineaPig, N> = input.clone().into();
+        let target_hashes: Vec<RsMerkleHash> = target_indices
+            .iter()
+            .map(|index| input[*index].tree_hash_root().to_fixed_bytes())
+            .collect();
+
+        let proof = list.get_field_multiproof(&target_indices);
+        list.verify(&proof, &target_indices, target_hashes.as_slice())
+            .expect("Verification failed")
+    }
+
+    #[test]
+    fn variable_list_round_trip() {
+        let guinea_pigs = vec![
+            GuineaPig::new(1, 10, Hash256::zero()),
+            GuineaPig::new(2, 20, Hash256::random()),
+            GuineaPig::new(3, 30, Hash256::random()),
+            GuineaPig::new(4, 40, Hash256::random()),
+        ];
+
+        // TODO: find out how parameterized/data-driven/property-based testing is done in Rust
+        test_list::<typenum::U4>(&guinea_pigs, &[0, 2]);
+        test_list::<typenum::U9>(&guinea_pigs, &[0, 1]);
+        test_list::<typenum::U31>(&guinea_pigs, &[0, 1, 2]);
+        test_list::<typenum::U32>(&guinea_pigs, &[2]);
+        test_list::<typenum::U255>(&guinea_pigs, &[1]);
+        test_list::<typenum::U999>(&guinea_pigs, &[0, 1, 2, 3]);
     }
 }

@@ -8,3 +8,6 @@ pub mod lido;
 pub mod report;
 pub mod util;
 pub mod verification;
+
+#[cfg(feature = "synthetic_bs_reader")]
+pub mod synthetic_beacon_state_reader;

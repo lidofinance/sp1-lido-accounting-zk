@@ -11,23 +11,27 @@ path = "src/lib/lib.rs"
 [[example]]
 name = "ssz_e2e_test"
 path = "examples/ssz_e2e_test.rs"
+required-features = ["synthetic_bs_reader"]
 
 [[example]]
 name = "report_e2e_test"
 path = "examples/report.rs"
+required-features = ["synthetic_bs_reader"]
 
 [[example]]
 name = "lido_state_e2e_test"
 path = "examples/lido_state.rs"
+required-features = ["synthetic_bs_reader"]
 
 [[example]]
 name = "gen_pair"
 path = "examples/gen_synthetic_bs_pair.rs"
+required-features = ["synthetic_bs_reader"]
 
 [[example]]
 name = "list_multiproofs"
 path = "examples/list_multiproofs.rs"
-
+required-features = ["synthetic_bs_reader"]
 
 [dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
@@ -58,3 +62,6 @@ tokio = { version = "1.38.0", features = ["full"] }
 [patch.crates-io]
 sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
 ethereum_hashing = { path = "../../../ethereum_hashing" }
+
+[features]
+synthetic_bs_reader = []

@@ -1,10 +1,11 @@
 use anyhow::Result;
 use log;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::{read_untyped_json, FileBasedBeaconChainStore};
 use std::env;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+
+use crate::beacon_state_reader::{read_untyped_json, FileBasedBeaconChainStore};
 
 pub enum BalanceGenerationMode {
     RANDOM,

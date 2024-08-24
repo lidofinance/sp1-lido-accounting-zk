@@ -1,1 +1,0 @@
-pub mod synthetic_beacon_state_reader;
