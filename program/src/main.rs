@@ -93,18 +93,7 @@ fn prove_data_correctness(input: &ProgramInput) {
 
     // Validators and balances are included into BeaconState (merkle multiproof)
     println!("cycle-tracker-start: prove_data_correctness.vals_and_bals");
-    // Step 1: confirm multiproof
-    println!("cycle-tracker-start: prove_data_correctness.vals_and_bals.multiproof");
-    let bs_indices = beacon_state
-        .get_leafs_indices(["validators", "balances"])
-        .expect("Failed to get leaf indices");
-
-    beacon_state
-        .verify_serialized(&input.validators_and_balances_proof, &bs_indices)
-        .expect("Failed to verify validators and balances inclusion");
-    println!("cycle-tracker-end: prove_data_correctness.vals_and_bals.multiproof");
-
-    // Step 2: confirm passed validators and balances hashes match the ones in BeaconState
+    // Step 1: confirm passed validators and balances hashes match the ones in BeaconState
     println!("cycle-tracker-start: prove_data_correctness.vals_and_bals.validators_root");
     let validators_hash = HashHelperImpl::hash_list(&input.validators_and_balances.validators);
     assert!(
@@ -124,6 +113,22 @@ fn prove_data_correctness(input: &ProgramInput) {
         hex::encode(beacon_state.balances),
     );
     println!("cycle-tracker-end: prove_data_correctness.vals_and_bals.balances_root");
+
+    // Step 2: confirm multiproof
+    println!("cycle-tracker-start: prove_data_correctness.vals_and_bals.multiproof");
+    let bs_indices = beacon_state
+        .get_leafs_indices(["validators", "balances"])
+        .expect("Failed to get leaf indices");
+
+    let vals_and_bals_multiproof_leaves = [validators_hash.to_fixed_bytes(), balances_hash.to_fixed_bytes()];
+    beacon_state
+        .verify_serialized(
+            &input.validators_and_balances_proof,
+            &bs_indices,
+            &vals_and_bals_multiproof_leaves,
+        )
+        .expect("Failed to verify validators and balances inclusion");
+    println!("cycle-tracker-end: prove_data_correctness.vals_and_bals.multiproof");
     println!("cycle-tracker-end: prove_data_correctness.vals_and_bals");
 }
 
