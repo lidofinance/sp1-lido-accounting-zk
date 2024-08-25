@@ -19,6 +19,13 @@ pub struct LidoValidatorState {
     pub max_validator_index: ValidatorIndex,
     pub deposited_lido_validator_indices: VariableList<ValidatorIndex, eth_spec::ValidatorRegistryLimit>,
     pub future_deposit_lido_validator_indices: VariableList<ValidatorIndex, eth_spec::ValidatorRegistryLimit>,
+    // TODO: attackers can manipulate exited by not providing validators that have existed in the update
+    // The only way to close this loophole is to include all the lido validators in each update, but
+    // it generally defeats the purpose of state caching, since lido operates ~30% validators
+    // So this field is skipped from hashing to prevent a denial of service attack - by manipulating
+    // the exited validators, an attacker can "corrupt" the validator state hash and cause future updates
+    // from legitimate oracles to fail
+    #[tree_hash(skip_hashing)]
     pub exited_lido_validator_indices: VariableList<ValidatorIndex, eth_spec::ValidatorRegistryLimit>,
 }
 
@@ -205,17 +212,11 @@ pub struct ValidatorDelta {
 }
 
 impl ValidatorDelta {
-    // TODO: this probably incurs unnecessary copying - figure out if it is possible to
-    // do the same via iterator over references
-    fn to_index_iterator(&self, values: &[ValidatorWithIndex]) -> Vec<u64> {
-        values.iter().map(|v| v.index).collect()
+    pub fn added_indices(&self) -> impl Iterator<Item = &'_ ValidatorIndex> {
+        self.all_added.iter().map(|v: &ValidatorWithIndex| &v.index)
     }
 
-    pub fn added_indices(&self) -> Vec<u64> {
-        self.to_index_iterator(self.all_added.as_slice())
-    }
-
-    pub fn changed_indices(&self) -> Vec<u64> {
-        self.to_index_iterator(self.lido_changed.as_slice())
+    pub fn changed_indices(&self) -> impl Iterator<Item = &'_ ValidatorIndex> {
+        self.lido_changed.iter().map(|v: &ValidatorWithIndex| &v.index)
     }
 }

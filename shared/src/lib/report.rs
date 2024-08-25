@@ -54,15 +54,15 @@ impl ReportData {
     }
 
     pub fn compute_from_state(
-        lido_validators_state: LidoValidatorState,
-        balances: Balances,
+        lido_validators_state: &LidoValidatorState,
+        balances: &Balances,
         lido_withdrawal_credentials: &Hash256,
     ) -> Self {
         let mut cl_balance: u64 = 0;
 
-        let deposited_indices = lido_validators_state.deposited_lido_validator_indices;
+        let deposited_indices = &lido_validators_state.deposited_lido_validator_indices;
 
-        for index in &deposited_indices {
+        for index in deposited_indices {
             cl_balance += balances[u64_to_usize(*index)];
         }
 
