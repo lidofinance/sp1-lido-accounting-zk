@@ -1,11 +1,10 @@
 use log;
-use util::synthetic_beacon_state_reader::GenerationSpec;
 
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
 use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic_beacon_state_reader::{
-    BalanceGenerationMode, SyntheticBeaconStateCreator,
+    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
 };
 use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
 
@@ -24,7 +23,7 @@ async fn main() {
         non_lido_validators: 2_u64.pow(10),
         deposited_lido_validators: 2_u64.pow(9),
         exited_lido_validators: 2_u64.pow(3),
-        future_deposit_lido_validators: 2_u64.pow(2),
+        pending_deposit_lido_validators: 2_u64.pow(2),
         balances_generation_mode: BalanceGenerationMode::FIXED,
         shuffle: false,
         base_slot: None,
@@ -35,7 +34,7 @@ async fn main() {
         non_lido_validators: 2_u64.pow(5),
         deposited_lido_validators: 2_u64.pow(4),
         exited_lido_validators: 2_u64.pow(2),
-        future_deposit_lido_validators: 2_u64.pow(1),
+        pending_deposit_lido_validators: 2_u64.pow(1),
         balances_generation_mode: BalanceGenerationMode::FIXED,
         shuffle: false,
         base_slot: Some(base_state_spec.slot),

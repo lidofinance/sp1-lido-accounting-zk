@@ -200,7 +200,7 @@ async fn main() {
         non_lido_validators: 2_u64.pow(11),
         deposited_lido_validators: 2_u64.pow(11),
         exited_lido_validators: 0,
-        future_deposit_lido_validators: 0,
+        pending_deposit_lido_validators: 0,
         balances_generation_mode: BalanceGenerationMode::FIXED,
         shuffle: false,
         base_slot: None,

@@ -23,14 +23,14 @@ class Report:
     total_validators: int
     lido_total_validators: int
     lido_deposited_validators: int
-    lido_future_deposit_validators: int
+    lido_pending_deposit_validators: int
     lido_exited_validators: int
     lido_withdrawal_credentials: bytes
 
     @classmethod
     def create(cls, beacon_state: BeaconState, beacon_block_header: BeaconBlockHeader) -> "Report":
         total_balance, lido_cl_balance = 0, 0
-        lido_validators, deposited_validators, future_deposit_validators, exited_validators = 0, 0, 0, 0
+        lido_validators, deposited_validators, pending_deposit_validators, exited_validators = 0, 0, 0, 0
 
         epoch = beacon_state.slot // constants.SLOTS_PER_EPOCH
 
@@ -42,7 +42,7 @@ class Report:
                 if epoch >= validator.activation_eligibility_epoch:
                     deposited_validators += 1
                 else:
-                    future_deposit_validators += 1
+                    pending_deposit_validators += 1
                 if epoch >= validator.exit_epoch:
                     exited_validators += 1
 
@@ -59,7 +59,7 @@ class Report:
             total_validators = len(beacon_state.validators),
             lido_total_validators = lido_validators,
             lido_deposited_validators = deposited_validators,
-            lido_future_deposit_validators = future_deposit_validators,
+            lido_pending_deposit_validators = pending_deposit_validators,
             lido_exited_validators = exited_validators,
             lido_withdrawal_credentials = WithdrawalCreds.Lido,
         )

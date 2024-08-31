@@ -42,7 +42,7 @@ def generate_validators_and_balances(
     non_lido_validators: int,
     deposited_lido_validators: int,
     exited_lido_validators: int,
-    future_deposit_lido_validators: int,
+    pending_deposit_lido_validators: int,
     balance_generator: Generator[int, None, None],
     shuffle: bool = False
 ):
@@ -65,7 +65,7 @@ def generate_validators_and_balances(
             epoch, withdrawal_credentials=WithdrawalCreds.Lido,
             deposited=False, active=False, exited=False, pubkey=idx.to_bytes(10, signed=False) + b"\x01" * 38
         )
-        for idx in range(future_deposit_lido_validators)
+        for idx in range(pending_deposit_lido_validators)
     ]
     other_validators = [
         make_validator_simple(
@@ -187,7 +187,7 @@ def read_bs(file: pathlib.Path) -> BeaconState:
 )
 @click.option(
     "-fd",
-    "--future_deposit_lido_validators",
+    "--pending_deposit_lido_validators",
     type=int,
     default=2**2,
     help="Number of created, but not deposited Lido validators",
@@ -215,7 +215,7 @@ def main(
     non_lido_validators: int,
     deposited_lido_validators: int,
     exited_lido_validators: int,
-    future_deposit_lido_validators: int,
+    pending_deposit_lido_validators: int,
     balances_mode: str,
     slot: int,
     check: bool = True,
@@ -240,7 +240,7 @@ def main(
         slot, epoch, non_lido_validators,
         deposited_lido_validators,
         exited_lido_validators,
-        future_deposit_lido_validators, 
+        pending_deposit_lido_validators, 
         balance_gen, shuffle
     )
 

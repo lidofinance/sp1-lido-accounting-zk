@@ -42,10 +42,6 @@ pub trait MerkleTreeFieldLeaves {
     fn tree_field_leaves(&self) -> Vec<Hash256>;
 }
 
-fn is_power_of_two(n: usize) -> bool {
-    n != 0 && (n & (n - 1)) == 0
-}
-
 pub mod serde {
     use super::{proof_serializers, Error, MerkleProof, Sha256};
 
@@ -184,36 +180,35 @@ impl MerkleTreeFieldLeaves for BeaconState {
 impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
     const TREE_FIELDS_LENGTH: usize = 32;
     fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
-        let start_index = 0;
         match field_name {
-            "genesis_time" => Ok(start_index + 0),
-            "genesis_validators_root" => Ok(start_index + 1),
-            "slot" => Ok(start_index + 2),
-            "fork" => Ok(start_index + 3),
-            "latest_block_header" => Ok(start_index + 4),
-            "block_roots" => Ok(start_index + 5),
-            "state_roots" => Ok(start_index + 6),
-            "historical_roots" => Ok(start_index + 7),
-            "eth1_data" => Ok(start_index + 8),
-            "eth1_data_votes" => Ok(start_index + 9),
-            "eth1_deposit_index" => Ok(start_index + 10),
-            "validators" => Ok(start_index + 11),
-            "balances" => Ok(start_index + 12),
-            "randao_mixes" => Ok(start_index + 13),
-            "slashings" => Ok(start_index + 14),
-            "previous_epoch_participation" => Ok(start_index + 15),
-            "current_epoch_participation" => Ok(start_index + 16),
-            "justification_bits" => Ok(start_index + 17),
-            "previous_justified_checkpoint" => Ok(start_index + 18),
-            "current_justified_checkpoint" => Ok(start_index + 19),
-            "finalized_checkpoint" => Ok(start_index + 20),
-            "inactivity_scores" => Ok(start_index + 21),
-            "current_sync_committee" => Ok(start_index + 22),
-            "next_sync_committee" => Ok(start_index + 23),
-            "latest_execution_payload_header" => Ok(start_index + 24),
-            "next_withdrawal_index" => Ok(start_index + 25),
-            "next_withdrawal_validator_index" => Ok(start_index + 26),
-            "historical_summaries" => Ok(start_index + 27),
+            "genesis_time" => Ok(0),
+            "genesis_validators_root" => Ok(1),
+            "slot" => Ok(2),
+            "fork" => Ok(3),
+            "latest_block_header" => Ok(4),
+            "block_roots" => Ok(5),
+            "state_roots" => Ok(6),
+            "historical_roots" => Ok(7),
+            "eth1_data" => Ok(8),
+            "eth1_data_votes" => Ok(9),
+            "eth1_deposit_index" => Ok(10),
+            "validators" => Ok(11),
+            "balances" => Ok(12),
+            "randao_mixes" => Ok(13),
+            "slashings" => Ok(14),
+            "previous_epoch_participation" => Ok(15),
+            "current_epoch_participation" => Ok(16),
+            "justification_bits" => Ok(17),
+            "previous_justified_checkpoint" => Ok(18),
+            "current_justified_checkpoint" => Ok(19),
+            "finalized_checkpoint" => Ok(20),
+            "inactivity_scores" => Ok(21),
+            "current_sync_committee" => Ok(22),
+            "next_sync_committee" => Ok(23),
+            "latest_execution_payload_header" => Ok(24),
+            "next_withdrawal_index" => Ok(25),
+            "next_withdrawal_validator_index" => Ok(26),
+            "historical_summaries" => Ok(27),
             _ => Err(Error::FieldDoesNotExist(format!("Field {} does not exist", field_name))),
         }
     }
@@ -256,6 +251,7 @@ impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
         ];
         // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
         assert!(result.len() == Self::TREE_FIELDS_LENGTH);
+        assert!(result.len().is_power_of_two());
         result
     }
 }
@@ -264,13 +260,12 @@ impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
 impl MerkleTreeFieldLeaves for BeaconBlockHeader {
     const TREE_FIELDS_LENGTH: usize = 8;
     fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
-        let start_index = 0;
         match field_name {
-            "slot" => Ok(start_index + 0),
-            "proposer_index" => Ok(start_index + 1),
-            "parent_root" => Ok(start_index + 2),
-            "state_root" => Ok(start_index + 3),
-            "body_root" => Ok(start_index + 4),
+            "slot" => Ok(0),
+            "proposer_index" => Ok(1),
+            "parent_root" => Ok(2),
+            "state_root" => Ok(3),
+            "body_root" => Ok(4),
             _ => Err(Error::FieldDoesNotExist(format!("Field {} does not exist", field_name))),
         }
     }
@@ -289,6 +284,7 @@ impl MerkleTreeFieldLeaves for BeaconBlockHeader {
         ];
         // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
         assert!(result.len() == Self::TREE_FIELDS_LENGTH);
+        assert!(result.len().is_power_of_two());
         result
     }
 }
@@ -313,7 +309,7 @@ where
             .map(|val| val.tree_hash_root().to_fixed_bytes())
             .pad_using(pad_to, |_i| ZEROHASH)
             .collect();
-        assert!(is_power_of_two(leaves.len()), "Number of leaves must be a power of 2");
+        assert!(leaves.len().is_power_of_two(), "Number of leaves must be a power of 2");
 
         let merkle_tree = MerkleTree::<Sha256>::from_leaves(leaves.as_slice());
         return merkle_tree.proof(indices);

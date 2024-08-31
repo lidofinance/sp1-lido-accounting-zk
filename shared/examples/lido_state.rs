@@ -36,8 +36,8 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
         manifesto["report"]["lido_exited_validators"].as_u64().unwrap()
     );
     assert_eq!(
-        usize_to_u64(state.future_deposit_lido_validator_indices.len()),
-        manifesto["report"]["lido_future_deposit_validators"].as_u64().unwrap()
+        usize_to_u64(state.pending_deposit_lido_validator_indices.len()),
+        manifesto["report"]["lido_pending_deposit_validators"].as_u64().unwrap()
     );
     assert_eq!(
         state.max_validator_index,
@@ -48,7 +48,8 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
     let withdrawal_creds: Hash256 = LIDO_WITHDRAWAL_CREDENTIALS.into();
 
     let deposited_hash_set: HashSet<u64> = HashSet::from_iter(state.deposited_lido_validator_indices.clone());
-    let future_deposit_hash_set: HashSet<u64> = HashSet::from_iter(state.future_deposit_lido_validator_indices.clone());
+    let pending_deposit_hash_set: HashSet<u64> =
+        HashSet::from_iter(state.pending_deposit_lido_validator_indices.clone());
     let exited_hash_set: HashSet<u64> = HashSet::from_iter(state.exited_lido_validator_indices.clone());
 
     for (idx, validator) in beacon_state.validators.iter().enumerate() {
@@ -56,13 +57,13 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
 
         if validator.withdrawal_credentials != withdrawal_creds {
             assert!(!deposited_hash_set.contains(&validator_index));
-            assert!(!future_deposit_hash_set.contains(&validator_index));
+            assert!(!pending_deposit_hash_set.contains(&validator_index));
             assert!(!exited_hash_set.contains(&validator_index));
         } else {
             if epoch >= validator.activation_eligibility_epoch {
                 assert!(deposited_hash_set.contains(&validator_index));
             } else {
-                assert!(future_deposit_hash_set.contains(&validator_index));
+                assert!(pending_deposit_hash_set.contains(&validator_index));
             }
 
             if epoch >= validator.exit_epoch {
@@ -86,7 +87,7 @@ async fn main() {
         non_lido_validators: 2_u64.pow(7),
         deposited_lido_validators: 2_u64.pow(6),
         exited_lido_validators: 4,
-        future_deposit_lido_validators: 8,
+        pending_deposit_lido_validators: 8,
         balances_generation_mode: BalanceGenerationMode::FIXED,
         shuffle: true,
         base_slot: None,
@@ -128,7 +129,7 @@ async fn main() {
     );
     log::debug!(
         "Future deposit validators: {:?}",
-        lido_state.future_deposit_lido_validator_indices.to_vec()
+        lido_state.pending_deposit_lido_validator_indices.to_vec()
     );
     log::debug!(
         "Exited validators: {:?}",

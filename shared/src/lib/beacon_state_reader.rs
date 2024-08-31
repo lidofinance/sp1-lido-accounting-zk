@@ -153,7 +153,7 @@ pub mod synthetic_beacon_state_reader {
         pub non_lido_validators: u64,
         pub deposited_lido_validators: u64,
         pub exited_lido_validators: u64,
-        pub future_deposit_lido_validators: u64,
+        pub pending_deposit_lido_validators: u64,
         pub balances_generation_mode: BalanceGenerationMode,
         pub shuffle: bool,
         pub base_slot: Option<u64>,
@@ -224,8 +224,8 @@ pub mod synthetic_beacon_state_reader {
                     &generation_spec.exited_lido_validators.to_string(),
                 ])
                 .args([
-                    "--future_deposit_lido_validators",
-                    &generation_spec.future_deposit_lido_validators.to_string(),
+                    "--pending_deposit_lido_validators",
+                    &generation_spec.pending_deposit_lido_validators.to_string(),
                 ])
                 .args(["--balances_mode", generation_spec.balances_generation_mode.to_cmdline()])
                 .args(["--slot", &generation_spec.slot.to_string()]);

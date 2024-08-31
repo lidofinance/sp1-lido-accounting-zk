@@ -10,27 +10,34 @@ use crate::eth_consensus_layer::{self, BeaconState, Epoch, Hash256, Slot, Valida
 use crate::eth_spec;
 use crate::util::usize_to_u64;
 
+type ValidatorIndexList = VariableList<ValidatorIndex, eth_spec::ReducedValidatorRegistryLimit>;
+
 #[derive(PartialEq, Clone, Debug, Serialize, Deserialize, TreeHash)]
 pub struct LidoValidatorState {
     pub slot: Slot,
     pub epoch: Epoch,
     pub max_validator_index: ValidatorIndex,
-    pub deposited_lido_validator_indices: VariableList<ValidatorIndex, eth_spec::ValidatorRegistryLimit>,
-    pub future_deposit_lido_validator_indices: VariableList<ValidatorIndex, eth_spec::ValidatorRegistryLimit>,
-    // TODO: attackers can manipulate exited by not providing validators that have existed in the update
+    pub deposited_lido_validator_indices: ValidatorIndexList,
+    pub pending_deposit_lido_validator_indices: ValidatorIndexList,
+    // TODO: attackers can manipulate exited by not providing validators that have existed in the update.
     // The only way to close this loophole is to include all the lido validators in each update, but
-    // it generally defeats the purpose of state caching, since lido operates ~30% validators
+    // it generally defeats the purpose of state caching, since lido operates ~30% validators.
+    //
     // So this field is skipped from hashing to prevent a denial of service attack - by manipulating
     // the exited validators, an attacker can "corrupt" the validator state hash and cause future updates
     // from legitimate oracles to fail
     #[tree_hash(skip_hashing)]
-    pub exited_lido_validator_indices: VariableList<ValidatorIndex, eth_spec::ValidatorRegistryLimit>,
+    pub exited_lido_validator_indices: ValidatorIndexList,
 }
 
 impl LidoValidatorState {
+    pub fn total_validators(&self) -> ValidatorIndex {
+        self.max_validator_index + 1
+    }
+
     pub fn compute(slot: Slot, validators: &Validators, lido_withdrawal_credentials: &Hash256) -> Self {
         let mut deposited: Vec<ValidatorIndex> = vec![];
-        let mut future_deposit: Vec<ValidatorIndex> = vec![];
+        let mut pending_deposit: Vec<ValidatorIndex> = vec![];
         let mut exited: Vec<ValidatorIndex> = vec![];
 
         let epoch = eth_consensus_layer::epoch(slot).unwrap();
@@ -43,7 +50,7 @@ impl LidoValidatorState {
 
             match validator.status(epoch) {
                 ValidatorStatus::Deposited => deposited.push(usize_to_u64(idx)),
-                ValidatorStatus::FutureDeposit => future_deposit.push(usize_to_u64(idx)),
+                ValidatorStatus::FutureDeposit => pending_deposit.push(usize_to_u64(idx)),
                 ValidatorStatus::Exited => {
                     deposited.push(usize_to_u64(idx));
                     exited.push(usize_to_u64(idx));
@@ -55,7 +62,7 @@ impl LidoValidatorState {
             epoch,
             max_validator_index,
             deposited_lido_validator_indices: deposited.into(),
-            future_deposit_lido_validator_indices: future_deposit.into(),
+            pending_deposit_lido_validator_indices: pending_deposit.into(),
             exited_lido_validator_indices: exited.into(),
         }
     }
@@ -63,7 +70,7 @@ impl LidoValidatorState {
     pub fn all_lido_validators_indices(&self) -> impl Iterator<Item = &u64> {
         self.deposited_lido_validator_indices
             .iter()
-            .chain(self.future_deposit_lido_validator_indices.iter())
+            .chain(self.pending_deposit_lido_validator_indices.iter())
     }
 
     pub fn index_of_first_new_validator(&self) -> ValidatorIndex {
@@ -87,11 +94,15 @@ impl LidoValidatorState {
     ) -> Self {
         assert!(validator_delta.all_added[0].index == self.index_of_first_new_validator());
         let mut new_deposited = self.deposited_lido_validator_indices.to_vec().clone();
-        // future deposit is a bit special - we want to conveniently add and remove to it
+        // pending deposit is a bit special - we want to conveniently add and remove to it
         // and convert to sorted at the end. This list will generally be small (<10**3, roughly)
         // so additional overhead of list -> set -> list -> sort should be small/negligible
-        let mut new_future_deposit: HashSet<&u64> = self.future_deposit_lido_validator_indices.iter().collect();
-        let mut new_exited = self.deposited_lido_validator_indices.to_vec().clone();
+        let mut new_pending_deposit: HashSet<u64> = self
+            .pending_deposit_lido_validator_indices
+            .iter()
+            .map(|v| v.clone())
+            .collect();
+        let mut new_exited = self.exited_lido_validator_indices.to_vec().clone();
 
         let epoch = eth_consensus_layer::epoch(slot).unwrap();
 
@@ -103,7 +114,7 @@ impl LidoValidatorState {
             match validator.status(epoch) {
                 ValidatorStatus::Deposited => new_deposited.push(validator_with_index.index),
                 ValidatorStatus::FutureDeposit => {
-                    new_future_deposit.insert(&validator_with_index.index);
+                    new_pending_deposit.insert(validator_with_index.index);
                 }
                 ValidatorStatus::Exited => {
                     new_deposited.push(validator_with_index.index);
@@ -126,11 +137,11 @@ impl LidoValidatorState {
             match (&old_status, &new_status) {
                 (ValidatorStatus::FutureDeposit, ValidatorStatus::Deposited) => {
                     new_deposited.push(validator_with_index.index);
-                    new_future_deposit.remove(&validator_with_index.index);
+                    new_pending_deposit.remove(&validator_with_index.index);
                 }
                 (ValidatorStatus::FutureDeposit, ValidatorStatus::Exited) => {
                     new_deposited.push(validator_with_index.index);
-                    new_future_deposit.remove(&validator_with_index.index);
+                    new_pending_deposit.remove(&validator_with_index.index);
                     new_exited.push(validator_with_index.index);
                 }
                 (ValidatorStatus::Deposited, ValidatorStatus::Exited) => {
@@ -145,27 +156,29 @@ impl LidoValidatorState {
                 | (ValidatorStatus::Exited, ValidatorStatus::FutureDeposit)
                 | (ValidatorStatus::Deposited, ValidatorStatus::FutureDeposit) => {
                     panic!(
-                        "Validator {} tranisitioned from {:?} to {:?}",
+                        "Invalid status transition for Validator {}: {:?} => {:?}",
                         validator_with_index.index, &old_status, &new_status
                     )
                 }
             }
         }
 
-        let future_deposit_vec: Vec<u64> = new_future_deposit
-            .into_iter()
-            .map(|v| v.to_owned())
-            .sorted()
-            .collect_vec();
+        let pending_deposit_vec: Vec<u64> = new_pending_deposit.into_iter().sorted().collect_vec();
 
-        Self {
+        let deposited_list: ValidatorIndexList = new_deposited.into();
+        let pending_deposite_list: ValidatorIndexList = pending_deposit_vec.into();
+        let exited_list: ValidatorIndexList = new_exited.into();
+
+        let result = Self {
             slot,
-            epoch: eth_consensus_layer::epoch(slot).unwrap(),
+            epoch: epoch,
             max_validator_index: self.max_validator_index + usize_to_u64(validator_delta.all_added.len()),
-            deposited_lido_validator_indices: new_deposited.into(),
-            future_deposit_lido_validator_indices: future_deposit_vec.into(),
-            exited_lido_validator_indices: new_exited.into(),
-        }
+            deposited_lido_validator_indices: deposited_list,
+            pending_deposit_lido_validator_indices: pending_deposite_list,
+            exited_lido_validator_indices: exited_list,
+        };
+
+        return result;
     }
 }
 
@@ -193,7 +206,7 @@ impl ValidatorOps for Validator {
     }
 
     fn is_lido(&self, withdrawal_credentials: &Hash256) -> bool {
-        self.withdrawal_credentials != *withdrawal_credentials
+        self.withdrawal_credentials == *withdrawal_credentials
     }
 }
 
@@ -214,7 +227,7 @@ impl ValidatorDelta {
         self.all_added.iter().map(|v: &ValidatorWithIndex| &v.index)
     }
 
-    pub fn changed_indices(&self) -> impl Iterator<Item = &'_ ValidatorIndex> {
+    pub fn lido_changed_indices(&self) -> impl Iterator<Item = &'_ ValidatorIndex> {
         self.lido_changed.iter().map(|v: &ValidatorWithIndex| &v.index)
     }
 }

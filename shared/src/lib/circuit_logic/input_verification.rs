@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use tree_hash::TreeHash;
 
 use crate::{
@@ -5,9 +7,9 @@ use crate::{
     eth_spec,
     hashing::{self, HashHelper, HashHelperImpl},
     io::program_io::ProgramInput,
-    lido::ValidatorWithIndex,
+    lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex},
     merkle_proof::{self, FieldProof, MerkleTreeFieldLeaves},
-    util::u64_to_usize,
+    util::{u64_to_usize, usize_to_u64},
 };
 
 pub trait CycleTracker {
@@ -34,6 +36,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
     fn verify_validator_inclusion_proof(
         &self,
         tracker_prefix: &str,
+        total_validator_count: u64,
         validators_hash: &Hash256,
         validators_with_indices: &Vec<ValidatorWithIndex>,
         serialized_proof: &[u8],
@@ -63,11 +66,11 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             .start_span(&format!("{tracker_prefix}.reconstruct_root_from_proof"));
         let validators_delta_root = merkle_proof::build_root_from_proof(
             &proof,
-            validators_count.next_power_of_two(),
+            u64_to_usize(total_validator_count.next_power_of_two()),
             indexes.as_slice(),
             hashes.as_slice(),
             Some(tree_depth),
-            Some(validators_count),
+            Some(u64_to_usize(total_validator_count)),
         )
         .expect("Failed to construct validators merkle root from delta multiproof");
         self.cycle_tracker
@@ -77,6 +80,31 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         merkle_proof::verify_hashes(validators_hash, &validators_delta_root)
             .expect("Failed to verify validators delta multiproof");
         self.cycle_tracker.end_span(&format!("{tracker_prefix}.verify_hash"));
+    }
+
+    fn verify_delta(&self, delta: &ValidatorDelta, old_state: &LidoValidatorState, actual_valdiator_count: u64) {
+        let validator_from_delta = old_state.total_validators() + usize_to_u64(delta.all_added.len());
+        assert!(
+            validator_from_delta == actual_valdiator_count,
+            "Not all new validators were passed"
+        );
+
+        let lido_changed_indices: HashSet<u64> = delta.lido_changed_indices().map(|v| v.clone()).collect();
+        let pending_deposit_from_old_state: HashSet<u64> = old_state
+            .pending_deposit_lido_validator_indices
+            .iter()
+            .map(|v| v.clone())
+            .collect();
+
+        // all validators with pending deposits from old state are required - to make sure they are not omitted
+        let missed_update: HashSet<&u64> = pending_deposit_from_old_state
+            .difference(&lido_changed_indices)
+            .collect();
+        assert!(
+            missed_update.is_empty(),
+            "Required validators missing. Missed indices: {:?}",
+            missed_update
+        )
     }
 
     /**
@@ -117,6 +145,27 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         // Validators and balances are included into BeaconState (merkle multiproof)
         let vals_and_bals_prefix = "prove_input.vals_and_bals";
         self.cycle_tracker.start_span(vals_and_bals_prefix);
+
+        self.cycle_tracker
+            .start_span(&format!("{vals_and_bals_prefix}.total_validators"));
+        let total_validators = input.validators_and_balances.total_validators;
+        assert_eq!(
+            total_validators,
+            usize_to_u64(input.validators_and_balances.balances.len())
+        );
+        self.cycle_tracker
+            .end_span(&format!("{vals_and_bals_prefix}.total_validators"));
+
+        self.cycle_tracker
+            .start_span(&format!("{vals_and_bals_prefix}.validator_delta"));
+        self.verify_delta(
+            &input.validators_and_balances.validators_delta,
+            &input.old_lido_validator_state,
+            total_validators,
+        );
+        self.cycle_tracker
+            .end_span(&format!("{vals_and_bals_prefix}.validator_delta"));
+
         // Step 1: confirm validators and balances hashes are included into beacon_state
         self.cycle_tracker
             .start_span(&format!("{vals_and_bals_prefix}.inclusion_proof"));
@@ -138,26 +187,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         self.cycle_tracker
             .end_span(&format!("{vals_and_bals_prefix}.inclusion_proof"));
 
-        // Step 2: confirm validators delta
-        self.cycle_tracker
-            .start_span(&format!("{vals_and_bals_prefix}.validator_inclusion_proofs"));
-        self.verify_validator_inclusion_proof(
-            &format!("{vals_and_bals_prefix}.validator_inclusion_proofs.all_added"),
-            &beacon_state.validators,
-            &input.validators_and_balances.validators_delta.all_added,
-            &input.validators_and_balances.added_validators_inclusion_proof,
-        );
-
-        self.verify_validator_inclusion_proof(
-            &format!("{vals_and_bals_prefix}.validator_inclusion_proofs.lido_changed"),
-            &beacon_state.validators,
-            &input.validators_and_balances.validators_delta.lido_changed,
-            &input.validators_and_balances.changed_validators_inclusion_proof,
-        );
-        self.cycle_tracker
-            .end_span(&format!("{vals_and_bals_prefix}.validator_inclusion_proofs"));
-
-        // Step 3: confirm passed balances hashes match the ones in BeaconState
+        // Step 2: confirm passed balances match the ones in BeaconState
         self.cycle_tracker
             .start_span(&format!("{vals_and_bals_prefix}.balances"));
         let balances_hash = HashHelperImpl::hash_list(&input.validators_and_balances.balances);
@@ -170,5 +200,59 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         self.cycle_tracker.end_span(&format!("{vals_and_bals_prefix}.balances"));
 
         self.cycle_tracker.end_span(vals_and_bals_prefix);
+
+        // Step 3: confirm validators delta
+        self.cycle_tracker
+            .start_span(&format!("{vals_and_bals_prefix}.validator_inclusion_proofs"));
+
+        if !input.validators_and_balances.validators_delta.all_added.is_empty() {
+            self.verify_validator_inclusion_proof(
+                &format!("{vals_and_bals_prefix}.validator_inclusion_proofs.all_added"),
+                total_validators,
+                &beacon_state.validators,
+                &input.validators_and_balances.validators_delta.all_added,
+                &input.validators_and_balances.added_validators_inclusion_proof,
+            );
+        } else {
+            // If all added is empty, no validators were added since old report (e.g. rerunning on same slot)
+            // in such case, old_report.total_validators should be same as beacon_state.validators.len()
+            // We're not passing the validators as a whole, but we do pass all balances - so we can
+            // use that instead. We can trust all balances are passed since we have verified in in
+            // Step 2
+            log::info!("ValidatorsDelta.all_added was empty - checking total validator count have not changed");
+            self.cycle_tracker
+                .start_span(&format!("{vals_and_bals_prefix}.all_added.empty"));
+            assert_eq!(
+                input.old_lido_validator_state.total_validators(),
+                usize_to_u64(input.validators_and_balances.balances.len())
+            );
+            self.cycle_tracker
+                .end_span(&format!("{vals_and_bals_prefix}.all_added.empty"));
+        }
+
+        if !input.validators_and_balances.validators_delta.lido_changed.is_empty() {
+            self.verify_validator_inclusion_proof(
+                &format!("{vals_and_bals_prefix}.validator_inclusion_proofs.lido_changed"),
+                total_validators,
+                &beacon_state.validators,
+                &input.validators_and_balances.validators_delta.lido_changed,
+                &input.validators_and_balances.changed_validators_inclusion_proof,
+            );
+        } else {
+            log::info!(
+                "ValidatorsDelta.lido_changed was empty - checking pending deposits was empty in previous state"
+            );
+            self.cycle_tracker
+                .start_span(&format!("{vals_and_bals_prefix}.lido_changed.empty"));
+            assert!(input
+                .old_lido_validator_state
+                .pending_deposit_lido_validator_indices
+                .is_empty());
+            self.cycle_tracker
+                .end_span(&format!("{vals_and_bals_prefix}.lido_changed.empty"));
+        }
+
+        self.cycle_tracker
+            .end_span(&format!("{vals_and_bals_prefix}.validator_inclusion_proofs"));
     }
 }

@@ -14,3 +14,5 @@ pub type MaxExtraDataBytes = U32;
 pub type SlotsPerEpoch = U32;
 
 pub type JustificationBitsLength = U4;
+
+pub type ReducedValidatorRegistryLimit = U268435456; // 2 ^ 28

@@ -85,7 +85,7 @@ async fn main() {
         non_lido_validators: new_non_lido_validators_a_month,
         deposited_lido_validators: new_lido_validators_a_month - created_but_not_deposited - new_exited_lido_validators,
         exited_lido_validators: new_exited_lido_validators,
-        future_deposit_lido_validators: created_but_not_deposited,
+        pending_deposit_lido_validators: created_but_not_deposited,
         balances_generation_mode: BalanceGenerationMode::FIXED,
         shuffle: false,
         base_slot: Some(old_slot),

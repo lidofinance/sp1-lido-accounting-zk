@@ -3,18 +3,20 @@ use anyhow::anyhow;
 use clap::Parser;
 use hex;
 use serde::{Deserialize, Serialize};
+use sp1_lido_accounting_zk_shared::circuit_logic::io::create_public_values;
 use sp1_sdk::{
     ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
     SP1VerifyingKey,
 };
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, NoopCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
-    epoch, Balances, BeaconBlockHeader, BeaconState, Hash256, Slot, Validator, Validators,
+    epoch, Balances, BeaconBlockHeader, BeaconState, Hash256, Slot, Validator, ValidatorIndex, Validators,
 };
 use sp1_lido_accounting_zk_shared::io::eth_io::{
     LidoValidatorStateRust, PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust,
@@ -22,7 +24,7 @@ use sp1_lido_accounting_zk_shared::io::eth_io::{
 use sp1_lido_accounting_zk_shared::io::program_io::{ProgramInput, ValsAndBals};
 use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorOps, ValidatorWithIndex};
 use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves};
-use sp1_lido_accounting_zk_shared::util::u64_to_usize;
+use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
 use sp1_lido_accounting_zk_shared::{consts, merkle_proof};
 
 use anyhow::Result;
@@ -41,8 +43,10 @@ const ELF: &[u8] = include_bytes!("../../../program/elf/riscv32im-succinct-zkvm-
 struct ProveArgs {
     #[clap(long, default_value = "false")]
     evm: bool,
-    #[clap(long, default_value = "true")]
+    #[clap(long, default_value = "false")]
     verify_input: bool,
+    #[clap(long, default_value = "false")]
+    dry_run: bool,
     #[clap(long, default_value = "false")]
     prove: bool,
     #[clap(long)]
@@ -132,7 +136,9 @@ impl ScriptSteps for LocalScript {
         &proof.public_values
     }
 
-    fn post_verify(&self, _proof: &SP1ProofWithPublicValues) {}
+    fn post_verify(&self, proof: &SP1ProofWithPublicValues) {
+        create_plonk_fixture(proof, &self.vk);
+    }
 }
 
 fn run_script(
@@ -141,12 +147,14 @@ fn run_script(
     program_input: &ProgramInput,
     expected_public_values: &PublicValuesRust,
 ) {
+    log::info!("Writing program input to SP1Stdin");
     let mut stdin: SP1Stdin = SP1Stdin::new();
     stdin.write(&program_input);
 
     let public_values: &SP1PublicValues;
 
     if prove {
+        log::info!("Proving program");
         let proof = steps.prove(stdin).expect("failed to generate proof");
         log::info!("Successfully generated proof!");
         steps.verify(&proof).expect("failed to verify proof");
@@ -154,9 +162,11 @@ fn run_script(
         public_values = steps.extract_public_values(&proof);
 
         verify_public_values(&public_values, expected_public_values);
+        log::info!("Successfully verified public values!");
 
         steps.post_verify(&proof);
     } else {
+        log::info!("Executing program");
         // Only execute the program and get a `SP1PublicValues` object.
         let (public_values, execution_report) = steps.execute(stdin).unwrap();
 
@@ -169,6 +179,7 @@ fn run_script(
         log::debug!("Full execution report:\n{}", execution_report);
 
         verify_public_values(&public_values, expected_public_values);
+        log::info!("Successfully verified public values!");
     }
 }
 
@@ -285,11 +296,17 @@ fn compute_validator_delta(
         });
     }
 
-    // We'll have at least future_deposit_lido_validator_indices + ballpark estimating ~2000 changed
+    let mut lido_changed_indices: HashSet<ValidatorIndex> = old_state
+        .pending_deposit_lido_validator_indices
+        .iter()
+        .map(|v: &u64| v.clone())
+        .collect();
+
+    // ballpark estimating ~32000 validators changed per oracle report should waaaay more than enough
+    // Better estimate could be (new_slot - old_slot) * avg_changes_per_slot, but the impact is likely marginal
     // If underestimated, the vec will transparently resize and reallocate more memory, so the only
     // effect is slightly slower run time - which is ok, unless (again) this gets into shared and used in the ZK part
-    let changed_size_estimate = old_state.future_deposit_lido_validator_indices.len() + 2000;
-    let mut lido_changed: Vec<ValidatorWithIndex> = Vec::with_capacity(changed_size_estimate);
+    lido_changed_indices.reserve(32000);
 
     for index in &old_state.deposited_lido_validator_indices {
         // for already deposited validators, we want to check if something material have changed:
@@ -312,22 +329,19 @@ fn compute_validator_delta(
         if (old_validator.exit_epoch != new_validator.exit_epoch)
             || (old_validator.activation_epoch != new_validator.activation_epoch)
         {
-            lido_changed.push(ValidatorWithIndex {
-                index: index.clone(),
-                validator: new_validator.clone(),
-            });
+            lido_changed_indices.insert(index.clone());
         }
     }
 
-    for index in &old_state.future_deposit_lido_validator_indices {
-        // We want to pass into ZK program all validators that were created, but not yet deposited
-        // This is needed to ensure that it includes all activated validators
-        let validator = &new_bs.validators[u64_to_usize(*index)];
-        lido_changed.push(ValidatorWithIndex {
-            index: index.clone(),
-            validator: validator.clone(),
-        });
-    }
+    let lido_changed = lido_changed_indices
+        .iter()
+        .filter_map(|index| {
+            new_bs.validators.get(u64_to_usize(*index)).map(|v| ValidatorWithIndex {
+                index: index.clone(),
+                validator: v.clone(),
+            })
+        })
+        .collect();
 
     ValidatorDelta {
         all_added: all_added,
@@ -365,13 +379,11 @@ fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) 
 
     // Save the fixture to a file.
     let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src/fixtures");
+    let fixture_file = fixture_path.join("fixture.json");
     std::fs::create_dir_all(&fixture_path).expect("failed to create fixture path");
-    std::fs::write(
-        fixture_path.join("fixture.json"),
-        serde_json::to_string_pretty(&fixture).unwrap(),
-    )
-    .expect("failed to write fixture");
-    log::info!("Successfully written test fixture");
+    std::fs::write(fixture_file.clone(), serde_json::to_string_pretty(&fixture).unwrap())
+        .expect("failed to write fixture");
+    log::info!("Successfully written test fixture to {fixture_file:?}");
 }
 
 #[tokio::main]
@@ -399,7 +411,7 @@ async fn main() {
     let old_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, &lido_withdrawal_credentials);
     let new_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, &lido_withdrawal_credentials);
 
-    let (_report, public_values) = compute_report_and_public_values(
+    let (report, public_values) = compute_report_and_public_values(
         // TODO: could've just passed bs, but bs.balances and bs.validators are moved into program_input
         bs.slot,
         &old_lido_validator_state,
@@ -416,12 +428,21 @@ async fn main() {
 
     let validator_delta =
         compute_validator_delta(&old_bs, &old_lido_validator_state, &bs, &lido_withdrawal_credentials);
+    log::info!(
+        "Validator delta. Added: {}, lido changed: {}",
+        validator_delta.all_added.len(),
+        validator_delta.lido_changed.len(),
+    );
     let added_indices: Vec<usize> = validator_delta.added_indices().map(|v| u64_to_usize(*v)).collect();
-    let changed_indices: Vec<usize> = validator_delta.changed_indices().map(|v| u64_to_usize(*v)).collect();
+    let changed_indices: Vec<usize> = validator_delta
+        .lido_changed_indices()
+        .map(|v| u64_to_usize(*v))
+        .collect();
 
     let added_validators_proof = bs.validators.get_field_multiproof(added_indices.as_slice());
     let changed_validators_proof = bs.validators.get_field_multiproof(changed_indices.as_slice());
 
+    log::info!("Creating program input");
     let program_input = ProgramInput {
         slot: bs.slot,
         beacon_block_hash: beacon_block_hash,
@@ -431,25 +452,44 @@ async fn main() {
         validators_and_balances: ValsAndBals {
             validators_and_balances_proof: validators_and_balances_proof,
 
+            total_validators: usize_to_u64(bs.validators.len()),
             validators_delta: validator_delta,
             added_validators_inclusion_proof: merkle_proof::serde::serialize_proof(added_validators_proof),
             changed_validators_inclusion_proof: merkle_proof::serde::serialize_proof(changed_validators_proof),
 
             balances: bs.balances,
         },
-        old_lido_validator_state: old_lido_validator_state,
+        old_lido_validator_state: old_lido_validator_state.clone(),
         new_lido_validator_state_hash: new_lido_validator_state.tree_hash_root(),
     };
 
     if args.verify_input {
+        log::debug!("Verifying inputs");
         let cycle_tracker = NoopCycleTracker {};
         let input_verifier = InputVerifier::new(&cycle_tracker);
         input_verifier.prove_input(&program_input);
+
+        let delta = &program_input.validators_and_balances.validators_delta;
+        let new_state = old_lido_validator_state.merge_validator_delta(bs.slot, delta, &lido_withdrawal_credentials);
+        assert_eq!(new_state, new_lido_validator_state);
+        assert_eq!(new_state.tree_hash_root(), program_input.new_lido_validator_state_hash);
+
+        let public_values_solidity = create_public_values(
+            &report,
+            &beacon_block_hash,
+            &old_lido_validator_state,
+            &new_lido_validator_state,
+        );
+        let public_values_rust: PublicValuesRust = public_values_solidity.into();
+        assert_eq!(public_values, public_values_rust);
+        log::info!("Inputs verified");
     }
 
-    if args.evm {
-        run_script(EvmScript::new(), args.prove, &program_input, &public_values)
-    } else {
-        run_script(LocalScript::new(), args.prove, &program_input, &public_values)
+    if !args.dry_run {
+        if args.evm {
+            run_script(EvmScript::new(), args.prove, &program_input, &public_values)
+        } else {
+            run_script(LocalScript::new(), args.prove, &program_input, &public_values)
+        }
     }
 }
