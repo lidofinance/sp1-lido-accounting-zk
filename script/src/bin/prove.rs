@@ -234,11 +234,11 @@ fn compute_report_and_public_values(
             beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
             state_for_previous_report: LidoValidatorStateRust {
                 slot: old_validator_state.slot,
-                hash: old_validator_state.tree_hash_root().to_fixed_bytes(),
+                merkle_root: old_validator_state.tree_hash_root().to_fixed_bytes(),
             },
             new_state: LidoValidatorStateRust {
                 slot: new_validator_state.slot,
-                hash: new_validator_state.tree_hash_root().to_fixed_bytes(),
+                merkle_root: new_validator_state.tree_hash_root().to_fixed_bytes(),
             },
         },
     };

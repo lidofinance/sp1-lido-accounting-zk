@@ -24,11 +24,11 @@ pub fn create_public_values(
             beacon_block_hash: beacon_block_hash.to_fixed_bytes().into(),
             state_for_previous_report: LidoValidatorStateSolidity {
                 slot: old_state.slot,
-                hash: old_state.tree_hash_root().to_fixed_bytes().into(),
+                merkle_root: old_state.tree_hash_root().to_fixed_bytes().into(),
             },
             new_state: LidoValidatorStateSolidity {
                 slot: new_state.slot,
-                hash: new_state.tree_hash_root().to_fixed_bytes().into(),
+                merkle_root: new_state.tree_hash_root().to_fixed_bytes().into(),
             },
         },
     }

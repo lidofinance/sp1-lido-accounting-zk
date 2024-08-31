@@ -66,7 +66,7 @@ impl From<ReportRust> for ReportSolidity {
 sol! {
     struct LidoValidatorStateSolidity {
         uint64 slot;
-        bytes32 hash;
+        bytes32 merkle_root;
     }
 }
 
@@ -74,7 +74,7 @@ impl From<LidoValidatorStateSolidity> for LidoValidatorStateRust {
     fn from(value: LidoValidatorStateSolidity) -> Self {
         Self {
             slot: value.slot,
-            hash: value.hash.into(),
+            merkle_root: value.merkle_root.into(),
         }
     }
 }
@@ -83,7 +83,7 @@ impl From<LidoValidatorStateRust> for LidoValidatorStateSolidity {
     fn from(value: LidoValidatorStateRust) -> Self {
         Self {
             slot: value.slot,
-            hash: value.hash.into(),
+            merkle_root: value.merkle_root.into(),
         }
     }
 }
@@ -92,7 +92,7 @@ impl From<LidoValidatorStateRust> for LidoValidatorStateSolidity {
 pub struct LidoValidatorStateRust {
     pub slot: u64,
     #[serde(with = "serde_hex_as_string")]
-    pub hash: [u8; 32],
+    pub merkle_root: [u8; 32],
 }
 
 sol! {
