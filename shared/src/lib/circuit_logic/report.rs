@@ -1,6 +1,6 @@
 use crate::{
-    eth_consensus_layer::{Balances, Hash256, ValidatorIndex, Validators},
-    lido::{self, LidoValidatorState},
+    eth_consensus_layer::{Balances, Hash256, Validators},
+    lido::LidoValidatorState,
     util::{u64_to_usize, usize_to_u64},
 };
 use serde::{Deserialize, Serialize};

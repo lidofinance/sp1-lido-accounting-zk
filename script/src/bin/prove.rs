@@ -19,6 +19,8 @@ use sp1_sdk::{
 use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
+use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, NoopCycleTracker};
+use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
     epoch, Balances, BeaconBlockHeader, BeaconState, Hash256, Slot, Validator, Validators,
 };
@@ -28,7 +30,6 @@ use sp1_lido_accounting_zk_shared::io::eth_io::{
 use sp1_lido_accounting_zk_shared::io::program_io::{ProgramInput, ValsAndBals};
 use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorOps, ValidatorWithIndex};
 use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves};
-use sp1_lido_accounting_zk_shared::report::ReportData;
 use sp1_lido_accounting_zk_shared::util::u64_to_usize;
 use sp1_lido_accounting_zk_shared::{consts, merkle_proof};
 
@@ -48,6 +49,8 @@ const ELF: &[u8] = include_bytes!("../../../program/elf/riscv32im-succinct-zkvm-
 struct ProveArgs {
     #[clap(long, default_value = "false")]
     evm: bool,
+    #[clap(long, default_value = "true")]
+    verify_input: bool,
     #[clap(long, default_value = "false")]
     prove: bool,
     #[clap(long)]
@@ -231,11 +234,11 @@ fn compute_report_and_public_values(
             beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
             state_for_previous_report: LidoValidatorStateRust {
                 slot: old_validator_state.slot,
-                hash: old_validator_state.tree_hash_root().into(),
+                hash: old_validator_state.tree_hash_root().to_fixed_bytes(),
             },
             new_state: LidoValidatorStateRust {
                 slot: new_validator_state.slot,
-                hash: new_validator_state.tree_hash_root().into(),
+                hash: new_validator_state.tree_hash_root().to_fixed_bytes(),
             },
         },
     };
@@ -267,81 +270,6 @@ async fn read_beacon_states(args: &ProveArgs) -> (BeaconState, BeaconBlockHeader
     assert_eq!(old_bs.slot, previous_slot);
 
     return (bs, bh, old_bs);
-}
-
-#[tokio::main]
-async fn main() {
-    dotenv().ok();
-    // Setup the logger.
-    sp1_sdk::utils::setup_logger();
-
-    // Parse the command line arguments.
-    let args = ProveArgs::parse();
-
-    log::debug!("Args: {:?}", args);
-
-    let (bs, bh, old_bs) = read_beacon_states(&args).await;
-    let lido_withdrawal_credentials: Hash256 = consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
-
-    let beacon_block_hash = bh.tree_hash_root();
-
-    log::info!(
-        "Processing BeaconState. Current slot: {}, Previous Slot: {}, Block Hash: {}, Validator count:{}",
-        bs.slot,
-        old_bs.slot,
-        hex::encode(beacon_block_hash),
-        bs.validators.len()
-    );
-    let old_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, &lido_withdrawal_credentials);
-    let new_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, &lido_withdrawal_credentials);
-
-    let bs_indices = bs
-        .get_leafs_indices(["validators", "balances"])
-        .expect("Failed to get BeaconState field indices");
-    let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&bs_indices);
-
-    let validator_delta =
-        compute_validator_delta(&old_bs, &old_lido_validator_state, &bs, &lido_withdrawal_credentials);
-    let added_indices: Vec<usize> = validator_delta.added_indices().map(|v| u64_to_usize(*v)).collect();
-    let changed_indices: Vec<usize> = validator_delta.changed_indices().map(|v| u64_to_usize(*v)).collect();
-
-    let added_validators_proof = bs.validators.get_field_multiproof(added_indices.as_slice());
-    let changed_validators_proof = bs.validators.get_field_multiproof(changed_indices.as_slice());
-
-    let (report, public_values) = compute_report_and_public_values(
-        // TODO: could've just passed bs, but bs.balances and bs.validators are moved into program_input
-        bs.slot,
-        &old_lido_validator_state,
-        &new_lido_validator_state,
-        &bs.validators,
-        &bs.balances,
-        &beacon_block_hash,
-    );
-
-    let program_input = ProgramInput {
-        slot: bs.slot,
-        beacon_block_hash: beacon_block_hash,
-        // beacon_block_hash: h!("0000000000000000000000000000000000000000000000000000000000000000"),
-        beacon_block_header: (&bh).into(),
-        beacon_state: (&bs).into(),
-        validators_and_balances: ValsAndBals {
-            validators_and_balances_proof: validators_and_balances_proof,
-
-            validators_delta: validator_delta,
-            added_validators_inclusion_proof: merkle_proof::serde::serialize_proof(added_validators_proof),
-            changed_validators_inclusion_proof: merkle_proof::serde::serialize_proof(changed_validators_proof),
-
-            balances: bs.balances,
-        },
-        old_lido_validator_state: old_lido_validator_state,
-        new_lido_validator_state_hash: new_lido_validator_state.tree_hash_root(),
-    };
-
-    if args.evm {
-        run_script(EvmScript::new(), args.prove, &program_input, &public_values)
-    } else {
-        run_script(LocalScript::new(), args.prove, &program_input, &public_values)
-    }
 }
 
 fn compute_validator_delta(
@@ -453,4 +381,84 @@ fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) 
     )
     .expect("failed to write fixture");
     log::info!("Successfully written test fixture");
+}
+
+#[tokio::main]
+async fn main() {
+    dotenv().ok();
+    // Setup the logger.
+    sp1_sdk::utils::setup_logger();
+
+    // Parse the command line arguments.
+    let args = ProveArgs::parse();
+
+    log::debug!("Args: {:?}", args);
+
+    let lido_withdrawal_credentials: Hash256 = consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
+    let (bs, bh, old_bs) = read_beacon_states(&args).await;
+    let beacon_block_hash = bh.tree_hash_root();
+
+    log::info!(
+        "Processing BeaconState. Current slot: {}, Previous Slot: {}, Block Hash: {}, Validator count:{}",
+        bs.slot,
+        old_bs.slot,
+        hex::encode(beacon_block_hash),
+        bs.validators.len()
+    );
+    let old_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, &lido_withdrawal_credentials);
+    let new_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, &lido_withdrawal_credentials);
+
+    let bs_indices = bs
+        .get_leafs_indices(["validators", "balances"])
+        .expect("Failed to get BeaconState field indices");
+    let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&bs_indices);
+
+    let validator_delta =
+        compute_validator_delta(&old_bs, &old_lido_validator_state, &bs, &lido_withdrawal_credentials);
+    let added_indices: Vec<usize> = validator_delta.added_indices().map(|v| u64_to_usize(*v)).collect();
+    let changed_indices: Vec<usize> = validator_delta.changed_indices().map(|v| u64_to_usize(*v)).collect();
+
+    let added_validators_proof = bs.validators.get_field_multiproof(added_indices.as_slice());
+    let changed_validators_proof = bs.validators.get_field_multiproof(changed_indices.as_slice());
+
+    let (_report, public_values) = compute_report_and_public_values(
+        // TODO: could've just passed bs, but bs.balances and bs.validators are moved into program_input
+        bs.slot,
+        &old_lido_validator_state,
+        &new_lido_validator_state,
+        &bs.validators,
+        &bs.balances,
+        &beacon_block_hash,
+    );
+
+    let program_input = ProgramInput {
+        slot: bs.slot,
+        beacon_block_hash: beacon_block_hash,
+        // beacon_block_hash: h!("0000000000000000000000000000000000000000000000000000000000000000"),
+        beacon_block_header: (&bh).into(),
+        beacon_state: (&bs).into(),
+        validators_and_balances: ValsAndBals {
+            validators_and_balances_proof: validators_and_balances_proof,
+
+            validators_delta: validator_delta,
+            added_validators_inclusion_proof: merkle_proof::serde::serialize_proof(added_validators_proof),
+            changed_validators_inclusion_proof: merkle_proof::serde::serialize_proof(changed_validators_proof),
+
+            balances: bs.balances,
+        },
+        old_lido_validator_state: old_lido_validator_state,
+        new_lido_validator_state_hash: new_lido_validator_state.tree_hash_root(),
+    };
+
+    if args.verify_input {
+        let cycle_tracker = NoopCycleTracker {};
+        let input_verifier = InputVerifier::new(&cycle_tracker);
+        input_verifier.prove_input(&program_input);
+    }
+
+    if args.evm {
+        run_script(EvmScript::new(), args.prove, &program_input, &public_values)
+    } else {
+        run_script(LocalScript::new(), args.prove, &program_input, &public_values)
+    }
 }

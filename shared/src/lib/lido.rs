@@ -1,7 +1,5 @@
 use std::collections::HashSet;
-use std::fmt;
 use std::ops::Range;
-use std::slice::Iter;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};

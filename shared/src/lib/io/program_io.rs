@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use ssz_derive::{Decode, Encode};
 
 use crate::{
     eth_consensus_layer::{Balances, BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Hash256},
