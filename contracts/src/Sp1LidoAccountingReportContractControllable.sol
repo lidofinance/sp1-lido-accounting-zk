@@ -11,7 +11,7 @@ contract Sp1LidoAccountingReportContractControllable is Sp1LidoAccountingReportC
     mapping (uint256 => bytes32) private _beaconBlockHashes;
     bytes32 _withdrawalCredentials;
 
-    constructor(address _verifier, bytes32 _vkey) Sp1LidoAccountingReportContractBase(_verifier, _vkey) {}
+    constructor(address _verifier, bytes32 _vkey, LidoValidatorState memory _initial_state) Sp1LidoAccountingReportContractBase(_verifier, _vkey, _initial_state) {}
 
     function setBeaconBlockHash(uint256 slot, bytes32 beaconBlockHash) public {
         _beaconBlockHashes[slot] = beaconBlockHash;
