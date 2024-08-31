@@ -9,11 +9,11 @@ use std::path::PathBuf;
 use tree_hash::TreeHash;
 use util::synthetic_beacon_state_reader::GenerationSpec;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, BeaconState, Hash256};
-use sp1_lido_accounting_zk_shared::synthetic_beacon_state_reader::{
+use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic_beacon_state_reader::{
     BalanceGenerationMode, SyntheticBeaconStateCreator,
 };
+use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::util::usize_to_u64;
 
 use simple_logger::SimpleLogger;

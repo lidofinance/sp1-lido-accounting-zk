@@ -4,11 +4,11 @@ use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::synthetic_beacon_state_reader::{
+use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic_beacon_state_reader::{
     BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
 };
-use sp1_lido_accounting_zk_shared::verification::{FieldProof, RsMerkleHash};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, RsMerkleHash};
 use sp1_lido_accounting_zk_shared::{
     beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader},
     consts,

@@ -4,10 +4,10 @@ use util::synthetic_beacon_state_reader::GenerationSpec;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
-use sp1_lido_accounting_zk_shared::synthetic_beacon_state_reader::{
+use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic_beacon_state_reader::{
     BalanceGenerationMode, SyntheticBeaconStateCreator,
 };
+use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
 
 use simple_logger::SimpleLogger;
 

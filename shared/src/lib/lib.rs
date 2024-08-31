@@ -8,6 +8,3 @@ pub mod io;
 pub mod lido;
 pub mod merkle_proof;
 pub mod util;
-
-#[cfg(feature = "synthetic_bs_reader")]
-pub mod synthetic_beacon_state_reader;

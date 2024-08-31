@@ -4,7 +4,7 @@ use log;
 use serde_json::Value;
 use sp1_lido_accounting_zk_shared::consts;
 
-use sp1_lido_accounting_zk_shared::synthetic_beacon_state_reader::{
+use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic_beacon_state_reader::{
     BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
 };
 use std::path::PathBuf;
