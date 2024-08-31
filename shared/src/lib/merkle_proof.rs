@@ -349,9 +349,9 @@ mod test {
     use tree_hash_derive::TreeHash;
     use typenum::Unsigned;
 
-    use crate::{eth_consensus_layer::Hash256, verification::ZEROHASH_H256};
+    use crate::eth_consensus_layer::Hash256;
 
-    use super::{Error, FieldProof, LeafIndex, MerkleTreeFieldLeaves, RsMerkleHash};
+    use super::{Error, FieldProof, LeafIndex, MerkleTreeFieldLeaves, RsMerkleHash, ZEROHASH_H256};
 
     #[derive(Debug, Clone, PartialEq, TreeHash)]
     pub struct GuineaPig {

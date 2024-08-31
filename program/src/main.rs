@@ -24,7 +24,7 @@ use sp1_lido_accounting_zk_shared::io::eth_io::{
     LidoValidatorStateSolidity, PublicValuesSolidity, ReportMetadataSolidity, ReportSolidity,
 };
 use sp1_lido_accounting_zk_shared::io::program_io::{ProgramInput, ValsAndBals};
-use sp1_lido_accounting_zk_shared::verification::{
+use sp1_lido_accounting_zk_shared::merkle_proof::{
     build_root_from_proof, serde as verification_serde, verify_hashes, FieldProof, MerkleTreeFieldLeaves, RsMerkleHash,
 };
 
@@ -133,7 +133,7 @@ fn verify_validator_inclusion_proof(
         "cycle-tracker-start: prove_data_correctness.vals_and_bals.validators_delta.{}.verify_hash",
         label
     );
-    // verify_hashes(validators_hash, &validators_delta_root).expect("Failed to verify validators delta multiproof");
+    verify_hashes(validators_hash, &validators_delta_root).expect("Failed to verify validators delta multiproof");
     println!(
         "cycle-tracker-end: prove_data_correctness.vals_and_bals.validators_delta.{}.verify_hash",
         label

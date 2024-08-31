@@ -5,9 +5,9 @@ pub mod eth_spec;
 pub mod hashing;
 pub mod io;
 pub mod lido;
+pub mod merkle_proof;
 pub mod report;
 pub mod util;
-pub mod verification;
 
 #[cfg(feature = "synthetic_bs_reader")]
 pub mod synthetic_beacon_state_reader;

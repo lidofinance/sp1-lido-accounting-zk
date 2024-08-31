@@ -10,7 +10,6 @@ use alloy_sol_types::SolType;
 use anyhow::anyhow;
 use clap::Parser;
 use hex;
-use hex_literal::hex as h;
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{
     ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
@@ -20,18 +19,18 @@ use sp1_sdk::{
 use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
-use sp1_lido_accounting_zk_shared::consts;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
-    epoch, Balances, BeaconBlockHeader, BeaconState, Hash256, Slot, Validator, ValidatorIndex, Validators,
+    epoch, Balances, BeaconBlockHeader, BeaconState, Hash256, Slot, Validator, Validators,
 };
 use sp1_lido_accounting_zk_shared::io::eth_io::{
     LidoValidatorStateRust, PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust,
 };
 use sp1_lido_accounting_zk_shared::io::program_io::{ProgramInput, ValsAndBals};
 use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorOps, ValidatorWithIndex};
+use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves};
 use sp1_lido_accounting_zk_shared::report::ReportData;
 use sp1_lido_accounting_zk_shared::util::u64_to_usize;
-use sp1_lido_accounting_zk_shared::verification::{self, FieldProof, MerkleTreeFieldLeaves};
+use sp1_lido_accounting_zk_shared::{consts, merkle_proof};
 
 use anyhow::Result;
 use log;
@@ -329,8 +328,8 @@ async fn main() {
             validators_and_balances_proof: validators_and_balances_proof,
 
             validators_delta: validator_delta,
-            added_validators_inclusion_proof: verification::serde::serialize_proof(added_validators_proof),
-            changed_validators_inclusion_proof: verification::serde::serialize_proof(changed_validators_proof),
+            added_validators_inclusion_proof: merkle_proof::serde::serialize_proof(added_validators_proof),
+            changed_validators_inclusion_proof: merkle_proof::serde::serialize_proof(changed_validators_proof),
 
             balances: bs.balances,
         },
