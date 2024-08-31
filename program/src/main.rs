@@ -48,8 +48,15 @@ pub fn main() {
     let old_state = input.old_lido_validator_state;
     let delta = input.validators_and_balances.validators_delta;
 
+    cycle_tracker.start_span("main.compute_new_state.merge_delta");
     let new_state: LidoValidatorState = old_state.merge_validator_delta(input.slot, &delta, &withdrawal_creds);
-    assert_eq!(new_state.tree_hash_root(), input.new_lido_validator_state_hash);
+    cycle_tracker.end_span("main.compute_new_state.merge_delta");
+
+    cycle_tracker.start_span("main.compute_new_state.hash_root");
+    let new_state_hash_root = new_state.tree_hash_root();
+    assert_eq!(new_state_hash_root, input.new_lido_validator_state_hash);
+    cycle_tracker.end_span("main.compute_new_state.hash_root");
+
     cycle_tracker.end_span("main.compute_new_state");
 
     cycle_tracker.start_span("main.compute_report");
