@@ -1,11 +1,3 @@
-//! An end-to-end example of using the SP1 SDK to generate a proof of a program that can be verified
-//! on-chain.
-//!
-//! You can run this script using the following command:
-//! ```shell
-//! RUST_LOG=info cargo run --package fibonacci-script --bin prove --release
-//! ```
-
 use alloy_sol_types::SolType;
 use anyhow::anyhow;
 use clap::Parser;
@@ -151,9 +143,6 @@ fn run_script(
 ) {
     let mut stdin: SP1Stdin = SP1Stdin::new();
     stdin.write(&program_input);
-    // log::info!("Rereading");
-    // let reread = stdin.read::<ProgramInput>();
-    // log::info!("Validators {:?}", reread.validators_and_balances.validators);
 
     let public_values: &SP1PublicValues;
 
@@ -252,16 +241,16 @@ async fn read_beacon_states(args: &ProveArgs) -> (BeaconState, BeaconBlockHeader
 
     let bs_reader = FileBasedBeaconStateReader::new(&args.beacon_state_folder_path);
     let bs = bs_reader
-        .read_beacon_state(current_slot) // File reader ignores slot; TODO: refactor readers
+        .read_beacon_state(current_slot)
         .await
         .expect("Failed to read beacon state");
     let bh = bs_reader
-        .read_beacon_block_header(current_slot) // File reader ignores slot; TODO: refactor readers
+        .read_beacon_block_header(current_slot)
         .await
         .expect("Failed to read beacon block header");
 
     let old_bs = bs_reader
-        .read_beacon_state(previous_slot) // File reader ignores slot; TODO: refactor readers
+        .read_beacon_state(previous_slot)
         .await
         .expect("Failed to read previous beacon state");
 
@@ -290,20 +279,22 @@ fn compute_validator_delta(
         let validator = &new_bs.validators[u64_to_usize(index)];
         all_added.push(ValidatorWithIndex {
             index: index,
-            // TODO: might be able to do with a reference + linking ValidatorWithIndex with Validator itself
-            // for now just cloning is acceptable (unless this gets into shared and used in the ZK part)
+            // TODO: might be able to do with a reference + linking ValidatorWithIndex lifetime with
+            //  Validator itself for now just cloning is acceptable (unless this gets into shared and used in the ZK part)
             validator: validator.clone(),
         });
     }
 
-    // We'll have at least future_deposit_lido_validator_indices + estimating ~2000 changed
+    // We'll have at least future_deposit_lido_validator_indices + ballpark estimating ~2000 changed
+    // If underestimated, the vec will transparently resize and reallocate more memory, so the only
+    // effect is slightly slower run time - which is ok, unless (again) this gets into shared and used in the ZK part
     let changed_size_estimate = old_state.future_deposit_lido_validator_indices.len() + 2000;
     let mut lido_changed: Vec<ValidatorWithIndex> = Vec::with_capacity(changed_size_estimate);
 
     for index in &old_state.deposited_lido_validator_indices {
         // for already deposited validators, we want to check if something material have changed:
         // this can only be activation epoch or exist epoch. Theoretically "slashed" can also be
-        // relevan, but for now we have no use for it
+        // relevant, but for now we have no use for it
         let index_usize = u64_to_usize(*index);
         let old_validator: &Validator = &old_bs.validators[index_usize];
         let new_validator: &Validator = &new_bs.validators[index_usize];
@@ -330,7 +321,7 @@ fn compute_validator_delta(
 
     for index in &old_state.future_deposit_lido_validator_indices {
         // We want to pass into ZK program all validators that were created, but not yet deposited
-        // This is needed to ensure that none activated validators were omitted
+        // This is needed to ensure that it includes all activated validators
         let validator = &new_bs.validators[u64_to_usize(*index)];
         lido_changed.push(ValidatorWithIndex {
             index: index.clone(),
@@ -408,6 +399,16 @@ async fn main() {
     let old_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, &lido_withdrawal_credentials);
     let new_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, &lido_withdrawal_credentials);
 
+    let (_report, public_values) = compute_report_and_public_values(
+        // TODO: could've just passed bs, but bs.balances and bs.validators are moved into program_input
+        bs.slot,
+        &old_lido_validator_state,
+        &new_lido_validator_state,
+        &bs.validators,
+        &bs.balances,
+        &beacon_block_hash,
+    );
+
     let bs_indices = bs
         .get_leafs_indices(["validators", "balances"])
         .expect("Failed to get BeaconState field indices");
@@ -420,16 +421,6 @@ async fn main() {
 
     let added_validators_proof = bs.validators.get_field_multiproof(added_indices.as_slice());
     let changed_validators_proof = bs.validators.get_field_multiproof(changed_indices.as_slice());
-
-    let (_report, public_values) = compute_report_and_public_values(
-        // TODO: could've just passed bs, but bs.balances and bs.validators are moved into program_input
-        bs.slot,
-        &old_lido_validator_state,
-        &new_lido_validator_state,
-        &bs.validators,
-        &bs.balances,
-        &beacon_block_hash,
-    );
 
     let program_input = ProgramInput {
         slot: bs.slot,
