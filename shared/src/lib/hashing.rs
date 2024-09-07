@@ -1,4 +1,5 @@
 use ethereum_hashing::{hash32_concat, ZERO_HASHES};
+use hex;
 use ssz_types::VariableList;
 use tree_hash::{Hash256, PackedEncoding, TreeHash, TreeHashType};
 use typenum::Unsigned;
@@ -8,6 +9,12 @@ pub trait HashHelper<T: TreeHash> {
 }
 
 pub fn pad_to_depth(hash: &Hash256, current_depth: usize, target_depth: usize) -> Hash256 {
+    log::debug!(
+        "Expanding {}, from depth {} to {}",
+        hex::encode(hash),
+        current_depth,
+        target_depth
+    );
     let mut curhash: [u8; 32] = hash.to_fixed_bytes();
     for depth in current_depth..target_depth {
         curhash = hash32_concat(&curhash, ZERO_HASHES[depth].as_slice());

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use rs_merkle::{algorithms::Sha256, MerkleProof};
 use tree_hash::TreeHash;
 
 use crate::{
@@ -24,6 +25,16 @@ impl CycleTracker for NoopCycleTracker {
     fn end_span(&self, _label: &str) {}
 }
 
+pub struct LogCycleTracker {}
+impl CycleTracker for LogCycleTracker {
+    fn start_span(&self, label: &str) {
+        log::debug!("Start {label}")
+    }
+    fn end_span(&self, label: &str) {
+        log::debug!("End {label}")
+    }
+}
+
 pub struct InputVerifier<'a, Tracker: CycleTracker> {
     cycle_tracker: &'a Tracker,
 }
@@ -33,13 +44,13 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         Self { cycle_tracker }
     }
 
-    fn verify_validator_inclusion_proof(
+    pub fn verify_validator_inclusion_proof(
         &self,
         tracker_prefix: &str,
         total_validator_count: u64,
         validators_hash: &Hash256,
         validators_with_indices: &Vec<ValidatorWithIndex>,
-        serialized_proof: &[u8],
+        proof: MerkleProof<Sha256>,
     ) {
         let tree_depth = hashing::target_tree_depth::<Validator, eth_spec::ValidatorRegistryLimit>();
 
@@ -58,7 +69,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
 
         self.cycle_tracker
             .start_span(&format!("{tracker_prefix}.deserialize_proof"));
-        let proof = merkle_proof::serde::deserialize_proof(serialized_proof).expect("Failed to deserialize proof");
+
         self.cycle_tracker
             .end_span(&format!("{tracker_prefix}.deserialize_proof"));
 
@@ -206,12 +217,15 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             .start_span(&format!("{vals_and_bals_prefix}.validator_inclusion_proofs"));
 
         if !input.validators_and_balances.validators_delta.all_added.is_empty() {
+            let proof =
+                merkle_proof::serde::deserialize_proof(&input.validators_and_balances.added_validators_inclusion_proof)
+                    .expect("Failed to deserialize proof");
             self.verify_validator_inclusion_proof(
                 &format!("{vals_and_bals_prefix}.validator_inclusion_proofs.all_added"),
                 total_validators,
                 &beacon_state.validators,
                 &input.validators_and_balances.validators_delta.all_added,
-                &input.validators_and_balances.added_validators_inclusion_proof,
+                proof,
             );
         } else {
             // If all added is empty, no validators were added since old report (e.g. rerunning on same slot)
@@ -228,15 +242,20 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             );
             self.cycle_tracker
                 .end_span(&format!("{vals_and_bals_prefix}.all_added.empty"));
+            log::info!("Validator count have not changed since last run");
         }
 
         if !input.validators_and_balances.validators_delta.lido_changed.is_empty() {
+            let proof = merkle_proof::serde::deserialize_proof(
+                &input.validators_and_balances.changed_validators_inclusion_proof,
+            )
+            .expect("Failed to deserialize proof");
             self.verify_validator_inclusion_proof(
                 &format!("{vals_and_bals_prefix}.validator_inclusion_proofs.lido_changed"),
                 total_validators,
                 &beacon_state.validators,
                 &input.validators_and_balances.validators_delta.lido_changed,
-                &input.validators_and_balances.changed_validators_inclusion_proof,
+                proof,
             );
         } else {
             log::info!(
@@ -250,6 +269,8 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
                 .is_empty());
             self.cycle_tracker
                 .end_span(&format!("{vals_and_bals_prefix}.lido_changed.empty"));
+
+            log::info!("Pending deposits was empty in the last run");
         }
 
         self.cycle_tracker

@@ -84,11 +84,10 @@ pub fn build_root_from_proof(
     log::debug!("Main data hash {}", hex::encode(root));
     if let Some(target_depth) = expand_to_depth {
         let main_data_depth: usize = total_leaves_count.trailing_zeros() as usize;
-        log::debug!("Expanding depth {} to {}", main_data_depth, target_depth);
         root = hashing::pad_to_depth(&root, main_data_depth, target_depth);
     }
     if let Some(size) = mix_in_size {
-        log::debug!("Mixing in size {}", size);
+        log::debug!("Mixing in size {} to {}", size, hex::encode(root));
         root = tree_hash::mix_in_length(&root, size);
     }
 
@@ -301,6 +300,11 @@ where
             type_name::<T>()
         );
 
+        // Quirk: rs_merkle produces different values for different sequences of indices - the
+        // "correct one" happens when indices are sorted
+        let mut sorted = indices.to_vec();
+        sorted.sort();
+
         // Quirk: rs_merkle does not pad to next power of two, ending up with a different merkle root
         let pad_to = self.len().next_power_of_two();
         assert!(pad_to >= self.len(), "Overflow finding the padding size");
@@ -312,7 +316,7 @@ where
         assert!(leaves.len().is_power_of_two(), "Number of leaves must be a power of 2");
 
         let merkle_tree = MerkleTree::<Sha256>::from_leaves(leaves.as_slice());
-        return merkle_tree.proof(indices);
+        return merkle_tree.proof(sorted.as_slice());
     }
 
     fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex], leaves: &[RsMerkleHash]) -> Result<(), Error> {
@@ -345,9 +349,12 @@ mod test {
     use tree_hash_derive::TreeHash;
     use typenum::Unsigned;
 
-    use crate::eth_consensus_layer::Hash256;
+    use crate::{eth_consensus_layer::Hash256, hashing};
 
-    use super::{Error, FieldProof, LeafIndex, MerkleTreeFieldLeaves, RsMerkleHash, ZEROHASH_H256};
+    use super::{
+        build_root_from_proof, verify_hashes, Error, FieldProof, LeafIndex, MerkleTreeFieldLeaves, RsMerkleHash,
+        ZEROHASH_H256,
+    };
 
     #[derive(Debug, Clone, PartialEq, TreeHash)]
     pub struct GuineaPig {
@@ -424,14 +431,69 @@ mod test {
             GuineaPig::new(2, 20, Hash256::random()),
             GuineaPig::new(3, 30, Hash256::random()),
             GuineaPig::new(4, 40, Hash256::random()),
+            GuineaPig::new(5, 50, Hash256::random()),
         ];
 
-        // TODO: find out how parameterized/data-driven/property-based testing is done in Rust
+        // TODO: parameterized/data-driven/property-based test
         test_list::<typenum::U4>(&guinea_pigs, &[0, 2]);
+        test_list::<typenum::U4>(&guinea_pigs, &[2, 0]);
         test_list::<typenum::U9>(&guinea_pigs, &[0, 1]);
         test_list::<typenum::U31>(&guinea_pigs, &[0, 1, 2]);
+        test_list::<typenum::U31>(&guinea_pigs, &[0, 2, 1]);
         test_list::<typenum::U32>(&guinea_pigs, &[2]);
         test_list::<typenum::U255>(&guinea_pigs, &[1]);
         test_list::<typenum::U999>(&guinea_pigs, &[0, 1, 2, 3]);
+        test_list::<typenum::U999>(&guinea_pigs, &[3, 2, 1, 0]);
+        test_list::<typenum::U999>(&guinea_pigs, &[3, 1, 2, 0]);
+    }
+
+    fn test_list_against_hash<N: Unsigned>(input: &Vec<GuineaPig>, target_indices: &[usize]) {
+        let list: VariableList<GuineaPig, N> = input.clone().into();
+
+        let expected_root = list.tree_hash_root();
+        let total_leaves_count = input.len().next_power_of_two();
+        let target_depth = hashing::target_tree_depth::<GuineaPig, N>();
+
+        let target_hashes: Vec<RsMerkleHash> = target_indices
+            .iter()
+            .map(|index| input[*index].tree_hash_root().to_fixed_bytes())
+            .collect();
+
+        let proof = list.get_field_multiproof(&target_indices);
+        let actiual_hash = build_root_from_proof(
+            &proof,
+            total_leaves_count,
+            target_indices,
+            target_hashes.as_slice(),
+            Some(target_depth),
+            Some(input.len()),
+        )
+        .expect("Failed to build hash");
+
+        verify_hashes(&actiual_hash, &expected_root).expect("Verification failed");
+    }
+
+    #[test]
+    fn variable_list_verify_against_hash() {
+        let guinea_pigs = vec![
+            GuineaPig::new(1, 10, Hash256::zero()),
+            GuineaPig::new(2, 20, Hash256::random()),
+            GuineaPig::new(3, 30, Hash256::random()),
+            GuineaPig::new(4, 40, Hash256::random()),
+            GuineaPig::new(5, 50, Hash256::random()),
+            GuineaPig::new(6, 60, Hash256::random()),
+        ];
+
+        // TODO: parameterized/data-driven/property-based test
+        test_list_against_hash::<typenum::U8>(&guinea_pigs, &[0, 2]);
+        test_list_against_hash::<typenum::U8>(&guinea_pigs, &[2, 0]);
+        test_list_against_hash::<typenum::U9>(&guinea_pigs, &[0, 1]);
+        test_list_against_hash::<typenum::U31>(&guinea_pigs, &[0, 1, 2]);
+        test_list_against_hash::<typenum::U31>(&guinea_pigs, &[0, 2, 1]);
+        test_list_against_hash::<typenum::U32>(&guinea_pigs, &[2]);
+        test_list_against_hash::<typenum::U255>(&guinea_pigs, &[1]);
+        test_list_against_hash::<typenum::U999>(&guinea_pigs, &[0, 1, 2, 3]);
+        test_list_against_hash::<typenum::U999>(&guinea_pigs, &[3, 2, 1, 0]);
+        test_list_against_hash::<typenum::U999>(&guinea_pigs, &[3, 1, 2, 0]);
     }
 }
