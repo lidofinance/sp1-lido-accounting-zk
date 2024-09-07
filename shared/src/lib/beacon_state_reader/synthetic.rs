@@ -5,7 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use super::{read_untyped_json, FileBasedBeaconChainStore};
+use super::file::{read_untyped_json, FileBasedBeaconChainStore};
 
 pub enum BalanceGenerationMode {
     RANDOM,
