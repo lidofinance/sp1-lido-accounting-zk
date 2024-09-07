@@ -92,7 +92,6 @@ impl LidoValidatorState {
         validator_delta: &ValidatorDelta,
         lido_withdrawal_credentials: &Hash256,
     ) -> Self {
-        assert!(validator_delta.all_added[0].index == self.index_of_first_new_validator());
         let mut new_deposited = self.deposited_lido_validator_indices.to_vec().clone();
         // pending deposit is a bit special - we want to conveniently add and remove to it
         // and convert to sorted at the end. This list will generally be small (<10**3, roughly)
@@ -106,6 +105,9 @@ impl LidoValidatorState {
 
         let epoch = eth_consensus_layer::epoch(slot).unwrap();
 
+        if !validator_delta.all_added.is_empty() {
+            assert!(validator_delta.all_added[0].index == self.index_of_first_new_validator());
+        }
         for validator_with_index in &validator_delta.all_added {
             let validator = &validator_with_index.validator;
             if !validator.is_lido(lido_withdrawal_credentials) {
