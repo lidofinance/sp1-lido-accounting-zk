@@ -51,20 +51,32 @@ pub fn main() {
     cycle_tracker.start_span("main.compute_new_state.merge_delta");
     let new_state: LidoValidatorState = old_state.merge_validator_delta(input.slot, &delta, &withdrawal_creds);
     cycle_tracker.end_span("main.compute_new_state.merge_delta");
+    cycle_tracker.end_span("main.compute_new_state");
 
+    // TODO: new_state and old_state should be largely the same, except a few additions/deletions
+    // Caching tree segments might be helpful to optimize this section
     cycle_tracker.start_span("main.compute_new_state.hash_root");
     let new_state_hash_root = new_state.tree_hash_root();
     assert_eq!(new_state_hash_root, input.new_lido_validator_state_hash);
     cycle_tracker.end_span("main.compute_new_state.hash_root");
 
-    cycle_tracker.end_span("main.compute_new_state");
+    cycle_tracker.start_span("main.compute_old_state.hash_root");
+    let old_state_hash_root = old_state.tree_hash_root();
+    cycle_tracker.end_span("main.compute_old_state.hash_root");
 
     cycle_tracker.start_span("main.compute_report");
     let report = ReportData::compute_from_state(&new_state, &input.validators_and_balances.balances, &withdrawal_creds);
     cycle_tracker.end_span("main.compute_report");
 
     cycle_tracker.start_span("main.commit_public_values");
-    let public_values = create_public_values(&report, &input.beacon_block_hash, &old_state, &new_state);
+    let public_values = create_public_values(
+        &report,
+        &input.beacon_block_hash,
+        old_state.slot,
+        &old_state_hash_root,
+        new_state.slot,
+        &new_state_hash_root,
+    );
     let bytes = PublicValuesSolidity::abi_encode(&public_values);
     sp1_zkvm::io::commit_slice(&bytes);
     cycle_tracker.end_span("main.commit_public_values");

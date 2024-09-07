@@ -1,14 +1,14 @@
-use crate::lido::LidoValidatorState;
 use crate::{circuit_logic::report::ReportData, eth_consensus_layer::Hash256};
-use tree_hash::TreeHash;
 
 use crate::io::eth_io::{LidoValidatorStateSolidity, PublicValuesSolidity, ReportMetadataSolidity, ReportSolidity};
 
 pub fn create_public_values(
     report: &ReportData,
     beacon_block_hash: &Hash256,
-    old_state: &LidoValidatorState,
-    new_state: &LidoValidatorState,
+    old_state_slot: u64,
+    old_state_hash: &Hash256,
+    new_state_slot: u64,
+    new_state_hash: &Hash256,
 ) -> PublicValuesSolidity {
     PublicValuesSolidity {
         report: ReportSolidity {
@@ -23,12 +23,12 @@ pub fn create_public_values(
             lido_withdrawal_credentials: report.lido_withdrawal_credentials.to_fixed_bytes().into(),
             beacon_block_hash: beacon_block_hash.to_fixed_bytes().into(),
             state_for_previous_report: LidoValidatorStateSolidity {
-                slot: old_state.slot,
-                merkle_root: old_state.tree_hash_root().to_fixed_bytes().into(),
+                slot: old_state_slot,
+                merkle_root: old_state_hash.to_fixed_bytes().into(),
             },
             new_state: LidoValidatorStateSolidity {
-                slot: new_state.slot,
-                merkle_root: new_state.tree_hash_root().to_fixed_bytes().into(),
+                slot: new_state_slot,
+                merkle_root: new_state_hash.to_fixed_bytes().into(),
             },
         },
     }

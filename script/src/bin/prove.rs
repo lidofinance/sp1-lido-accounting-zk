@@ -476,8 +476,10 @@ async fn main() {
         let public_values_solidity = create_public_values(
             &report,
             &beacon_block_hash,
-            &old_lido_validator_state,
-            &new_lido_validator_state,
+            old_lido_validator_state.slot,
+            &old_lido_validator_state.tree_hash_root(),
+            new_lido_validator_state.slot,
+            &new_lido_validator_state.tree_hash_root(),
         );
         let public_values_rust: PublicValuesRust = public_values_solidity.into();
         assert_eq!(public_values, public_values_rust);
