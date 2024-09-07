@@ -3,6 +3,9 @@ use anyhow::anyhow;
 use clap::Parser;
 use hex;
 use serde::{Deserialize, Serialize};
+use sp1_lido_accounting_zk_shared::beacon_state_reader::reqwest::{
+    CachedReqwestBeaconStateReader, ReqwestBeaconStateReader,
+};
 use sp1_lido_accounting_zk_shared::circuit_logic::io::create_public_values;
 use sp1_sdk::{
     ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
@@ -14,7 +17,7 @@ use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
-use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, NoopCycleTracker};
+use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
     epoch, Balances, BeaconBlockHeader, BeaconState, Hash256, Slot, Validator, ValidatorIndex, Validators,
@@ -42,163 +45,172 @@ const ELF: &[u8] = include_bytes!("../../../program/elf/riscv32im-succinct-zkvm-
 #[clap(author, version, about, long_about = None)]
 struct ProveArgs {
     #[clap(long, default_value = "false")]
-    evm: bool,
+    local_prover: bool,
     #[clap(long, default_value = "false")]
     verify_input: bool,
+    #[clap(long, default_value = "false")]
+    verify_public_values: bool,
+    #[clap(long, default_value = "false")]
+    verify_proof_locally: bool,
     #[clap(long, default_value = "false")]
     dry_run: bool,
     #[clap(long, default_value = "false")]
     prove: bool,
-    #[clap(long)]
-    beacon_state_folder_path: PathBuf,
     #[clap(long, default_value = "2100000")]
     current_slot: u64,
     #[clap(long, default_value = "2000000")]
     previous_slot: u64,
+    #[clap(long, default_value = "false")]
+    print_vkey: bool,
 }
 
-trait ScriptSteps {
-    fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)>;
-    fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues>;
-    fn verify(&self, proof: &SP1ProofWithPublicValues) -> Result<()>;
-    fn extract_public_values<'a>(&self, proof: &'a SP1ProofWithPublicValues) -> &'a SP1PublicValues;
-    fn post_verify(&self, proof: &SP1ProofWithPublicValues);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProofFixture {
+    vkey: String,
+    report: ReportRust,
+    metadata: ReportMetadataRust,
+    public_values: String,
+    proof: String,
 }
 
-struct EvmScript {
+struct ScriptConfig {
+    verify_proof: bool,
+    verify_public_values: bool,
+}
+
+struct ScriptSteps {
     client: ProverClient,
     pk: SP1ProvingKey,
     vk: SP1VerifyingKey,
+    config: ScriptConfig,
 }
 
-impl EvmScript {
-    fn new() -> Self {
-        let client: ProverClient = ProverClient::network();
+impl ScriptSteps {
+    pub fn new(client: ProverClient, config: ScriptConfig) -> Self {
         let (pk, vk) = client.setup(ELF);
-        Self { client, pk, vk }
+        Self { client, pk, vk, config }
     }
-}
 
-impl ScriptSteps for EvmScript {
-    fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
+    pub fn vkey(&self) -> &'_ SP1VerifyingKey {
+        return &self.vk;
+    }
+
+    pub fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
         self.client.execute(ELF, input).run()
     }
 
-    fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
+    pub fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
         self.client.prove(&self.pk, input).plonk().run()
     }
 
-    fn verify(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
+    pub fn verify_proof(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
+        if !self.config.verify_proof {
+            log::info!("Skipping verifying proof");
+            return Ok(());
+        }
+        log::info!("Verifying proof");
         self.client
             .verify(proof, &self.vk)
             .map_err(|err| anyhow!("Couldn't verify {:#?}", err))
     }
 
-    fn extract_public_values<'a>(&self, proof: &'a SP1ProofWithPublicValues) -> &'a SP1PublicValues {
-        &proof.public_values
+    fn verify_public_values(
+        &self,
+        public_values: &SP1PublicValues,
+        expected_public_values: &PublicValuesRust,
+    ) -> Result<()> {
+        if !self.config.verify_public_values {
+            log::info!("Skipping verifying proof");
+            return Ok(());
+        }
+
+        let public_values_solidity: PublicValuesSolidity =
+            PublicValuesSolidity::abi_decode(public_values.as_slice(), true).expect("Failed to parse public values");
+        let public_values_rust: PublicValuesRust = public_values_solidity.into();
+
+        assert!(public_values_rust == *expected_public_values);
+        log::debug!(
+            "Expected hash: {}",
+            hex::encode(public_values_rust.metadata.beacon_block_hash)
+        );
+        log::debug!(
+            "Computed hash: {}",
+            hex::encode(public_values_rust.metadata.beacon_block_hash)
+        );
+
+        log::info!("Public values match!");
+
+        Ok(())
     }
 
-    fn post_verify(&self, proof: &SP1ProofWithPublicValues) {
-        create_plonk_fixture(proof, &self.vk);
+    pub fn write_test_fixture(&self, proof: &SP1ProofWithPublicValues) {
+        let bytes = proof.public_values.as_slice();
+        let public_values: PublicValuesSolidity = PublicValuesSolidity::abi_decode(bytes, false).unwrap();
+
+        let fixture = ProofFixture {
+            vkey: self.vk.bytes32().to_string(),
+            report: public_values.report.into(),
+            metadata: public_values.metadata.into(),
+            public_values: format!("0x{}", hex::encode(bytes)),
+            proof: format!("0x{}", hex::encode(proof.bytes())),
+        };
+
+        log::debug!("Verification Key: {}", fixture.vkey);
+        log::debug!("Public Values: {}", fixture.public_values);
+        log::debug!("Proof Bytes: {}", fixture.proof);
+
+        // Save the fixture to a file.
+        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src/fixtures");
+        let fixture_file = fixture_path.join("fixture.json");
+        std::fs::create_dir_all(&fixture_path).expect("failed to create fixture path");
+        std::fs::write(fixture_file.clone(), serde_json::to_string_pretty(&fixture).unwrap())
+            .expect("failed to write fixture");
+        log::info!("Successfully written test fixture to {fixture_file:?}");
     }
 }
 
-struct LocalScript {
-    client: ProverClient,
-    pk: SP1ProvingKey,
-    vk: SP1VerifyingKey,
-}
-
-impl LocalScript {
-    fn new() -> Self {
-        let client: ProverClient = ProverClient::local();
-        let (pk, vk) = client.setup(ELF);
-        Self { client, pk, vk }
-    }
-}
-
-impl ScriptSteps for LocalScript {
-    fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
-        self.client.execute(ELF, input).run()
-    }
-
-    fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
-        self.client.prove(&self.pk, input).run()
-    }
-
-    fn verify(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
-        self.client
-            .verify(proof, &self.vk)
-            .map_err(|err| anyhow!("Couldn't verify {:#?}", err))
-    }
-
-    fn extract_public_values<'a>(&self, proof: &'a SP1ProofWithPublicValues) -> &'a SP1PublicValues {
-        &proof.public_values
-    }
-
-    fn post_verify(&self, proof: &SP1ProofWithPublicValues) {
-        create_plonk_fixture(proof, &self.vk);
-    }
-}
-
-fn run_script(
-    steps: impl ScriptSteps,
-    prove: bool,
-    program_input: &ProgramInput,
-    expected_public_values: &PublicValuesRust,
-) {
+fn write_sp1_stdin(program_input: &ProgramInput) -> SP1Stdin {
     log::info!("Writing program input to SP1Stdin");
     let mut stdin: SP1Stdin = SP1Stdin::new();
     stdin.write(&program_input);
-
-    let public_values: &SP1PublicValues;
-
-    if prove {
-        log::info!("Proving program");
-        let proof = steps.prove(stdin).expect("failed to generate proof");
-        log::info!("Successfully generated proof!");
-        steps.verify(&proof).expect("failed to verify proof");
-        log::info!("Successfully verified proof!");
-        public_values = steps.extract_public_values(&proof);
-
-        verify_public_values(&public_values, expected_public_values);
-        log::info!("Successfully verified public values!");
-
-        steps.post_verify(&proof);
-    } else {
-        log::info!("Executing program");
-        // Only execute the program and get a `SP1PublicValues` object.
-        let (public_values, execution_report) = steps.execute(stdin).unwrap();
-
-        // Print the total number of cycles executed and the full execution report with a breakdown of
-        // the RISC-V opcode and syscall counts.
-        log::info!(
-            "Executed program with {} cycles",
-            execution_report.total_instruction_count() + execution_report.total_syscall_count()
-        );
-        log::debug!("Full execution report:\n{}", execution_report);
-
-        verify_public_values(&public_values, expected_public_values);
-        log::info!("Successfully verified public values!");
-    }
+    stdin
 }
 
-fn verify_public_values(public_values: &SP1PublicValues, expected_public_values: &PublicValuesRust) {
-    let public_values_solidity: PublicValuesSolidity =
-        PublicValuesSolidity::abi_decode(public_values.as_slice(), true).expect("Failed to parse public values");
-    let public_values_rust: PublicValuesRust = public_values_solidity.into();
+fn prove(steps: ScriptSteps, program_input: &ProgramInput, expected_public_values: &PublicValuesRust) {
+    log::info!("Proving program");
+    let stdin = write_sp1_stdin(program_input);
 
-    assert!(public_values_rust == *expected_public_values);
-    log::debug!(
-        "Expected hash: {}",
-        hex::encode(public_values_rust.metadata.beacon_block_hash)
-    );
-    log::debug!(
-        "Computed hash: {}",
-        hex::encode(public_values_rust.metadata.beacon_block_hash)
-    );
+    let proof = steps.prove(stdin).expect("Failed to generate proof");
+    log::info!("Generated proof");
 
-    log::info!("Public values match!");
+    steps.verify_proof(&proof).expect("Failed to verify proof");
+    log::info!("Verified proof");
+
+    steps
+        .verify_public_values(&proof.public_values, expected_public_values)
+        .expect("Failed to verify public inputs");
+    log::info!("Verified public values");
+
+    steps.write_test_fixture(&proof);
+}
+
+fn execute(steps: ScriptSteps, program_input: &ProgramInput, expected_public_values: &PublicValuesRust) {
+    log::info!("Executing program");
+    let stdin = write_sp1_stdin(program_input);
+
+    let (public_values, execution_report) = steps.execute(stdin).unwrap();
+
+    log::info!(
+        "Executed program with {} cycles",
+        execution_report.total_instruction_count() + execution_report.total_syscall_count()
+    );
+    log::debug!("Full execution report:\n{}", execution_report);
+
+    steps
+        .verify_public_values(&public_values, expected_public_values)
+        .expect("Failed to verify public inputs");
+    log::info!("Successfully verified public values!");
 }
 
 fn compute_report_and_public_values(
@@ -246,17 +258,17 @@ fn compute_report_and_public_values(
     return (report, public_values);
 }
 
-async fn read_beacon_states(args: &ProveArgs) -> (BeaconState, BeaconBlockHeader, BeaconState) {
-    let current_slot = args.current_slot;
-    let previous_slot = args.previous_slot;
-
-    let bs_reader = FileBasedBeaconStateReader::new(&args.beacon_state_folder_path);
+async fn read_beacon_states(
+    bs_reader: &BeaconStateReaderEnum,
+    target_slot: u64,
+    previous_slot: u64,
+) -> (BeaconState, BeaconBlockHeader, BeaconState) {
     let bs = bs_reader
-        .read_beacon_state(current_slot)
+        .read_beacon_state(target_slot)
         .await
         .expect("Failed to read beacon state");
     let bh = bs_reader
-        .read_beacon_block_header(current_slot)
+        .read_beacon_block_header(target_slot)
         .await
         .expect("Failed to read beacon block header");
 
@@ -265,8 +277,8 @@ async fn read_beacon_states(args: &ProveArgs) -> (BeaconState, BeaconBlockHeader
         .await
         .expect("Failed to read previous beacon state");
 
-    assert_eq!(bs.slot, current_slot);
-    assert_eq!(bh.slot, current_slot);
+    assert_eq!(bs.slot, target_slot);
+    assert_eq!(bh.slot, target_slot);
     assert_eq!(old_bs.slot, previous_slot);
 
     return (bs, bh, old_bs);
@@ -349,41 +361,59 @@ fn compute_validator_delta(
     }
 }
 
-/// A fixture that can be used to test the verification of SP1 zkVM proofs inside Solidity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ProofFixture {
-    vkey: String,
-    report: ReportRust,
-    metadata: ReportMetadataRust,
-    public_values: String,
-    proof: String,
+enum BeaconStateReaderEnum {
+    File(FileBasedBeaconStateReader),
+    RPC(ReqwestBeaconStateReader),
+    RPCCached(CachedReqwestBeaconStateReader),
 }
 
-/// Create a fixture for the given proof.
-fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) {
-    let bytes = proof.public_values.as_slice();
-    let public_values: PublicValuesSolidity = PublicValuesSolidity::abi_decode(bytes, false).unwrap();
+impl BeaconStateReader for BeaconStateReaderEnum {
+    async fn read_beacon_state(&self, slot: u64) -> anyhow::Result<BeaconState> {
+        match self {
+            Self::File(reader) => reader.read_beacon_state(slot).await,
+            Self::RPC(reader) => reader.read_beacon_state(slot).await,
+            Self::RPCCached(reader) => reader.read_beacon_state(slot).await,
+        }
+    }
 
-    let fixture = ProofFixture {
-        vkey: vk.bytes32().to_string(),
-        report: public_values.report.into(),
-        metadata: public_values.metadata.into(),
-        public_values: format!("0x{}", hex::encode(bytes)),
-        proof: format!("0x{}", hex::encode(proof.bytes())),
-    };
+    async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader> {
+        match self {
+            Self::File(reader) => reader.read_beacon_block_header(slot).await,
+            Self::RPC(reader) => reader.read_beacon_block_header(slot).await,
+            Self::RPCCached(reader) => reader.read_beacon_block_header(slot).await,
+        }
+    }
+}
 
-    log::debug!("Verification Key: {}", fixture.vkey);
-    log::debug!("Public Values: {}", fixture.public_values);
-    log::debug!("Proof Bytes: {}", fixture.proof);
+fn create_bs_reader() -> BeaconStateReaderEnum {
+    let bs_reader_mode_var = env::var("BS_READER_MODE").expect("Failed to read BS_READER_MODE from env");
+    let maybe_file_store_location = env::var("BS_FILE_STORE");
+    let maybe_rpc_endpoint = env::var("CONSENSUS_LAYER_RPC");
 
-    // Save the fixture to a file.
-    let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src/fixtures");
-    let fixture_file = fixture_path.join("fixture.json");
-    std::fs::create_dir_all(&fixture_path).expect("failed to create fixture path");
-    std::fs::write(fixture_file.clone(), serde_json::to_string_pretty(&fixture).unwrap())
-        .expect("failed to write fixture");
-    log::info!("Successfully written test fixture to {fixture_file:?}");
+    match bs_reader_mode_var.to_lowercase().as_str() {
+        "file" => {
+            let file_store = PathBuf::from(maybe_file_store_location.expect(&format!(
+                "BS_FILE_STORE must be specified for mode {bs_reader_mode_var}"
+            )));
+            return BeaconStateReaderEnum::File(FileBasedBeaconStateReader::new(&file_store));
+        }
+        "rpc" => {
+            let rpc_endpoint = maybe_rpc_endpoint.expect(&format!(
+                "CONSENSUS_LAYER_RPC must be specified for mode {bs_reader_mode_var}"
+            ));
+            return BeaconStateReaderEnum::RPC(ReqwestBeaconStateReader::new(&rpc_endpoint));
+        }
+        "rpc_cached" => {
+            let file_store = PathBuf::from(maybe_file_store_location.expect(&format!(
+                "BS_FILE_STORE must be specified for mode {bs_reader_mode_var}"
+            )));
+            let rpc_endpoint = maybe_rpc_endpoint.expect(&format!(
+                "CONSENSUS_LAYER_RPC must be specified for mode {bs_reader_mode_var}"
+            ));
+            return BeaconStateReaderEnum::RPCCached(CachedReqwestBeaconStateReader::new(&rpc_endpoint, &file_store));
+        }
+        _ => panic!("invalid value for BS_READER_MODE enviroment variable: expected 'file', 'rpc', or 'rpc_cached'"),
+    }
 }
 
 #[tokio::main]
@@ -394,10 +424,12 @@ async fn main() {
     // Parse the command line arguments.
     let args = ProveArgs::parse();
 
+    let bs_reader: BeaconStateReaderEnum = create_bs_reader();
+
     log::debug!("Args: {:?}", args);
 
     let lido_withdrawal_credentials: Hash256 = consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
-    let (bs, bh, old_bs) = read_beacon_states(&args).await;
+    let (bs, bh, old_bs) = read_beacon_states(&bs_reader, args.current_slot, args.previous_slot).await;
     let beacon_block_hash = bh.tree_hash_root();
 
     log::info!(
@@ -410,6 +442,16 @@ async fn main() {
     let old_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, &lido_withdrawal_credentials);
     let new_lido_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, &lido_withdrawal_credentials);
 
+    log::info!(
+        "Computed validator states. Old: deposited {}, pending {}, exited {}. New: deposited {}, pending {}, exited {}",
+        old_lido_validator_state.deposited_lido_validator_indices.len(),
+        old_lido_validator_state.pending_deposit_lido_validator_indices.len(),
+        old_lido_validator_state.exited_lido_validator_indices.len(),
+        new_lido_validator_state.deposited_lido_validator_indices.len(),
+        new_lido_validator_state.pending_deposit_lido_validator_indices.len(),
+        new_lido_validator_state.exited_lido_validator_indices.len(),
+    );
+
     let (report, public_values) = compute_report_and_public_values(
         // TODO: could've just passed bs, but bs.balances and bs.validators are moved into program_input
         bs.slot,
@@ -420,15 +462,14 @@ async fn main() {
         &beacon_block_hash,
     );
 
-    let bs_indices = bs
-        .get_leafs_indices(["validators", "balances"])
-        .expect("Failed to get BeaconState field indices");
-    let validators_and_balances_proof: Vec<u8> = bs.get_serialized_multiproof(&bs_indices);
+    log::info!("Computed report and public values");
+    log::debug!("Report {report:?}");
+    log::debug!("Public values {public_values:?}");
 
     let validator_delta =
         compute_validator_delta(&old_bs, &old_lido_validator_state, &bs, &lido_withdrawal_credentials);
     log::info!(
-        "Validator delta. Added: {}, lido changed: {}",
+        "Computed validator delta. Added: {}, lido changed: {}",
         validator_delta.all_added.len(),
         validator_delta.lido_changed.len(),
     );
@@ -440,16 +481,23 @@ async fn main() {
 
     let added_validators_proof = bs.validators.get_field_multiproof(added_indices.as_slice());
     let changed_validators_proof = bs.validators.get_field_multiproof(changed_indices.as_slice());
+    log::info!("Obtained added and changed validators multiproofs");
+
+    let bs_indices = bs
+        .get_leafs_indices(["validators", "balances"])
+        .expect("Failed to get BeaconState field indices");
+    let validators_and_balances_proof = bs.get_field_multiproof(bs_indices.as_slice());
+    log::info!("Obtained validators and balances fields multiproof");
 
     log::info!("Creating program input");
     let program_input = ProgramInput {
         slot: bs.slot,
-        beacon_block_hash: beacon_block_hash,
+        beacon_block_hash,
         // beacon_block_hash: h!("0000000000000000000000000000000000000000000000000000000000000000"),
         beacon_block_header: (&bh).into(),
         beacon_state: (&bs).into(),
         validators_and_balances: ValsAndBals {
-            validators_and_balances_proof: validators_and_balances_proof,
+            validators_and_balances_proof: merkle_proof::serde::serialize_proof(validators_and_balances_proof),
 
             total_validators: usize_to_u64(bs.validators.len()),
             validators_delta: validator_delta,
@@ -464,7 +512,7 @@ async fn main() {
 
     if args.verify_input {
         log::debug!("Verifying inputs");
-        let cycle_tracker = NoopCycleTracker {};
+        let cycle_tracker = LogCycleTracker {};
         let input_verifier = InputVerifier::new(&cycle_tracker);
         input_verifier.prove_input(&program_input);
 
@@ -486,11 +534,28 @@ async fn main() {
         log::info!("Inputs verified");
     }
 
-    if !args.dry_run {
-        if args.evm {
-            run_script(EvmScript::new(), args.prove, &program_input, &public_values)
-        } else {
-            run_script(LocalScript::new(), args.prove, &program_input, &public_values)
-        }
+    let prover_client = if args.local_prover {
+        ProverClient::local()
+    } else {
+        ProverClient::network()
+    };
+    let script_config = ScriptConfig {
+        verify_proof: args.verify_proof_locally,
+        verify_public_values: args.verify_public_values,
+    };
+    let script_steps = ScriptSteps::new(prover_client, script_config);
+
+    if args.print_vkey {
+        log::info!("Verification key {}", script_steps.vkey().bytes32());
+    }
+
+    if args.dry_run {
+        return;
+    }
+
+    if args.prove {
+        prove(script_steps, &program_input, &public_values);
+    } else {
+        execute(script_steps, &program_input, &public_values);
     }
 }
