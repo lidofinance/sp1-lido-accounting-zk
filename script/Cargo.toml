@@ -20,7 +20,6 @@ serde = { version = "1.0", default-features = false, features = ["derive"] }
 clap = { version = "4.0", features = ["derive", "env"] }
 tracing = "0.1.40"
 alloy-sol-types = "0.7.7"
-dotenv = "0.15.0"
 log = "0.4.21"
 hex-literal = "0.4.1"
 hex = "0.4"

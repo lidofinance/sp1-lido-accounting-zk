@@ -31,7 +31,6 @@ use sp1_lido_accounting_zk_shared::{consts, merkle_proof};
 use anyhow::Result;
 use log;
 
-use dotenv::dotenv;
 use std::env;
 
 use tree_hash::TreeHash;
@@ -389,7 +388,6 @@ fn create_plonk_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) 
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
     // Setup the logger.
     sp1_sdk::utils::setup_logger();
 
