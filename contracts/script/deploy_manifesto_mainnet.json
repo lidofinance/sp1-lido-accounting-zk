@@ -1,0 +1,11 @@
+{
+  "network": "mainnet",
+  "verifier": "0x3b6041173b80e77f038f3f2c0f9744f04837185e",
+  "vkey": "0x008e8e30ccf27b6312b0d489209582f73bd5f041b1e0c273ca1b35b93351513e",
+  "withdrawal_credentials": "0x010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
+  "genesis_timestamp": 1606824023,
+  "initial_validator_state": {
+    "slot": 9905088,
+    "merkle_root": "0x5195234cbb4e0de705da016fb1cfb7ca58d0471b4bd381f75ff597026f9ec12b"
+  }
+}
