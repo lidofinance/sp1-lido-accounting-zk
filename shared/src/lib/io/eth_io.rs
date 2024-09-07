@@ -5,22 +5,26 @@ mod serde_hex_as_string {
     use serde::de::Error;
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<'a, S>(value: &'a [u8], serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let res = format!("0x{}", hex::encode(value));
-        serializer.serialize_str(&res)
-    }
+    pub struct HexStringProtocol<const N: usize> {}
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s: &str = Deserialize::deserialize(deserializer)?;
-        let mut slice: [u8; 32] = [0; 32];
-        hex::decode_to_slice(s, &mut slice).map_err(Error::custom)?;
-        Ok(slice)
+    impl<const N: usize> HexStringProtocol<N> {
+        pub fn serialize<'a, S>(value: &'a [u8], serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let res = format!("0x{}", hex::encode(value));
+            serializer.serialize_str(&res)
+        }
+
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; N], D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let s: &str = Deserialize::deserialize(deserializer)?;
+            let mut slice: [u8; N] = [0; N];
+            hex::decode_to_slice(s, &mut slice).map_err(Error::custom)?;
+            Ok(slice)
+        }
     }
 }
 
@@ -91,7 +95,7 @@ impl From<LidoValidatorStateRust> for LidoValidatorStateSolidity {
 #[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct LidoValidatorStateRust {
     pub slot: u64,
-    #[serde(with = "serde_hex_as_string")]
+    #[serde(with = "serde_hex_as_string::HexStringProtocol::<32>")]
     pub merkle_root: [u8; 32],
 }
 
@@ -110,9 +114,9 @@ sol! {
 pub struct ReportMetadataRust {
     pub slot: u64,
     pub epoch: u64,
-    #[serde(with = "serde_hex_as_string")]
+    #[serde(with = "serde_hex_as_string::HexStringProtocol::<32>")]
     pub lido_withdrawal_credentials: [u8; 32],
-    #[serde(with = "serde_hex_as_string")]
+    #[serde(with = "serde_hex_as_string::HexStringProtocol::<32>")]
     pub beacon_block_hash: [u8; 32],
     pub state_for_previous_report: LidoValidatorStateRust,
     pub new_state: LidoValidatorStateRust,
@@ -173,4 +177,16 @@ impl From<PublicValuesRust> for PublicValuesSolidity {
             metadata: value.metadata.into(),
         }
     }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+pub struct ContractDeployParametersRust {
+    pub network: String,
+    #[serde(with = "serde_hex_as_string::HexStringProtocol::<20>")]
+    pub verifier: [u8; 20],
+    pub vkey: String,
+    #[serde(with = "serde_hex_as_string::HexStringProtocol::<32>")]
+    pub withdrawal_credentials: [u8; 32],
+    pub genesis_timestamp: u64,
+    pub initial_validator_state: LidoValidatorStateRust,
 }

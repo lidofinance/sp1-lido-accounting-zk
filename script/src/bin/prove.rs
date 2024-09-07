@@ -3,10 +3,10 @@ use anyhow::anyhow;
 use clap::Parser;
 use hex;
 use serde::{Deserialize, Serialize};
-use sp1_lido_accounting_zk_shared::beacon_state_reader::reqwest::{
-    CachedReqwestBeaconStateReader, ReqwestBeaconStateReader,
-};
+use sp1_lido_accounting_scripts::beacon_state_reader_enum::BeaconStateReaderEnum;
+use sp1_lido_accounting_scripts::ELF;
 use sp1_lido_accounting_zk_shared::circuit_logic::io::create_public_values;
+use sp1_lido_accounting_zk_shared::consts::Network;
 use sp1_sdk::{
     ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
     SP1VerifyingKey,
@@ -15,7 +15,6 @@ use sp1_sdk::{
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
@@ -27,9 +26,9 @@ use sp1_lido_accounting_zk_shared::io::eth_io::{
 };
 use sp1_lido_accounting_zk_shared::io::program_io::{ProgramInput, ValsAndBals};
 use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorOps, ValidatorWithIndex};
+use sp1_lido_accounting_zk_shared::merkle_proof;
 use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves};
 use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
-use sp1_lido_accounting_zk_shared::{consts, merkle_proof};
 
 use anyhow::Result;
 use log;
@@ -38,9 +37,6 @@ use std::env;
 
 use tree_hash::TreeHash;
 
-const ELF: &[u8] = include_bytes!("../../../program/elf/riscv32im-succinct-zkvm-elf");
-
-/// The arguments for the prove command.
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct ProveArgs {
@@ -220,10 +216,8 @@ fn compute_report_and_public_values(
     validators: &Validators,
     balances: &Balances,
     beacon_block_hash: &Hash256,
+    lido_withdrawal_credentials: &Hash256,
 ) -> (ReportData, PublicValuesRust) {
-    let lido_withdrawal_credentials: Hash256 =
-        sp1_lido_accounting_zk_shared::consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
-
     let report = ReportData::compute(
         slot,
         epoch(slot).unwrap(),
@@ -242,7 +236,7 @@ fn compute_report_and_public_values(
         metadata: ReportMetadataRust {
             slot: report.slot,
             epoch: report.epoch,
-            lido_withdrawal_credentials: lido_withdrawal_credentials.into(),
+            lido_withdrawal_credentials: lido_withdrawal_credentials.to_fixed_bytes(),
             beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
             state_for_previous_report: LidoValidatorStateRust {
                 slot: old_validator_state.slot,
@@ -259,7 +253,7 @@ fn compute_report_and_public_values(
 }
 
 async fn read_beacon_states(
-    bs_reader: &BeaconStateReaderEnum,
+    bs_reader: impl BeaconStateReader,
     target_slot: u64,
     previous_slot: u64,
 ) -> (BeaconState, BeaconBlockHeader, BeaconState) {
@@ -361,75 +355,30 @@ fn compute_validator_delta(
     }
 }
 
-enum BeaconStateReaderEnum {
-    File(FileBasedBeaconStateReader),
-    RPC(ReqwestBeaconStateReader),
-    RPCCached(CachedReqwestBeaconStateReader),
-}
-
-impl BeaconStateReader for BeaconStateReaderEnum {
-    async fn read_beacon_state(&self, slot: u64) -> anyhow::Result<BeaconState> {
-        match self {
-            Self::File(reader) => reader.read_beacon_state(slot).await,
-            Self::RPC(reader) => reader.read_beacon_state(slot).await,
-            Self::RPCCached(reader) => reader.read_beacon_state(slot).await,
-        }
-    }
-
-    async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader> {
-        match self {
-            Self::File(reader) => reader.read_beacon_block_header(slot).await,
-            Self::RPC(reader) => reader.read_beacon_block_header(slot).await,
-            Self::RPCCached(reader) => reader.read_beacon_block_header(slot).await,
-        }
-    }
-}
-
-fn create_bs_reader() -> BeaconStateReaderEnum {
-    let bs_reader_mode_var = env::var("BS_READER_MODE").expect("Failed to read BS_READER_MODE from env");
-    let maybe_file_store_location = env::var("BS_FILE_STORE");
-    let maybe_rpc_endpoint = env::var("CONSENSUS_LAYER_RPC");
-
-    match bs_reader_mode_var.to_lowercase().as_str() {
-        "file" => {
-            let file_store = PathBuf::from(maybe_file_store_location.expect(&format!(
-                "BS_FILE_STORE must be specified for mode {bs_reader_mode_var}"
-            )));
-            return BeaconStateReaderEnum::File(FileBasedBeaconStateReader::new(&file_store));
-        }
-        "rpc" => {
-            let rpc_endpoint = maybe_rpc_endpoint.expect(&format!(
-                "CONSENSUS_LAYER_RPC must be specified for mode {bs_reader_mode_var}"
-            ));
-            return BeaconStateReaderEnum::RPC(ReqwestBeaconStateReader::new(&rpc_endpoint));
-        }
-        "rpc_cached" => {
-            let file_store = PathBuf::from(maybe_file_store_location.expect(&format!(
-                "BS_FILE_STORE must be specified for mode {bs_reader_mode_var}"
-            )));
-            let rpc_endpoint = maybe_rpc_endpoint.expect(&format!(
-                "CONSENSUS_LAYER_RPC must be specified for mode {bs_reader_mode_var}"
-            ));
-            return BeaconStateReaderEnum::RPCCached(CachedReqwestBeaconStateReader::new(&rpc_endpoint, &file_store));
-        }
-        _ => panic!("invalid value for BS_READER_MODE enviroment variable: expected 'file', 'rpc', or 'rpc_cached'"),
-    }
+fn read_network() -> Network {
+    let chain = env::var("EVM_CHAIN").expect("Couldn't read EVM_CHAIN env var");
+    Network::from_str(&chain).unwrap()
 }
 
 #[tokio::main]
 async fn main() {
-    // Setup the logger.
     sp1_sdk::utils::setup_logger();
-
-    // Parse the command line arguments.
     let args = ProveArgs::parse();
-
-    let bs_reader: BeaconStateReaderEnum = create_bs_reader();
-
     log::debug!("Args: {:?}", args);
 
-    let lido_withdrawal_credentials: Hash256 = consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
-    let (bs, bh, old_bs) = read_beacon_states(&bs_reader, args.current_slot, args.previous_slot).await;
+    let network = read_network();
+    let network_config = network.get_config();
+    log::info!(
+        "Running for network {:?}, slot: {}, previous_slot: {}",
+        network,
+        args.current_slot,
+        args.previous_slot
+    );
+
+    let bs_reader = BeaconStateReaderEnum::new_from_env();
+
+    let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
+    let (bs, bh, old_bs) = read_beacon_states(bs_reader, args.current_slot, args.previous_slot).await;
     let beacon_block_hash = bh.tree_hash_root();
 
     log::info!(
@@ -500,6 +449,7 @@ async fn main() {
         validators_and_balances: ValsAndBals {
             validators_and_balances_proof: merkle_proof::serde::serialize_proof(validators_and_balances_proof),
 
+            lido_withdrawal_credentials,
             total_validators: usize_to_u64(bs.validators.len()),
             validators_delta: validator_delta,
             added_validators_inclusion_proof: merkle_proof::serde::serialize_proof(added_validators_proof),

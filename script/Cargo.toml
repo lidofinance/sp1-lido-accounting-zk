@@ -10,8 +10,12 @@ name = "prove"
 path = "src/bin/prove.rs"
 
 [[bin]]
-name = "vkey"
-path = "src/bin/vkey.rs"
+name = "pre-deploy"
+path = "src/bin/pre_deploy.rs"
+
+[lib]
+name = "sp1_lido_accounting_scripts"
+path = "src/lib/lib.rs"
 
 [dependencies]
 sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0", features = [ "network" ] }
