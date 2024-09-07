@@ -5,7 +5,7 @@ use hex;
 use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_scripts::beacon_state_reader_enum::BeaconStateReaderEnum;
 use sp1_lido_accounting_scripts::ELF;
-use sp1_lido_accounting_zk_shared::circuit_logic::io::create_public_values;
+use sp1_lido_accounting_zk_shared::circuit_logic;
 use sp1_lido_accounting_zk_shared::consts::Network;
 use sp1_sdk::{
     ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
@@ -19,14 +19,13 @@ use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
-    epoch, Balances, BeaconBlockHeader, BeaconState, Hash256, Slot, Validator, ValidatorIndex, Validators,
+    epoch, Balances, BeaconBlockHeader, BeaconState, Hash256, Slot, ValidatorIndex, Validators,
 };
 use sp1_lido_accounting_zk_shared::io::eth_io::{
     LidoValidatorStateRust, PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust,
 };
 use sp1_lido_accounting_zk_shared::io::program_io::{ProgramInput, ValsAndBals};
-use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorOps, ValidatorWithIndex};
-use sp1_lido_accounting_zk_shared::merkle_proof;
+use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex};
 use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves};
 use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
 
@@ -278,80 +277,88 @@ async fn read_beacon_states(
     return (bs, bh, old_bs);
 }
 
-fn compute_validator_delta(
-    old_bs: &BeaconState,
-    old_state: &LidoValidatorState,
-    new_bs: &BeaconState,
-    lido_withdrawal_credentials: &Hash256,
-) -> ValidatorDelta {
-    let added_count = new_bs.validators.len() - old_bs.validators.len();
-    log::debug!(
-        "Validator count: old {}, new {}",
-        old_bs.validators.len(),
-        new_bs.validators.len()
-    );
-    let mut all_added: Vec<ValidatorWithIndex> = Vec::with_capacity(added_count);
+struct ValidatorDeltaCompute<'a> {
+    old_bs: &'a BeaconState,
+    old_state: &'a LidoValidatorState,
+    new_bs: &'a BeaconState,
+}
 
-    for index in old_state.indices_for_adjacent_delta(added_count) {
-        let validator = &new_bs.validators[u64_to_usize(index)];
-        all_added.push(ValidatorWithIndex {
-            index: index,
-            // TODO: might be able to do with a reference + linking ValidatorWithIndex lifetime with
-            //  Validator itself for now just cloning is acceptable (unless this gets into shared and used in the ZK part)
-            validator: validator.clone(),
-        });
-    }
-
-    let mut lido_changed_indices: HashSet<ValidatorIndex> = old_state
-        .pending_deposit_lido_validator_indices
-        .iter()
-        .map(|v: &u64| v.clone())
-        .collect();
-
-    // ballpark estimating ~32000 validators changed per oracle report should waaaay more than enough
-    // Better estimate could be (new_slot - old_slot) * avg_changes_per_slot, but the impact is likely marginal
-    // If underestimated, the vec will transparently resize and reallocate more memory, so the only
-    // effect is slightly slower run time - which is ok, unless (again) this gets into shared and used in the ZK part
-    lido_changed_indices.reserve(32000);
-
-    for index in &old_state.deposited_lido_validator_indices {
-        // for already deposited validators, we want to check if something material have changed:
-        // this can only be activation epoch or exist epoch. Theoretically "slashed" can also be
-        // relevant, but for now we have no use for it
-        let index_usize = u64_to_usize(*index);
-        let old_validator: &Validator = &old_bs.validators[index_usize];
-        let new_validator: &Validator = &new_bs.validators[index_usize];
-
-        assert!(
-            old_validator.is_lido(lido_withdrawal_credentials),
-            "Validator at index {} does not belong to lido, but was listed in the old validator state",
-            index
-        );
-        assert!(
-            old_validator.pubkey == new_validator.pubkey,
-            "Validators at index {} in old and new beacon state have different pubkeys",
-            index
-        );
-        if (old_validator.exit_epoch != new_validator.exit_epoch)
-            || (old_validator.activation_epoch != new_validator.activation_epoch)
-        {
-            lido_changed_indices.insert(index.clone());
+impl<'a> ValidatorDeltaCompute<'a> {
+    pub fn new(old_bs: &'a BeaconState, old_state: &'a LidoValidatorState, new_bs: &'a BeaconState) -> Self {
+        Self {
+            old_bs,
+            old_state,
+            new_bs,
         }
     }
 
-    let lido_changed = lido_changed_indices
-        .iter()
-        .filter_map(|index| {
-            new_bs.validators.get(u64_to_usize(*index)).map(|v| ValidatorWithIndex {
-                index: index.clone(),
-                validator: v.clone(),
-            })
-        })
-        .collect();
+    fn compute_changed(&self) -> HashSet<ValidatorIndex> {
+        let mut lido_changed_indices: HashSet<ValidatorIndex> = self
+            .old_state
+            .pending_deposit_lido_validator_indices
+            .iter()
+            .map(|v: &u64| v.clone())
+            .collect();
 
-    ValidatorDelta {
-        all_added: all_added,
-        lido_changed,
+        // ballpark estimating ~32000 validators changed per oracle report should waaaay more than enough
+        // Better estimate could be (new_slot - old_slot) * avg_changes_per_slot, but the impact is likely marginal
+        // If underestimated, the vec will transparently resize and reallocate more memory, so the only
+        // effect is slightly slower run time - which is ok, unless (again) this gets into shared and used in the ZK part
+        lido_changed_indices.reserve(32000);
+
+        for index in &self.old_state.deposited_lido_validator_indices {
+            // for already deposited validators, we want to check if something material have changed:
+            // this can only be activation epoch or exist epoch. Theoretically "slashed" can also be
+            // relevant, but for now we have no use for it
+            let index_usize = u64_to_usize(*index);
+            let old_validator = &self.old_bs.validators[index_usize];
+            let new_validator = &self.new_bs.validators[index_usize];
+
+            assert!(
+                old_validator.pubkey == new_validator.pubkey,
+                "Validators at index {} in old and new beacon state have different pubkeys",
+                index
+            );
+            if (old_validator.exit_epoch != new_validator.exit_epoch)
+                || (old_validator.activation_epoch != new_validator.activation_epoch)
+            {
+                lido_changed_indices.insert(index.clone());
+            }
+        }
+
+        lido_changed_indices
+    }
+
+    fn read_validators(&self, indices: Vec<ValidatorIndex>) -> Vec<ValidatorWithIndex> {
+        indices
+            .iter()
+            .filter_map(|index| {
+                self.new_bs
+                    .validators
+                    .get(u64_to_usize(*index))
+                    .map(|v| ValidatorWithIndex {
+                        index: index.clone(),
+                        validator: v.clone(),
+                    })
+            })
+            .collect()
+    }
+
+    pub fn compute(&self) -> ValidatorDelta {
+        log::debug!(
+            "Validator count: old {}, new {}",
+            self.old_bs.validators.len(),
+            self.new_bs.validators.len()
+        );
+
+        let added_count = self.new_bs.validators.len() - self.old_bs.validators.len();
+        let added = self.old_state.indices_for_adjacent_delta(added_count).collect();
+        let changed: Vec<u64> = self.compute_changed().into_iter().collect();
+
+        ValidatorDelta {
+            all_added: self.read_validators(added),
+            lido_changed: self.read_validators(changed),
+        }
     }
 }
 
@@ -416,8 +423,8 @@ async fn main() {
     log::debug!("Report {report:?}");
     log::debug!("Public values {public_values:?}");
 
-    let validator_delta =
-        compute_validator_delta(&old_bs, &old_lido_validator_state, &bs, &lido_withdrawal_credentials);
+    let delta_compute = ValidatorDeltaCompute::new(&old_bs, &old_lido_validator_state, &bs);
+    let validator_delta = delta_compute.compute();
     log::info!(
         "Computed validator delta. Added: {}, lido changed: {}",
         validator_delta.all_added.len(),
@@ -429,14 +436,14 @@ async fn main() {
         .map(|v| u64_to_usize(*v))
         .collect();
 
-    let added_validators_proof = bs.validators.get_field_multiproof(added_indices.as_slice());
-    let changed_validators_proof = bs.validators.get_field_multiproof(changed_indices.as_slice());
+    let added_validators_proof = bs.validators.get_serialized_multiproof(added_indices.as_slice());
+    let changed_validators_proof = bs.validators.get_serialized_multiproof(changed_indices.as_slice());
     log::info!("Obtained added and changed validators multiproofs");
 
     let bs_indices = bs
         .get_leafs_indices(["validators", "balances"])
         .expect("Failed to get BeaconState field indices");
-    let validators_and_balances_proof = bs.get_field_multiproof(bs_indices.as_slice());
+    let validators_and_balances_proof = bs.get_serialized_multiproof(bs_indices.as_slice());
     log::info!("Obtained validators and balances fields multiproof");
 
     log::info!("Creating program input");
@@ -447,13 +454,13 @@ async fn main() {
         beacon_block_header: (&bh).into(),
         beacon_state: (&bs).into(),
         validators_and_balances: ValsAndBals {
-            validators_and_balances_proof: merkle_proof::serde::serialize_proof(validators_and_balances_proof),
+            validators_and_balances_proof: validators_and_balances_proof,
 
             lido_withdrawal_credentials,
             total_validators: usize_to_u64(bs.validators.len()),
             validators_delta: validator_delta,
-            added_validators_inclusion_proof: merkle_proof::serde::serialize_proof(added_validators_proof),
-            changed_validators_inclusion_proof: merkle_proof::serde::serialize_proof(changed_validators_proof),
+            added_validators_inclusion_proof: added_validators_proof,
+            changed_validators_inclusion_proof: changed_validators_proof,
 
             balances: bs.balances,
         },
@@ -466,23 +473,26 @@ async fn main() {
         let cycle_tracker = LogCycleTracker {};
         let input_verifier = InputVerifier::new(&cycle_tracker);
         input_verifier.prove_input(&program_input);
+        log::debug!("Inputs verified");
 
+        log::debug!("Verifying old_state + validator_delta = new_state");
         let delta = &program_input.validators_and_balances.validators_delta;
         let new_state = old_lido_validator_state.merge_validator_delta(bs.slot, delta, &lido_withdrawal_credentials);
         assert_eq!(new_state, new_lido_validator_state);
         assert_eq!(new_state.tree_hash_root(), program_input.new_lido_validator_state_hash);
+        log::debug!("New state verified");
 
-        let public_values_solidity = create_public_values(
+        log::debug!("Verifying public values construction");
+        let public_values_from_circuit = circuit_logic::io::create_public_values(
             &report,
             &beacon_block_hash,
             old_lido_validator_state.slot,
             &old_lido_validator_state.tree_hash_root(),
-            new_lido_validator_state.slot,
-            &new_lido_validator_state.tree_hash_root(),
+            new_state.slot,
+            &new_state.tree_hash_root(),
         );
-        let public_values_rust: PublicValuesRust = public_values_solidity.into();
-        assert_eq!(public_values, public_values_rust);
-        log::info!("Inputs verified");
+        assert_eq!(public_values, public_values_from_circuit.into());
+        log::debug!("Public values verified");
     }
 
     let prover_client = if args.local_prover {
