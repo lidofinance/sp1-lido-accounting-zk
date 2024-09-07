@@ -12,7 +12,8 @@ use sp1_sdk::{
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
+use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, NoopCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{

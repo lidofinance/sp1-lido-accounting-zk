@@ -1,12 +1,13 @@
 use log;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
 
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic_beacon_state_reader::{
+use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic::{
     BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
 };
-use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
+use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 
 use simple_logger::SimpleLogger;
 

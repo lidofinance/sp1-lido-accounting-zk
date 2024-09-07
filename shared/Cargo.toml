@@ -33,6 +33,11 @@ name = "list_multiproofs"
 path = "examples/list_multiproofs.rs"
 required-features = ["synthetic_bs_reader"]
 
+[[example]]
+name = "read_bs_pair"
+path = "examples/read_bs_pair.rs"
+required-features = ["reqwest"]
+
 [dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
@@ -53,15 +58,19 @@ hex-literal = "0.4.1"
 log = "0.4.21"
 ethereum_hashing = "0.6.0"
 itertools = "0.13.0"
+reqwest = { version = "0.12.7", features = ["json"], optional = true }
 
 [dev-dependencies]
+dotenv = "0.15.0"
 log = "0.4.21"
 simple_logger = "5.0.0"
 tokio = { version = "1.38.0", features = ["full"] }
+
 
 [patch.crates-io]
 sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
 ethereum_hashing = { path = "../../../ethereum_hashing" }
 
 [features]
-synthetic_bs_reader = []
+synthetic = []
+reqwest = ["dep:reqwest"]

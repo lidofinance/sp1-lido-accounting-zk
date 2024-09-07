@@ -2,6 +2,7 @@ use hex::FromHex;
 use log;
 use serde_json::Value;
 
+use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
 use sp1_lido_accounting_zk_shared::consts::LIDO_WITHDRAWAL_CREDENTIALS;
 use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
 use std::collections::HashSet;
@@ -9,10 +10,10 @@ use std::path::PathBuf;
 use tree_hash::TreeHash;
 use util::synthetic_beacon_state_reader::GenerationSpec;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic_beacon_state_reader::{
+use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic::{
     BalanceGenerationMode, SyntheticBeaconStateCreator,
 };
-use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
+use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::util::usize_to_u64;
 

@@ -4,12 +4,13 @@ use log;
 use serde_json::Value;
 use sp1_lido_accounting_zk_shared::consts;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic_beacon_state_reader::{
+use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic::{
     BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
 };
 use std::path::PathBuf;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::{BeaconStateReader, FileBasedBeaconStateReader};
+use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
+use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, Hash256};
 use sp1_lido_accounting_zk_shared::report::ReportData;
 
