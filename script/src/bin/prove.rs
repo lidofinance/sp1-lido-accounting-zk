@@ -460,6 +460,7 @@ async fn main() {
         &bs.validators,
         &bs.balances,
         &beacon_block_hash,
+        &lido_withdrawal_credentials,
     );
 
     log::info!("Computed report and public values");

@@ -44,7 +44,7 @@ pub fn main() {
     cycle_tracker.end_span("main.verify_inputs");
 
     cycle_tracker.start_span("main.compute_new_state");
-    let withdrawal_creds: Hash256 = consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
+    let withdrawal_creds: Hash256 = input.validators_and_balances.lido_withdrawal_credentials;
     let old_state = input.old_lido_validator_state;
     let delta = input.validators_and_balances.validators_delta;
 
