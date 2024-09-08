@@ -382,7 +382,7 @@ async fn main() {
         args.previous_slot
     );
 
-    let bs_reader = BeaconStateReaderEnum::new_from_env();
+    let bs_reader = BeaconStateReaderEnum::new_from_env(network);
 
     let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
     let (bs, bh, old_bs) = read_beacon_states(bs_reader, args.current_slot, args.previous_slot).await;

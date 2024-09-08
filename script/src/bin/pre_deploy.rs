@@ -36,7 +36,7 @@ async fn main() {
     let network_name = network.as_str().to_owned();
     log::info!("Running for network {:?}, slot: {}", network, args.slot);
 
-    let bs_reader = BeaconStateReaderEnum::new_from_env();
+    let bs_reader = BeaconStateReaderEnum::new_from_env(network);
     let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
 
     let bs = bs_reader

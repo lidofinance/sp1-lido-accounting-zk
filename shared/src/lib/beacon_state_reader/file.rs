@@ -51,6 +51,10 @@ impl FileBasedBeaconChainStore {
         return result;
     }
 
+    pub fn ensure_exists(&self) -> io::Result<()> {
+        std::fs::create_dir_all(self.store_location.clone())
+    }
+
     pub fn delete(path: &Path) -> io::Result<()> {
         fs::remove_file(path)?;
         Ok(())
@@ -117,12 +121,20 @@ impl FileBeaconStateWriter {
     }
 
     pub fn write_beacon_state(&self, bs: &BeaconState) -> anyhow::Result<()> {
+        self.file_store
+            .ensure_exists()
+            .map_err(|io_err| anyhow::anyhow!("Couldn't create folders {:#?}", io_err))?;
+
         let serialized = bs.as_ssz_bytes();
+
         fs::write(self.file_store.get_beacon_state_path(bs.slot), serialized)
             .map_err(|write_err| anyhow::anyhow!("Couldn't write ssz {:#?}", write_err))
     }
 
     pub fn write_beacon_block_header(&self, bh: &BeaconBlockHeader) -> anyhow::Result<()> {
+        self.file_store
+            .ensure_exists()
+            .map_err(|io_err| anyhow::anyhow!("Couldn't create folders {:#?}", io_err))?;
         let mut serialized: Vec<u8> = Vec::new();
         serde_json::to_writer(&mut serialized, &bh)
             .map_err(|serde_err| anyhow::anyhow!("Couldn't decode ssz {:#?}", serde_err))?;

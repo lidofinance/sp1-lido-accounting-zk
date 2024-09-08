@@ -89,21 +89,25 @@ pub trait BeaconChainRPC {
 }
 
 pub struct ReqwestBeaconStateReader {
-    base_url: String,
+    consensus_layer_base_uri: String,
+    beacon_state_base_uri: String,
     client: Client,
 }
 
 impl ReqwestBeaconStateReader {
-    pub fn new(base_url: &str) -> Self {
+    fn normalize_url(base_url: &str) -> String {
+        base_url.strip_suffix("/").unwrap_or(&base_url).to_owned()
+    }
+
+    pub fn new(consensus_layer_base_uri: &str, beacon_state_base_uri: &str) -> Self {
         let client = ClientBuilder::new()
             .timeout(Duration::new(300, 0))
             .build()
             .expect("Failed to create http client");
 
-        let normalized_url = base_url.strip_suffix("/").unwrap_or(&base_url);
-
         Self {
-            base_url: normalized_url.to_owned(),
+            consensus_layer_base_uri: Self::normalize_url(consensus_layer_base_uri),
+            beacon_state_base_uri: Self::normalize_url(beacon_state_base_uri),
             client: client,
         }
     }
@@ -114,7 +118,7 @@ impl ReqwestBeaconStateReader {
 
     async fn read_bs(&self, block_id: &str) -> anyhow::Result<BeaconState> {
         log::info!("Loading beacon state for {block_id}");
-        let url = format!("{}/eth/v2/debug/beacon/states/{}", self.base_url, block_id);
+        let url = format!("{}/eth/v2/debug/beacon/states/{}", self.beacon_state_base_uri, block_id);
         log::debug!("Url: {url}");
         let response = self
             .client
@@ -146,7 +150,7 @@ impl ReqwestBeaconStateReader {
     }
 
     async fn read_beacon_header(&self, block_id: &str) -> anyhow::Result<BeaconBlockHeader> {
-        let url = format!("{}/eth/v1/beacon/headers/{}", self.base_url, block_id);
+        let url = format!("{}/eth/v1/beacon/headers/{}", self.consensus_layer_base_uri, block_id);
         log::info!("Loading beacon header for {block_id}");
 
         let response = self
@@ -198,9 +202,9 @@ pub struct CachedReqwestBeaconStateReader {
 }
 
 impl CachedReqwestBeaconStateReader {
-    pub fn new(base_url: &str, file_store: &Path) -> Self {
+    pub fn new(consensus_layer_base_uri: &str, beacon_state_base_uri: &str, file_store: &Path) -> Self {
         Self {
-            rpc_reader: ReqwestBeaconStateReader::new(base_url),
+            rpc_reader: ReqwestBeaconStateReader::new(consensus_layer_base_uri, beacon_state_base_uri),
             file_reader: FileBasedBeaconStateReader::new(file_store),
             file_writer: FileBeaconStateWriter::new(file_store),
         }
