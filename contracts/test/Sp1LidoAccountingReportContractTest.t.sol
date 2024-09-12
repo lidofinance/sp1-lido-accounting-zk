@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
-import {Sp1LidoAccountingReportContractControllable} from "../src/Sp1LidoAccountingReportContractControllable.sol";
+import {Sp1LidoAccountingReportContractControllable} from "./Sp1LidoAccountingReportContractControllable.sol";
 import {LidoValidatorState, Report, ReportMetadata} from "../src/Sp1LidoAccountingReportContractBase.sol";
 import {SP1VerifierGateway} from "@sp1-contracts/SP1VerifierGateway.sol";
 

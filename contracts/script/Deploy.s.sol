@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {Sp1LidoAccountingReportContract, LidoValidatorState} from "../src/Sp1LidoAccountingReportContract.sol";
 
+// forge script --chain $EVM_CHAIN script/Deploy.s.sol:Deploy --rpc-url $EXECUTION_LAYER_RPC --broadcast --verify
 contract Deploy is Script {
     using stdJson for string;
 

@@ -201,6 +201,12 @@ pub struct BeaconState {
     pub historical_summaries: VariableList<HistoricalSummary, eth_spec::HistoricalRootsLimit>,
 }
 
+impl BeaconState {
+    pub fn epoch(&self) -> Epoch {
+        epoch(self.slot).unwrap()
+    }
+}
+
 // TODO: Derive?
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct BeaconStatePrecomputedHashes {

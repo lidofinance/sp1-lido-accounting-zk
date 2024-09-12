@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./Sp1LidoAccountingReportContractBase.sol";
+import {Sp1LidoAccountingReportContractBase, LidoValidatorState, Report, ReportMetadata} from "../src/Sp1LidoAccountingReportContractBase.sol";
 
 contract Sp1LidoAccountingReportContractControllable is
     Sp1LidoAccountingReportContractBase

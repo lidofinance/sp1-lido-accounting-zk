@@ -15,6 +15,7 @@ pub struct ReportData {
     pub lido_cl_balance: u64,
 }
 
+// Merge into ReportRust?
 impl ReportData {
     pub fn compute(
         slot: u64,

@@ -59,6 +59,7 @@ log = "0.4.21"
 ethereum_hashing = "0.6.0"
 itertools = "0.13.0"
 reqwest = { version = "0.12.7", features = ["json"], optional = true }
+alloy-primitives = "0.7.7"
 
 [dev-dependencies]
 dotenv = "0.15.0"

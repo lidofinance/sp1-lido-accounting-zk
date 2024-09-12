@@ -166,17 +166,18 @@ impl LidoValidatorState {
         }
 
         let pending_deposit_vec: Vec<u64> = new_pending_deposit.into_iter().sorted().collect_vec();
+        let exited_deposit_vec: Vec<u64> = new_exited.into_iter().sorted().collect_vec();
 
         let deposited_list: ValidatorIndexList = new_deposited.into();
-        let pending_deposite_list: ValidatorIndexList = pending_deposit_vec.into();
-        let exited_list: ValidatorIndexList = new_exited.into();
+        let pending_deposit_list: ValidatorIndexList = pending_deposit_vec.into();
+        let exited_list: ValidatorIndexList = exited_deposit_vec.into();
 
         let result = Self {
             slot,
             epoch: epoch,
             max_validator_index: self.max_validator_index + usize_to_u64(validator_delta.all_added.len()),
             deposited_lido_validator_indices: deposited_list,
-            pending_deposit_lido_validator_indices: pending_deposite_list,
+            pending_deposit_lido_validator_indices: pending_deposit_list,
             exited_lido_validator_indices: exited_list,
         };
 

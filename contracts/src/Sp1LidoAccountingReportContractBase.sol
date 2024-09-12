@@ -5,7 +5,7 @@ import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
 
 struct Report {
     uint256 slot;
-    uint256 all_lido_validators;
+    uint256 deposited_lido_validators;
     uint256 exited_lido_validators;
     uint256 lido_cl_valance;
 }
@@ -40,6 +40,8 @@ abstract contract Sp1LidoAccountingReportContractBase {
     bytes32 public immutable vkey;
 
     bytes32 public immutable widthrawal_credentials;
+
+    uint256 _latestValidatorStateSlot;
 
     constructor(
         address _verifier,
@@ -136,9 +138,9 @@ abstract contract Sp1LidoAccountingReportContractBase {
             "Report.slot doesn't match public values"
         );
         _require(
-            report.all_lido_validators ==
-                publicValues.report.all_lido_validators,
-            "Report.all_lido_validators doesn't match public values"
+            report.deposited_lido_validators ==
+                publicValues.report.deposited_lido_validators,
+            "Report.deposited_lido_validators doesn't match public values"
         );
         _require(
             report.exited_lido_validators ==
@@ -207,11 +209,18 @@ abstract contract Sp1LidoAccountingReportContractBase {
         return (_states[slot]);
     }
 
+    function getLatestLidoValidatorStateSlot() public view returns (uint256) {
+        return (_latestValidatorStateSlot);
+    }
+
     function _recordLidoValidatorStateHash(
         uint256 slot,
         bytes32 state_merkle_root
     ) internal {
         _states[slot] = state_merkle_root;
+        if (slot > _latestValidatorStateSlot) {
+            _latestValidatorStateSlot = slot;
+        }
         emit LidoValidatorStateHashRecorded(slot, state_merkle_root);
     }
 

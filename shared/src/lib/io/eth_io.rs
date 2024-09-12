@@ -28,12 +28,22 @@ mod serde_hex_as_string {
     }
 }
 
+pub mod conversions {
+    pub fn u64_to_uint256(value: u64) -> alloy_primitives::U256 {
+        return value.try_into().expect(&format!("Failed to convert {} to u256", value));
+    }
+
+    pub fn uint256_to_u64(value: alloy_primitives::U256) -> u64 {
+        return value.try_into().expect(&format!("Failed to convert {} to u64", value));
+    }
+}
+
 sol! {
     struct ReportSolidity {
-        uint64 slot;
-        uint64 deposited_lido_validators;
-        uint64 exited_lido_validators;
-        uint64 lido_cl_valance;
+        uint256 slot;
+        uint256 deposited_lido_validators;
+        uint256 exited_lido_validators;
+        uint256 lido_cl_valance;
     }
 }
 
@@ -42,16 +52,16 @@ pub struct ReportRust {
     pub slot: u64,
     pub deposited_lido_validators: u64,
     pub exited_lido_validators: u64,
-    pub lido_cl_valance: u64,
+    pub lido_cl_balance: u64,
 }
 
 impl From<ReportSolidity> for ReportRust {
     fn from(value: ReportSolidity) -> Self {
         Self {
-            slot: value.slot,
-            deposited_lido_validators: value.deposited_lido_validators,
-            exited_lido_validators: value.exited_lido_validators,
-            lido_cl_valance: value.lido_cl_valance,
+            slot: conversions::uint256_to_u64(value.slot),
+            deposited_lido_validators: conversions::uint256_to_u64(value.deposited_lido_validators),
+            exited_lido_validators: conversions::uint256_to_u64(value.exited_lido_validators),
+            lido_cl_balance: conversions::uint256_to_u64(value.lido_cl_valance),
         }
     }
 }
@@ -59,17 +69,17 @@ impl From<ReportSolidity> for ReportRust {
 impl From<ReportRust> for ReportSolidity {
     fn from(value: ReportRust) -> Self {
         Self {
-            slot: value.slot,
-            deposited_lido_validators: value.deposited_lido_validators,
-            exited_lido_validators: value.exited_lido_validators,
-            lido_cl_valance: value.lido_cl_valance,
+            slot: conversions::u64_to_uint256(value.slot),
+            deposited_lido_validators: conversions::u64_to_uint256(value.deposited_lido_validators),
+            exited_lido_validators: conversions::u64_to_uint256(value.exited_lido_validators),
+            lido_cl_valance: conversions::u64_to_uint256(value.lido_cl_balance),
         }
     }
 }
 
 sol! {
     struct LidoValidatorStateSolidity {
-        uint64 slot;
+        uint256 slot;
         bytes32 merkle_root;
     }
 }
@@ -77,7 +87,7 @@ sol! {
 impl From<LidoValidatorStateSolidity> for LidoValidatorStateRust {
     fn from(value: LidoValidatorStateSolidity) -> Self {
         Self {
-            slot: value.slot,
+            slot: value.slot.try_into().expect("Failed to convert uint256 to u64"),
             merkle_root: value.merkle_root.into(),
         }
     }
@@ -86,7 +96,7 @@ impl From<LidoValidatorStateSolidity> for LidoValidatorStateRust {
 impl From<LidoValidatorStateRust> for LidoValidatorStateSolidity {
     fn from(value: LidoValidatorStateRust) -> Self {
         Self {
-            slot: value.slot,
+            slot: value.slot.try_into().expect("Failed to convert u64 to uint256"),
             merkle_root: value.merkle_root.into(),
         }
     }
@@ -101,8 +111,8 @@ pub struct LidoValidatorStateRust {
 
 sol! {
     struct ReportMetadataSolidity {
-        uint64 slot;
-        uint64 epoch;
+        uint256 slot;
+        uint256 epoch;
         bytes32 lido_withdrawal_credentials;
         bytes32 beacon_block_hash;
         LidoValidatorStateSolidity state_for_previous_report;
@@ -125,8 +135,8 @@ pub struct ReportMetadataRust {
 impl From<ReportMetadataSolidity> for ReportMetadataRust {
     fn from(value: ReportMetadataSolidity) -> Self {
         Self {
-            slot: value.slot,
-            epoch: value.epoch,
+            slot: conversions::uint256_to_u64(value.slot),
+            epoch: conversions::uint256_to_u64(value.epoch),
             lido_withdrawal_credentials: value.lido_withdrawal_credentials.into(),
             beacon_block_hash: value.beacon_block_hash.into(),
             state_for_previous_report: value.state_for_previous_report.into(),
@@ -138,8 +148,8 @@ impl From<ReportMetadataSolidity> for ReportMetadataRust {
 impl From<ReportMetadataRust> for ReportMetadataSolidity {
     fn from(value: ReportMetadataRust) -> Self {
         Self {
-            slot: value.slot,
-            epoch: value.epoch,
+            slot: conversions::u64_to_uint256(value.slot),
+            epoch: conversions::u64_to_uint256(value.epoch),
             lido_withdrawal_credentials: value.lido_withdrawal_credentials.into(),
             beacon_block_hash: value.beacon_block_hash.into(),
             state_for_previous_report: value.state_for_previous_report.into(),
@@ -184,7 +194,8 @@ pub struct ContractDeployParametersRust {
     pub network: String,
     #[serde(with = "serde_hex_as_string::HexStringProtocol::<20>")]
     pub verifier: [u8; 20],
-    pub vkey: String,
+    #[serde(with = "serde_hex_as_string::HexStringProtocol::<32>")]
+    pub vkey: [u8; 32],
     #[serde(with = "serde_hex_as_string::HexStringProtocol::<32>")]
     pub withdrawal_credentials: [u8; 32],
     pub genesis_timestamp: u64,

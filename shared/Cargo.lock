@@ -2054,6 +2054,7 @@ dependencies = [
 name = "sp1_lido_accounting_zk_shared"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
  "dotenv",

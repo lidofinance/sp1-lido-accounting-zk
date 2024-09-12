@@ -12,7 +12,6 @@ use alloy_sol_types::SolType;
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{CycleTracker, InputVerifier};
 use sp1_lido_accounting_zk_shared::circuit_logic::io::create_public_values;
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
-use sp1_lido_accounting_zk_shared::consts;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
 use tree_hash::TreeHash;

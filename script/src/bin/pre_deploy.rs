@@ -36,7 +36,7 @@ async fn main() {
     let network_name = network.as_str().to_owned();
     log::info!("Running for network {:?}, slot: {}", network, args.slot);
 
-    let bs_reader = BeaconStateReaderEnum::new_from_env(network);
+    let bs_reader: BeaconStateReaderEnum = BeaconStateReaderEnum::new_from_env(network);
     let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
 
     let bs = bs_reader
@@ -54,17 +54,19 @@ async fn main() {
     let lido_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, &lido_withdrawal_credentials);
 
     let prover_client = ProverClient::local();
-    let (_pk, vk) = prover_client.setup(&ELF);
+    let (_pk, vk) = prover_client.setup(ELF);
+    let mut vk_bytes: [u8; 32] = [0; 32];
+    hex::decode_to_slice(vk.bytes32(), &mut vk_bytes).expect("Failed to decode verification key to [u8; 32]");
 
     let deploy_manifesto = ContractDeployParametersRust {
         network: network_name.clone(),
         verifier: network_config.verifier,
-        vkey: vk.bytes32(),
+        vkey: vk_bytes,
         withdrawal_credentials: lido_withdrawal_credentials.to_fixed_bytes(),
         genesis_timestamp: network_config.genesis_block_timestamp,
         initial_validator_state: LidoValidatorStateRust {
             slot: lido_validator_state.slot,
-            merkle_root: lido_validator_state.tree_hash_root().to_fixed_bytes().into(),
+            merkle_root: lido_validator_state.tree_hash_root().to_fixed_bytes(),
         },
     };
 
