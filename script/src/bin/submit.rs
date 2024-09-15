@@ -1,26 +1,19 @@
+use alloy::primitives::{Address, U256};
 use alloy_sol_types::SolType;
 use anyhow::anyhow;
 use clap::Parser;
-use hex;
 use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_scripts::beacon_state_reader_enum::BeaconStateReaderEnum;
+use sp1_lido_accounting_scripts::eth_client::{ProviderFactory, Sp1LidoAccountingReportContract};
 use sp1_lido_accounting_scripts::validator_delta::ValidatorDeltaCompute;
 use sp1_lido_accounting_scripts::ELF;
 use sp1_lido_accounting_zk_shared::consts::Network;
-use sp1_sdk::{
-    ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
-    SP1VerifyingKey,
-};
-
-use std::collections::HashSet;
-use std::path::PathBuf;
+use sp1_sdk::{ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
 
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
-    epoch, BeaconBlockHeader, BeaconState, Hash256, Slot, Validators,
-};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, BeaconBlockHeader, BeaconState, Hash256, Slot};
 use sp1_lido_accounting_zk_shared::io::eth_io::{
     LidoValidatorStateRust, PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust,
 };
@@ -39,12 +32,10 @@ use tree_hash::TreeHash;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct ProveArgs {
-    #[clap(long, default_value = "false")]
-    prove: bool,
     #[clap(long, default_value = "5800000")]
     target_slot: u64,
-    #[clap(long, default_value = "5000000")]
-    previous_slot: u64,
+    #[clap(long, required = false)]
+    previous_slot: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,14 +64,6 @@ impl ScriptSteps {
     pub fn new(client: ProverClient, config: ScriptConfig) -> Self {
         let (pk, vk) = client.setup(ELF);
         Self { client, pk, vk, config }
-    }
-
-    pub fn vk(&self) -> &'_ SP1VerifyingKey {
-        &self.vk
-    }
-
-    pub fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
-        self.client.execute(ELF, input).run()
     }
 
     pub fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
@@ -133,34 +116,6 @@ fn write_sp1_stdin(program_input: &ProgramInput) -> SP1Stdin {
     let mut stdin: SP1Stdin = SP1Stdin::new();
     stdin.write(&program_input);
     stdin
-}
-
-fn write_test_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) {
-    let fixture_name = "fixture.json";
-    let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src/fixtures/");
-    let fixture_file = fixture_path.join(fixture_name);
-    let bytes = proof.public_values.as_slice();
-    let public_values: PublicValuesSolidity = PublicValuesSolidity::abi_decode(bytes, false).unwrap();
-
-    let fixture = ProofFixture {
-        vkey: vk.bytes32(),
-        report: public_values.report.into(),
-        metadata: public_values.metadata.into(),
-        public_values: format!("0x{}", hex::encode(bytes)),
-        proof: format!("0x{}", hex::encode(proof.bytes())),
-    };
-
-    log::debug!("Verification Key: {}", fixture.vkey);
-    log::debug!("Public Values: {}", fixture.public_values);
-    log::debug!("Proof Bytes: {}", fixture.proof);
-
-    // Save the fixture to a file.
-    if let Some(fixture_path) = fixture_file.parent() {
-        std::fs::create_dir_all(fixture_path).expect("failed to create fixture path");
-    }
-    std::fs::write(fixture_file.clone(), serde_json::to_string_pretty(&fixture).unwrap())
-        .expect("failed to write fixture");
-    log::info!("Successfully written test fixture to {fixture_file:?}");
 }
 
 fn verify_input_correctness(
@@ -340,16 +295,36 @@ async fn main() {
     let chain = env::var("EVM_CHAIN").expect("Couldn't read EVM_CHAIN env var");
     let network = Network::from_str(&chain).unwrap();
     let network_config = network.get_config();
+
+    let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
+    let bs_reader = BeaconStateReaderEnum::new_from_env(&network);
+    let provider = ProviderFactory::create_from_env().expect("Failed to create HTTP provider");
+    let address: Address = env::var("CONTRACT_ADDRESS")
+        .expect("Failed to read CONTRACT_ADDRESS env var")
+        .parse()
+        .expect("Failed to parse CONTRACT_ADDRESS into URL");
+    let contract = Sp1LidoAccountingReportContract::new(address, provider);
+
+    let previous_slot = if let Some(prev) = args.previous_slot {
+        prev
+    } else {
+        let latest_report_response = contract
+            .getLatestLidoValidatorStateSlot()
+            .call()
+            .await
+            .expect("Failed to read latest report slot from contract");
+        let latest_report_slot = latest_report_response._0;
+        latest_report_slot.to::<u64>()
+    };
+
     log::info!(
-        "Running for network {:?}, slot: {}, previous_slot: {}",
+        "Submitting report for network {:?}, slot: {}, previous_slot: {}",
         network,
         args.target_slot,
-        args.previous_slot
+        previous_slot,
     );
-    let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
-    let bs_reader = BeaconStateReaderEnum::new_from_env(network);
 
-    let (bs, bh, old_bs) = read_beacon_states(bs_reader, args.target_slot, args.previous_slot).await;
+    let (bs, bh, old_bs) = read_beacon_states(bs_reader, args.target_slot, previous_slot).await;
     let (program_input, public_values) = prepare_program_input(&bs, &bh, &old_bs, &lido_withdrawal_credentials);
 
     let prover_client = ProverClient::network();
@@ -359,36 +334,31 @@ async fn main() {
     };
     let steps = ScriptSteps::new(prover_client, script_config);
 
-    if args.prove {
-        log::info!("Proving program");
-        let stdin = write_sp1_stdin(&program_input);
+    log::info!("Proving program");
+    let stdin = write_sp1_stdin(&program_input);
 
-        let proof = steps.prove(stdin).expect("Failed to generate proof");
-        log::info!("Generated proof");
+    let proof = steps.prove(stdin).expect("Failed to generate proof");
+    log::info!("Generated proof");
 
-        steps.verify_proof(&proof).expect("Failed to verify proof");
-        log::info!("Verified proof");
+    steps.verify_proof(&proof).expect("Failed to verify proof");
+    log::info!("Verified proof");
 
-        steps
-            .verify_public_values(&proof.public_values, &public_values)
-            .expect("Failed to verify public inputs");
-        log::info!("Verified public values");
-        write_test_fixture(&proof, &steps.vk);
-    } else {
-        log::info!("Executing program");
-        let stdin = write_sp1_stdin(&program_input);
+    steps
+        .verify_public_values(&proof.public_values, &public_values)
+        .expect("Failed to verify public inputs");
+    log::info!("Verified public values");
 
-        let (exec_public_values, execution_report) = steps.execute(stdin).unwrap();
+    log::info!("Sending report");
+    let tx_builder = contract.submitReportData(
+        U256::from(bs.slot),
+        public_values.report.into(),
+        public_values.metadata.into(),
+        proof.bytes().into(),
+        proof.public_values.to_vec().into(),
+    );
+    let tx = tx_builder.send().await.expect("Failed to send transaction");
 
-        log::info!(
-            "Executed program with {} cycles",
-            execution_report.total_instruction_count() + execution_report.total_syscall_count()
-        );
-        log::debug!("Full execution report:\n{}", execution_report);
-
-        steps
-            .verify_public_values(&exec_public_values, &public_values)
-            .expect("Failed to verify public inputs");
-        log::info!("Successfully verified public values!");
-    }
+    log::info!("Waiting for report transaction");
+    tx.watch().await.expect("Failed waiting for transaction confirmation");
+    log::info!("Report transaction complete");
 }

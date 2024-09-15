@@ -35,7 +35,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
                     json.readUint(".report.slot"),
                     json.readUint(".report.deposited_lido_validators"),
                     json.readUint(".report.exited_lido_validators"),
-                    json.readUint(".report.lido_cl_valance")
+                    json.readUint(".report.lido_cl_balance")
                 ),
                 ReportMetadata(
                     json.readUint(".metadata.slot"),

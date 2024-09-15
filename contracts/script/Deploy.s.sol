@@ -45,7 +45,7 @@ contract Deploy is Script {
         );
 
         // sanity check
-        require(stringsEqual(manifesto.network, network));
+        require(stringsEqual(manifesto.network, network), "Networks not equal");
         return manifesto;
     }
 
@@ -57,6 +57,7 @@ contract Deploy is Script {
 
         DeployManifesto memory manifesto = readManifesto(network);
 
+        console.logString("Deploying contract");
         Sp1LidoAccountingReportContract accounting_contract = new Sp1LidoAccountingReportContract(
             manifesto.verifier,
             manifesto.vkey,

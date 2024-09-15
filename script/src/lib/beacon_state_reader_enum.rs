@@ -15,44 +15,34 @@ pub enum BeaconStateReaderEnum {
 }
 
 impl BeaconStateReaderEnum {
-    pub fn new_from_env(network: Network) -> BeaconStateReaderEnum {
+    fn read_env_var(env_var: &str, mode: &str) -> String {
+        env::var(env_var).unwrap_or_else(|_| panic!("{env_var} must be specified for mode {mode}"))
+    }
+
+    pub fn new_from_env(network: &Network) -> BeaconStateReaderEnum {
         let bs_reader_mode_var = env::var("BS_READER_MODE").expect("Failed to read BS_READER_MODE from env");
-        let maybe_file_store_location =
-            env::var("BS_FILE_STORE").map(|base| PathBuf::from(base).join(network.as_str()));
-        let maybe_rpc_endpoint = env::var("CONSENSUS_LAYER_RPC");
-        let maybe_bs_endpoint = env::var("BEACON_STATE_RPC");
 
         match bs_reader_mode_var.to_lowercase().as_str() {
             "file" => {
-                let file_store = maybe_file_store_location.expect(&format!(
-                    "BS_FILE_STORE must be specified for mode {bs_reader_mode_var}"
-                ));
-                return BeaconStateReaderEnum::File(FileBasedBeaconStateReader::new(&file_store));
+                let file_store =
+                    PathBuf::from(Self::read_env_var("BS_FILE_STORE", &bs_reader_mode_var)).join(network.as_str());
+                BeaconStateReaderEnum::File(FileBasedBeaconStateReader::new(&file_store))
             }
             "rpc" => {
-                let rpc_endpoint = maybe_rpc_endpoint.expect(&format!(
-                    "CONSENSUS_LAYER_RPC must be specified for mode {bs_reader_mode_var}"
-                ));
-                let bs_endpoint = maybe_bs_endpoint.expect(&format!(
-                    "BEACON_STATE_RPC must be specified for mode {bs_reader_mode_var}"
-                ));
-                return BeaconStateReaderEnum::RPC(ReqwestBeaconStateReader::new(&rpc_endpoint, &bs_endpoint));
+                let rpc_endpoint = Self::read_env_var("CONSENSUS_LAYER_RPC", &bs_reader_mode_var);
+                let bs_endpoint = Self::read_env_var("BEACON_STATE_RPC", &bs_reader_mode_var);
+                BeaconStateReaderEnum::RPC(ReqwestBeaconStateReader::new(&rpc_endpoint, &bs_endpoint))
             }
             "rpc_cached" => {
-                let file_store = maybe_file_store_location.expect(&format!(
-                    "BS_FILE_STORE must be specified for mode {bs_reader_mode_var}"
-                ));
-                let rpc_endpoint = maybe_rpc_endpoint.expect(&format!(
-                    "CONSENSUS_LAYER_RPC must be specified for mode {bs_reader_mode_var}"
-                ));
-                let bs_endpoint = maybe_bs_endpoint.expect(&format!(
-                    "BEACON_STATE_RPC must be specified for mode {bs_reader_mode_var}"
-                ));
-                return BeaconStateReaderEnum::RPCCached(CachedReqwestBeaconStateReader::new(
+                let file_store =
+                    PathBuf::from(Self::read_env_var("BS_FILE_STORE", &bs_reader_mode_var)).join(network.as_str());
+                let rpc_endpoint = Self::read_env_var("CONSENSUS_LAYER_RPC", &bs_reader_mode_var);
+                let bs_endpoint = Self::read_env_var("BEACON_STATE_RPC", &bs_reader_mode_var);
+                BeaconStateReaderEnum::RPCCached(CachedReqwestBeaconStateReader::new(
                     &rpc_endpoint,
                     &bs_endpoint,
                     &file_store,
-                ));
+                ))
             }
             _ => {
                 panic!("invalid value for BS_READER_MODE enviroment variable: expected 'file', 'rpc', or 'rpc_cached'")

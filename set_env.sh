@@ -1,2 +1,1 @@
-# need to be copied and run from the terminal
-set -o allexport && source .env && source .env.network.anvil && set +o allexport
+rm .env && ln -s .env.network.$1 .env

@@ -7,7 +7,7 @@ struct Report {
     uint256 slot;
     uint256 deposited_lido_validators;
     uint256 exited_lido_validators;
-    uint256 lido_cl_valance;
+    uint256 lido_cl_balance;
 }
 struct ReportMetadata {
     uint256 slot;
@@ -148,8 +148,8 @@ abstract contract Sp1LidoAccountingReportContractBase {
             "Report.exited_lido_validators doesn't match public values"
         );
         _require(
-            report.lido_cl_valance == publicValues.report.lido_cl_valance,
-            "Report.lido_cl_valance doesn't match public values"
+            report.lido_cl_balance == publicValues.report.lido_cl_balance,
+            "Report.lido_cl_balance doesn't match public values"
         );
 
         _require(

@@ -1,0 +1,11 @@
+{
+  "network": "anvil",
+  "verifier": "0x3b6041173b80e77f038f3f2c0f9744f04837185e",
+  "vkey": "0x0070a0b8b44a1ad44c6ab9e043d418c270d4b4852c20d9111cdb9c79bdaa0a75",
+  "withdrawal_credentials": "0x010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
+  "genesis_timestamp": 1655733600,
+  "initial_validator_state": {
+    "slot": 5832096,
+    "merkle_root": "0x918070ce0cb66881d6839965371f79a600bc26b50a363a17ac00a1b295f89113"
+  }
+}

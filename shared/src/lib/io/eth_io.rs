@@ -20,7 +20,8 @@ mod serde_hex_as_string {
         where
             D: Deserializer<'de>,
         {
-            let s: &str = Deserialize::deserialize(deserializer)?;
+            let mut s: &str = Deserialize::deserialize(deserializer)?;
+            s = s.strip_prefix("0x").unwrap_or(s);
             let mut slice: [u8; N] = [0; N];
             hex::decode_to_slice(s, &mut slice).map_err(Error::custom)?;
             Ok(slice)

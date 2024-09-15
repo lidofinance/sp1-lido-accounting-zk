@@ -66,11 +66,11 @@ fn large_problem_size(old_slot: u64, new_slot: u64) -> (GenerationSpec, Generati
 #[tokio::main]
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
-    let file_store = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
+    let file_store = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp/anvil");
 
     let creator = SyntheticBeaconStateCreator::new(&file_store, false, true);
-    let old_slot = 2000000;
-    let new_slot = 2100000;
+    let old_slot = 5000000;
+    let new_slot = 5800000;
 
     let (base_state_spec, update_state_spec) = small_problem_size(old_slot, new_slot);
     // let (base_state_spec, update_state_spec) = large_problem_size(old_slot, new_slot);

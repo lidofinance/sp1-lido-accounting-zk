@@ -3,11 +3,19 @@
 version = "0.1.0"
 name = "sp1-lido-accounting-zk-script"
 edition = "2021"
-default-run = "prove"
+default-run = "execute"
 
 [[bin]]
-name = "prove"
-path = "src/bin/prove.rs"
+name = "write_test_fixture"
+path = "src/bin/write_test_fixture.rs"
+
+[[bin]]
+name = "execute"
+path = "src/bin/execute.rs"
+
+[[bin]]
+name = "submit"
+path = "src/bin/submit.rs"
 
 [[bin]]
 name = "pre-deploy"
@@ -43,3 +51,4 @@ sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0" }
 
 [dev-dependencies]
 alloy = { version = "0.3.5", features = ["node-bindings"] }
+simple_logger = "5.0.0"

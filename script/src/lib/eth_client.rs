@@ -9,7 +9,7 @@ use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
 
 use alloy::{providers::ProviderBuilder, signers::local::PrivateKeySigner, sol};
 use eyre::Result;
-use k256::SecretKey as K256SecretKey;
+use k256;
 use thiserror::Error;
 
 sol!(
@@ -25,7 +25,7 @@ impl From<ReportRust> for Sp1LidoAccountingReportContract::Report {
             slot: U256::from(value.slot),
             deposited_lido_validators: U256::from(value.deposited_lido_validators),
             exited_lido_validators: U256::from(value.exited_lido_validators),
-            lido_cl_valance: U256::from(value.lido_cl_balance),
+            lido_cl_balance: U256::from(value.lido_cl_balance),
         }
     }
 }
@@ -129,32 +129,31 @@ where
             .call()
             .await
             .map_err(|_e| Error::ReportSubmissionFailure)?;
-        return Ok(result);
+        Ok(result)
     }
 }
 
 pub struct ProviderFactory {}
 impl ProviderFactory {
-    fn decode_key(private_key_raw: &str) -> Result<K256SecretKey, Error> {
+    fn decode_key(private_key_raw: &str) -> Result<k256::SecretKey, Error> {
         let key_str = private_key_raw
             .split("0x")
             .last()
             .ok_or(Error::ParsePrivateKeyError)?
             .trim();
         let key_hex = hex::decode(key_str).map_err(|_e| Error::FromHexError)?;
-        let key = K256SecretKey::from_bytes((&key_hex[..]).into()).map_err(|_e| Error::DeserializePrivateKeyError)?;
+        let key = k256::SecretKey::from_bytes((&key_hex[..]).into()).map_err(|_e| Error::DeserializePrivateKeyError)?;
         Ok(key)
     }
 
     pub fn create(
         endpoint: Url,
-        private_key: &str,
+        private_key: k256::SecretKey,
     ) -> std::result::Result<
-        impl alloy::providers::Provider<alloy::transports::http::Http<alloy::transports::http::Client>>,
+        impl alloy::providers::Provider<alloy::transports::http::Http<alloy::transports::http::Client>> + Clone,
         Error,
     > {
-        let key = Self::decode_key(private_key)?;
-        let signer: PrivateKeySigner = PrivateKeySigner::from(key);
+        let signer: PrivateKeySigner = PrivateKeySigner::from(private_key);
         let wallet: EthereumWallet = EthereumWallet::from(signer);
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
@@ -163,13 +162,15 @@ impl ProviderFactory {
         Ok(provider)
     }
 
-    pub fn create_from_env(
-    ) -> Result<impl alloy::providers::Provider<alloy::transports::http::Http<alloy::transports::http::Client>>, Error>
-    {
+    pub fn create_from_env() -> Result<
+        impl alloy::providers::Provider<alloy::transports::http::Http<alloy::transports::http::Client>> + Clone,
+        Error,
+    > {
         let raw_endpoint: String = env::var("EXECUTION_LAYER_RPC")
             .map_err(|_e| Error::FailedToReadEnvVar("EXECUTION_LAYER_RPC".to_owned()))?;
         let endpoint: Url = raw_endpoint.parse().map_err(|_e| Error::FailedToParseUrl)?;
         let private_key = env::var("PRIVATE_KEY").expect("Failed to read PRIVATE_KEY env var");
-        Self::create(endpoint, &private_key)
+        let key = Self::decode_key(&private_key)?;
+        Self::create(endpoint, key)
     }
 }
