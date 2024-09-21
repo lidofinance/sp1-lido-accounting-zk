@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Test, console} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {Sp1LidoAccountingReportContractControllable} from "./Sp1LidoAccountingReportContractControllable.sol";
-import {LidoValidatorState, Report, ReportMetadata} from "../src/Sp1LidoAccountingReportContractBase.sol";
+import {LidoValidatorState, Report, ReportMetadata} from "../src/Sp1LidoAccountingReportContract.sol";
 import {SP1VerifierGateway} from "@sp1-contracts/SP1VerifierGateway.sol";
 
 contract Sp1LidoAccountingReportContractTest is Test {
@@ -12,6 +12,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
     address verifier;
     Sp1LidoAccountingReportContractControllable public _contract;
+
+    uint256 public immutable GENESIS_BLOCK_TIMESTAMP = 1606824023;
 
     struct SP1ProofFixtureJson {
         bytes32 vkey;
@@ -69,6 +71,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
             verifier,
             fixture.vkey,
             fixture.metadata.lido_withdrawal_credentials,
+            GENESIS_BLOCK_TIMESTAMP,
             fixture.metadata.old_state
         );
     }

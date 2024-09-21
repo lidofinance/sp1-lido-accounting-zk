@@ -1,27 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Sp1LidoAccountingReportContractBase, LidoValidatorState, Report, ReportMetadata} from "../src/Sp1LidoAccountingReportContractBase.sol";
+import {Sp1LidoAccountingReportContract, LidoValidatorState, Report, ReportMetadata} from "../src/Sp1LidoAccountingReportContract.sol";
 
 contract Sp1LidoAccountingReportContractControllable is
-    Sp1LidoAccountingReportContractBase
+    Sp1LidoAccountingReportContract
 {
     mapping(uint256 => bytes32) private _beaconBlockHashes;
 
     constructor(
         address _verifier,
         bytes32 _vkey,
-        bytes32 _widthrawal_credentials,
+        bytes32 _lido_withdrawal_credentials,
+        uint256 _genesis_timestamp,
         LidoValidatorState memory _initial_state
-    )
-        Sp1LidoAccountingReportContractBase(
-            _verifier,
-            _vkey,
-            _widthrawal_credentials,
-            _initial_state
-        )
-    {}
-
+    ) Sp1LidoAccountingReportContract(_verifier, _vkey, _lido_withdrawal_credentials, _genesis_timestamp, _initial_state)  {
+    }
+    
     function setBeaconBlockHash(uint256 slot, bytes32 beaconBlockHash) public {
         _beaconBlockHashes[slot] = beaconBlockHash;
     }
