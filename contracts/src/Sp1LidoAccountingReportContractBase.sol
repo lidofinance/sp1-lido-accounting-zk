@@ -81,7 +81,7 @@ abstract contract Sp1LidoAccountingReportContractBase {
         ReportMetadata calldata metadata,
         bytes calldata proof,
         bytes calldata publicValues
-    ) public view {
+    ) internal view {
         // Check the report was not previously set
         Report storage report_at_slot = _reports[slot];
         _require(
