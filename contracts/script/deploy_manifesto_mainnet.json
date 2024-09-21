@@ -1,7 +1,7 @@
 {
   "network": "mainnet",
   "verifier": "0x3b6041173b80e77f038f3f2c0f9744f04837185e",
-  "vkey": "0x00203dea9dc6f08947b0653d9bcf2864023bb2300a5a6551d65499b0d43f658d",
+  "vkey": "0x00ef920869ce612ffdb77d73a149e972ae27637a60e9da8520131063329ffe6f",
   "withdrawal_credentials": "0x010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
   "genesis_timestamp": 1606824023,
   "initial_validator_state": {
