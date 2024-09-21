@@ -1,3 +1,4 @@
+use alloy::sol_types::SolError;
 use alloy::transports::http::reqwest::Url;
 use alloy::{network::EthereumWallet, primitives::Address};
 use alloy_primitives::U256;
@@ -15,9 +16,73 @@ use thiserror::Error;
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
+    #[derive(Debug)]
     Sp1LidoAccountingReportContract,
     "../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
 );
+
+#[derive(Debug)]
+pub enum RejectionError {
+    NoBlockRootFound(Sp1LidoAccountingReportContract::NoBlockRootFound),
+    TimestampOutOfRange(Sp1LidoAccountingReportContract::TimestampOutOfRange),
+    CustomError(Vec<u8>),
+}
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Failed to convert string to hex")]
+    FromHexError,
+    #[error("Failed to parse private key")]
+    ParsePrivateKeyError,
+    #[error("Failed to deserialize private key")]
+    DeserializePrivateKeyError,
+    #[error("Failed to read env var")]
+    FailedToReadEnvVar(String),
+
+    #[error("Failed to submit report")]
+    ReportSubmissionFailure,
+    #[error("Failed to parse URL")]
+    FailedToParseUrl,
+
+    #[error("Rejected report")]
+    RejectionError(RejectionError),
+}
+
+impl Error {
+    pub fn parse_rejection(error_data: Vec<u8>) -> Self {
+        let rejection_error = {
+            if let Some(selector) = error_data.get(0..4) {
+                let mut fixed_selector: [u8; 4] = [0u8; 4];
+                fixed_selector.copy_from_slice(selector);
+                match fixed_selector {
+                    Sp1LidoAccountingReportContract::NoBlockRootFound::SELECTOR => {
+                        if let Ok(decoded) =
+                            Sp1LidoAccountingReportContract::NoBlockRootFound::abi_decode(error_data.as_slice(), true)
+                        {
+                            RejectionError::NoBlockRootFound(decoded)
+                        } else {
+                            RejectionError::CustomError(error_data)
+                        }
+                    }
+                    Sp1LidoAccountingReportContract::TimestampOutOfRange::SELECTOR => {
+                        if let Ok(decoded) = Sp1LidoAccountingReportContract::TimestampOutOfRange::abi_decode(
+                            error_data.as_slice(),
+                            true,
+                        ) {
+                            RejectionError::TimestampOutOfRange(decoded)
+                        } else {
+                            RejectionError::CustomError(error_data)
+                        }
+                    }
+                    _ => RejectionError::CustomError(error_data),
+                }
+            } else {
+                RejectionError::CustomError(error_data)
+            }
+        };
+        Error::RejectionError(rejection_error)
+    }
+}
 
 impl From<ReportRust> for Sp1LidoAccountingReportContract::Report {
     fn from(value: ReportRust) -> Self {
@@ -50,23 +115,6 @@ impl From<ReportMetadataRust> for Sp1LidoAccountingReportContract::ReportMetadat
             new_state: value.new_state.into(),
         }
     }
-}
-
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("Failed to convert string to hex")]
-    FromHexError,
-    #[error("Failed to parse private key")]
-    ParsePrivateKeyError,
-    #[error("Failed to deserialize private key")]
-    DeserializePrivateKeyError,
-    #[error("Failed to read env var")]
-    FailedToReadEnvVar(String),
-
-    #[error("Failed to submit report")]
-    ReportSubmissionFailure,
-    #[error("Failed to parse URL")]
-    FailedToParseUrl,
 }
 
 pub struct Sp1LidoAccountingReportContractWrapper<P>
