@@ -25,7 +25,7 @@ sol!(
 pub enum RejectionError {
     NoBlockRootFound(Sp1LidoAccountingReportContract::NoBlockRootFound),
     TimestampOutOfRange(Sp1LidoAccountingReportContract::TimestampOutOfRange),
-    CustomError(Vec<u8>),
+    CustomError(String),
 }
 
 #[derive(Debug, Error)]
@@ -61,7 +61,7 @@ impl Error {
                         {
                             RejectionError::NoBlockRootFound(decoded)
                         } else {
-                            RejectionError::CustomError(error_data)
+                            RejectionError::CustomError(hex::encode(error_data))
                         }
                     }
                     Sp1LidoAccountingReportContract::TimestampOutOfRange::SELECTOR => {
@@ -71,13 +71,13 @@ impl Error {
                         ) {
                             RejectionError::TimestampOutOfRange(decoded)
                         } else {
-                            RejectionError::CustomError(error_data)
+                            RejectionError::CustomError(hex::encode(error_data))
                         }
                     }
-                    _ => RejectionError::CustomError(error_data),
+                    _ => RejectionError::CustomError(hex::encode(error_data)),
                 }
             } else {
-                RejectionError::CustomError(error_data)
+                RejectionError::CustomError(hex::encode(error_data))
             }
         };
         Error::RejectionError(rejection_error)
