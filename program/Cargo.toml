@@ -1,27 +1,11 @@
-[workspace]
 [package]
-version = "0.1.0"
+version.workspace = true
+edition.workspace = true
 name = "sp1-lido-accounting-zk-program"
-edition = "2021"
 
 [dependencies]
-alloy-sol-types = "0.7.6"
-hex = { version = "0.4.3", default-features = false }
-sp1-derive = "1.1.0"
-sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0" }
+alloy-sol-types.workspace = true
+sp1-derive.workspace = true
+sp1-zkvm.workspace = true
 sp1_lido_accounting_zk_shared = { path = "../shared" }
-tree_hash = "0.6.0"
-ethereum_hashing = "0.6.0"
-# Note: this is needed explicitly only for h256_to_alloy_type,
-# which only exists to track cycles for the two-stage transformation
-# between H256 (aka Hash256) and bytes32 (aka FixedBytes<32>).
-# Quirk: alloy-sol-types exports FixedBytes<32>, but it's a different
-# FixedBytes<32> than outputted by sol! macro - and one without
-# From<[u8;32> implementation
-alloy-primitives = "0.7.7"
-
-
-[patch.crates-io]
-sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
-ethereum_hashing = { path = "../../../ethereum_hashing" }
-# tree_hash = { version = "0.6.0", path = "../../../tree_hash/tree_hash" }
+tree_hash.workspace = true

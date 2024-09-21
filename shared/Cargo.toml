@@ -1,37 +1,35 @@
-[workspace]
 [package]
-version = "0.1.0"
+version.workspace = true
+edition.workspace = true
 name = "sp1_lido_accounting_zk_shared"
-edition = "2021"
 
 [lib]
 name = "sp1_lido_accounting_zk_shared"
 path = "src/lib/lib.rs"
 
+
+# All other creates depend on shared
+# so essentially shared's dependencies
+# are everyone's dependencies.
+# Hence, they are managed at workspace level
 [dependencies]
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-serde = { version = "1.0", default-features = false, features = ["derive"] }
-serde_derive = "1.0.204"
-anyhow = "1.0.86"
-alloy-sol-types = "0.7.2"
-ethereum_ssz = "0.5.4"
-ethereum_serde_utils = "0.5.2"
-ethereum_ssz_derive = "0.5.4"
-ssz_types = "0.6.0"
-ethereum-types = "0.14.1"
-hex = "0.4.3"
-tree_hash_derive = "0.6.0"
-tree_hash = "0.6.0"
-typenum = "1.17.0"
-rs_merkle = "1.4.2"
-hex-literal = "0.4.1"
-log = "0.4.21"
-ethereum_hashing = "0.6.0"
-itertools = "0.13.0"
-alloy-primitives = "0.7.7"
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+ethereum_hashing.workspace = true
+ethereum_serde_utils.workspace = true
+ethereum_ssz_derive.workspace = true
+ethereum_ssz.workspace = true
+ethereum-types.workspace = true
+hex.workspace = true
+itertools.workspace = true
+log.workspace = true
+rs_merkle.workspace = true
+serde_derive.workspace = true
+serde.workspace = true
+ssz_types.workspace = true
+tree_hash_derive.workspace = true
+tree_hash.workspace = true
+typenum.workspace = true
 
-
-[patch.crates-io]
-sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
-ethereum_hashing = { path = "../../../ethereum_hashing" }
-
+[dev-dependencies]
+hex-literal.workspace = true

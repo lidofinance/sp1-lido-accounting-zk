@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = [
+    "program",
+    "script",
+    "shared"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.dependencies]
+alloy = { version = "0.3.5", features = ["contract", "json", "providers", "signer-local", "signers", "sol-types"] }
+alloy-primitives = "0.7.7"
+alloy-sol-types = "0.7.2"
+anyhow = "1.0.86"
+ethereum_hashing = "0.6.0"
+ethereum_serde_utils = "0.5.2"
+ethereum_ssz = "0.5.4"
+ethereum_ssz_derive = "0.5.4"
+ethereum-types = "0.14.1"
+hex = "0.4.3"
+hex-literal = "0.4.1"
+itertools = "0.13.0"
+log = "0.4.21"
+reqwest = "0.12.7"
+rs_merkle = "1.4.2"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_derive = "1.0.204"
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+simple_logger = "5.0.0"
+sp1-derive = "1.1.0"
+sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0" }
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0", features = [ "network" ] }
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0" }
+ssz_types = "0.6.0"
+tokio = "1.39.2"
+tracing = "0.1.40"
+tree_hash = "0.6.0"
+tree_hash_derive = "0.6.0"
+typenum = "1.17.0"
+
+[patch.crates-io]
+sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
+ethereum_hashing = { path = "../../ethereum_hashing" }

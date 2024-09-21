@@ -1,8 +1,7 @@
-[workspace]
 [package]
-version = "0.1.0"
+version.workspace = true
+edition.workspace = true
 name = "sp1-lido-accounting-zk-script"
-edition = "2021"
 default-run = "execute"
 
 [[bin]]
@@ -59,45 +58,39 @@ name = "sp1_lido_accounting_scripts"
 path = "src/lib/lib.rs"
 
 [dependencies]
-sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0", features = [ "network" ] }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-serde = { version = "1.0", default-features = false, features = ["derive"] }
+alloy.workspace = true
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+anyhow.workspace = true
+ethereum_serde_utils.workspace = true
+ethereum_ssz_derive.workspace = true
+ethereum_ssz.workspace = true
+hex.workspace = true
+hex-literal.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+simple_logger.workspace = true
+sp1-sdk.workspace = true
+tokio.workspace = true
+tree_hash.workspace = true
+
 clap = { version = "4.0", features = ["derive", "env"] }
-tracing = "0.1.40"
-alloy-sol-types = "0.7.7"
-log = "0.4.21"
-hex-literal = "0.4.1"
-hex = "0.4"
-anyhow = "1.0.86"
-sp1_lido_accounting_zk_shared = { path = "../shared" }
-tokio = "1.39.2"
-tree_hash = "0.6.0"
-alloy-primitives = "0.7.7"
-web3 = "0.19.0"
-alloy = { version = "0.3.5", features = ["contract", "json", "providers", "signer-local", "signers", "sol-types"] }
 eyre = "0.6.12"
-thiserror = "1.0.63"
 k256 = "0.13.3"
 reqwest = "0.12.7"
-ethereum_ssz = "0.5.4"
-ethereum_serde_utils = "0.5.2"
-ethereum_ssz_derive = "0.5.4"
+sp1_lido_accounting_zk_shared = { path = "../shared" }
+thiserror = "1.0.63"
+tracing = "0.1.40"
 
 [build-dependencies]
-sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0" }
-
-[patch.crates-io]
-sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
-ethereum_hashing = { path = "../../../ethereum_hashing" }
+sp1-helper.workspace = true
 
 [dev-dependencies]
 alloy = { version = "0.3.5", features = ["node-bindings"] }
-simple_logger = "5.0.0"
 dotenv = "0.15.0"
-log = "0.4.21"
-tokio = { version = "1.38.0", features = ["full"] }
-typenum = "1.17.0"
-ethereum-types = "0.14.1"
+ethereum-types.workspace = true
+typenum.workspace = true
 
 [features]
 synthetic = []

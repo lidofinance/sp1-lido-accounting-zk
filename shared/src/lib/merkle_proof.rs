@@ -1,8 +1,7 @@
+use hex;
+use rs_merkle::{algorithms::Sha256, proof_serializers, MerkleProof, MerkleTree};
 use std::any::type_name;
 
-use rs_merkle::{algorithms::Sha256, proof_serializers, MerkleProof, MerkleTree};
-
-use hex_literal::hex as h;
 use ssz_types::VariableList;
 use typenum::Unsigned;
 
@@ -26,7 +25,7 @@ pub enum Error {
     HashesMistmatch(String, Hash256, Hash256),
 }
 
-const ZEROHASH: [u8; 32] = h!("0000000000000000000000000000000000000000000000000000000000000000");
+const ZEROHASH: [u8; 32] = [0u8; 32];
 const ZEROHASH_H256: Hash256 = Hash256::zero();
 
 pub trait MerkleTreeFieldLeaves {
