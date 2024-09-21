@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "./Sp1LidoAccountingReportContractBase.sol";
+import {console} from "forge-std/console.sol";
 
 contract Sp1LidoAccountingReportContract is
     Sp1LidoAccountingReportContractBase
@@ -21,10 +22,19 @@ contract Sp1LidoAccountingReportContract is
     uint256 internal constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;
 
     /// @dev Timestamp out of range for the the beacon roots precompile.
-    error TimestampOutOfRange();
+    error TimestampOutOfRange(TimestampOutOfRangeData);
+    struct TimestampOutOfRangeData {
+        uint256 target_slot;
+        uint256 target_timestamp;
+        uint256 earliest_available_timestamp;
+    }
 
     /// @dev No block root is found using the beacon roots precompile.
-    error NoBlockRootFound();
+    error NoBlockRootFound(NoBlockRootFoundData);
+    struct NoBlockRootFoundData {
+        uint256 target_slot;
+    }
+
 
     constructor(
         address _verifier,
@@ -50,14 +60,20 @@ contract Sp1LidoAccountingReportContract is
 
         uint256 earliestBlockTimestamp = block.timestamp -
             (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SECONDS_PER_SLOT);
+        console.log("_getBeaconBlockHash(%d), timestamp: %d, earliest: %d", slot, currBlockTimestamp, earliestBlockTimestamp);
         if (currBlockTimestamp <= earliestBlockTimestamp) {
-            revert TimestampOutOfRange();
+            revert TimestampOutOfRange(TimestampOutOfRangeData({
+                target_slot: slot,
+                earliest_available_timestamp: earliestBlockTimestamp, 
+                target_timestamp: currBlockTimestamp
+            }));
         }
 
+        console.log("curr timestamp %d, block.timestamp %d", currBlockTimestamp, block.timestamp);
         while (currBlockTimestamp <= block.timestamp) {
-            (bool success, bytes memory result) = BEACON_ROOTS.staticcall(
-                abi.encode(currBlockTimestamp)
-            );
+            (bool success, bytes memory result) = BEACON_ROOTS.staticcall(abi.encode(currBlockTimestamp));
+            
+            console.log("curr timestamp %d, block.timestamp %d, success: %s", currBlockTimestamp, currBlockTimestamp, success);
             if (success && result.length > 0) {
                 return abi.decode(result, (bytes32));
             }
@@ -66,7 +82,6 @@ contract Sp1LidoAccountingReportContract is
                 currBlockTimestamp += 12;
             }
         }
-
-        revert NoBlockRootFound();
+        revert NoBlockRootFound(NoBlockRootFoundData({target_slot: slot}));
     }
 }
