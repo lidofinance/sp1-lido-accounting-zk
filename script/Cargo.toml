@@ -7,11 +7,15 @@ default-run = "execute"
 
 [[bin]]
 name = "write_test_fixture"
-path = "src/bin/write_test_fixture.rs"
+path = "src/bin/dev/write_test_fixture.rs"
 
 [[bin]]
 name = "execute"
-path = "src/bin/execute.rs"
+path = "src/bin/dev/execute.rs"
+
+[[bin]]
+name = "submit_cached"
+path = "src/bin/dev/submit_cached.rs"
 
 [[bin]]
 name = "submit"

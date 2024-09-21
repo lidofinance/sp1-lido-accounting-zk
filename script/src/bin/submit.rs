@@ -2,7 +2,6 @@ use alloy::primitives::{Address, U256};
 use alloy_sol_types::SolType;
 use anyhow::anyhow;
 use clap::Parser;
-use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_scripts::beacon_state_reader_enum::BeaconStateReaderEnum;
 use sp1_lido_accounting_scripts::eth_client::{ProviderFactory, Sp1LidoAccountingReportContract};
 use sp1_lido_accounting_scripts::validator_delta::ValidatorDeltaCompute;
@@ -25,6 +24,7 @@ use anyhow::Result;
 use log;
 
 use std::env;
+use std::path::PathBuf;
 
 use tree_hash::TreeHash;
 
@@ -35,6 +35,8 @@ struct ProveArgs {
     target_slot: u64,
     #[clap(long, required = false)]
     previous_slot: Option<u64>,
+    #[clap(long, required = false)]
+    store: bool,
 }
 
 struct ScriptConfig {
@@ -53,6 +55,10 @@ impl ScriptSteps {
     pub fn new(client: ProverClient, config: ScriptConfig) -> Self {
         let (pk, vk) = client.setup(sp1_lido_accounting_scripts::ELF);
         Self { client, pk, vk, config }
+    }
+
+    pub fn vk(&self) -> &'_ SP1VerifyingKey {
+        &self.vk
     }
 
     pub fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
@@ -336,6 +342,14 @@ async fn main() {
         .verify_public_values(&proof.public_values, &public_values)
         .expect("Failed to verify public inputs");
     log::info!("Verified public values");
+
+    if args.store {
+        let file_name = format!("proof_{}_{}.json", network.as_str(), args.target_slot);
+        let proof_file = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../temp/proofs")
+            .join(file_name);
+        sp1_lido_accounting_scripts::store_proof_and_metadata(&proof, steps.vk(), proof_file.as_path());
+    }
 
     log::info!("Sending report");
     let tx_builder = contract.submitReportData(
