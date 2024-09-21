@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_scripts::beacon_state_reader_enum::BeaconStateReaderEnum;
 use sp1_lido_accounting_scripts::eth_client::{ProviderFactory, Sp1LidoAccountingReportContract};
 use sp1_lido_accounting_scripts::validator_delta::ValidatorDeltaCompute;
-use sp1_lido_accounting_scripts::ELF;
 use sp1_lido_accounting_zk_shared::consts::Network;
 use sp1_sdk::{ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
 
@@ -38,16 +37,6 @@ struct ProveArgs {
     previous_slot: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ProofFixture {
-    vkey: String,
-    report: ReportRust,
-    metadata: ReportMetadataRust,
-    public_values: String,
-    proof: String,
-}
-
 struct ScriptConfig {
     verify_proof: bool,
     verify_public_values: bool,
@@ -62,7 +51,7 @@ struct ScriptSteps {
 
 impl ScriptSteps {
     pub fn new(client: ProverClient, config: ScriptConfig) -> Self {
-        let (pk, vk) = client.setup(ELF);
+        let (pk, vk) = client.setup(sp1_lido_accounting_scripts::ELF);
         Self { client, pk, vk, config }
     }
 

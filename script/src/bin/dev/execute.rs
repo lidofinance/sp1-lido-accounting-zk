@@ -340,7 +340,7 @@ async fn main() {
         args.previous_slot
     );
     let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
-    let bs_reader = BeaconStateReaderEnum::new_from_env(network);
+    let bs_reader = BeaconStateReaderEnum::new_from_env(&network);
 
     let (bs, bh, old_bs) = read_beacon_states(bs_reader, args.target_slot, args.previous_slot).await;
     let (program_input, public_values) = prepare_program_input(&bs, &bh, &old_bs, &lido_withdrawal_credentials);
@@ -352,18 +352,19 @@ async fn main() {
     };
     let steps = ScriptSteps::new(prover_client, script_config);
 
-    log::info!("Proving program");
+    log::info!("Executing program");
     let stdin = write_sp1_stdin(&program_input);
 
-    let proof = steps.prove(stdin).expect("Failed to generate proof");
-    log::info!("Generated proof");
+    let (exec_public_values, execution_report) = steps.execute(stdin).unwrap();
 
-    steps.verify_proof(&proof).expect("Failed to verify proof");
-    log::info!("Verified proof");
+    log::info!(
+        "Executed program with {} cycles",
+        execution_report.total_instruction_count() + execution_report.total_syscall_count()
+    );
+    log::debug!("Full execution report:\n{}", execution_report);
 
     steps
-        .verify_public_values(&proof.public_values, &public_values)
+        .verify_public_values(&exec_public_values, &public_values)
         .expect("Failed to verify public inputs");
-    log::info!("Verified public values");
-    write_test_fixture(&proof, &steps.vk);
+    log::info!("Successfully verified public values!");
 }

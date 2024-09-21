@@ -1,15 +1,11 @@
 use alloy_sol_types::SolType;
 use anyhow::anyhow;
 use clap::Parser;
-use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_scripts::beacon_state_reader_enum::BeaconStateReaderEnum;
 use sp1_lido_accounting_scripts::validator_delta::ValidatorDeltaCompute;
-use sp1_lido_accounting_scripts::ELF;
+use sp1_lido_accounting_scripts::{store_proof_and_metadata, ELF};
 use sp1_lido_accounting_zk_shared::consts::Network;
-use sp1_sdk::{
-    ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
-    SP1VerifyingKey,
-};
+use sp1_sdk::{ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
 use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
@@ -40,16 +36,6 @@ struct ProveArgs {
     previous_slot: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ProofFixture {
-    vkey: String,
-    report: ReportRust,
-    metadata: ReportMetadataRust,
-    public_values: String,
-    proof: String,
-}
-
 struct ScriptConfig {
     verify_proof: bool,
     verify_public_values: bool,
@@ -66,14 +52,6 @@ impl ScriptSteps {
     pub fn new(client: ProverClient, config: ScriptConfig) -> Self {
         let (pk, vk) = client.setup(ELF);
         Self { client, pk, vk, config }
-    }
-
-    pub fn vk(&self) -> &'_ SP1VerifyingKey {
-        &self.vk
-    }
-
-    pub fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
-        self.client.execute(ELF, input).run()
     }
 
     pub fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
@@ -126,34 +104,6 @@ fn write_sp1_stdin(program_input: &ProgramInput) -> SP1Stdin {
     let mut stdin: SP1Stdin = SP1Stdin::new();
     stdin.write(&program_input);
     stdin
-}
-
-fn write_test_fixture(proof: &SP1ProofWithPublicValues, vk: &SP1VerifyingKey) {
-    let fixture_name = "fixture.json";
-    let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src/fixtures/");
-    let fixture_file = fixture_path.join(fixture_name);
-    let bytes = proof.public_values.as_slice();
-    let public_values: PublicValuesSolidity = PublicValuesSolidity::abi_decode(bytes, false).unwrap();
-
-    let fixture = ProofFixture {
-        vkey: vk.bytes32(),
-        report: public_values.report.into(),
-        metadata: public_values.metadata.into(),
-        public_values: format!("0x{}", hex::encode(bytes)),
-        proof: format!("0x{}", hex::encode(proof.bytes())),
-    };
-
-    log::debug!("Verification Key: {}", fixture.vkey);
-    log::debug!("Public Values: {}", fixture.public_values);
-    log::debug!("Proof Bytes: {}", fixture.proof);
-
-    // Save the fixture to a file.
-    if let Some(fixture_path) = fixture_file.parent() {
-        std::fs::create_dir_all(fixture_path).expect("failed to create fixture path");
-    }
-    std::fs::write(fixture_file.clone(), serde_json::to_string_pretty(&fixture).unwrap())
-        .expect("failed to write fixture");
-    log::info!("Successfully written test fixture to {fixture_file:?}");
 }
 
 fn verify_input_correctness(
@@ -340,7 +290,7 @@ async fn main() {
         args.previous_slot
     );
     let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
-    let bs_reader = BeaconStateReaderEnum::new_from_env(network);
+    let bs_reader = BeaconStateReaderEnum::new_from_env(&network);
 
     let (bs, bh, old_bs) = read_beacon_states(bs_reader, args.target_slot, args.previous_slot).await;
     let (program_input, public_values) = prepare_program_input(&bs, &bh, &old_bs, &lido_withdrawal_credentials);
@@ -352,19 +302,20 @@ async fn main() {
     };
     let steps = ScriptSteps::new(prover_client, script_config);
 
-    log::info!("Executing program");
+    log::info!("Proving program");
     let stdin = write_sp1_stdin(&program_input);
 
-    let (exec_public_values, execution_report) = steps.execute(stdin).unwrap();
+    let proof = steps.prove(stdin).expect("Failed to generate proof");
+    log::info!("Generated proof");
 
-    log::info!(
-        "Executed program with {} cycles",
-        execution_report.total_instruction_count() + execution_report.total_syscall_count()
-    );
-    log::debug!("Full execution report:\n{}", execution_report);
+    steps.verify_proof(&proof).expect("Failed to verify proof");
+    log::info!("Verified proof");
 
     steps
-        .verify_public_values(&exec_public_values, &public_values)
+        .verify_public_values(&proof.public_values, &public_values)
         .expect("Failed to verify public inputs");
-    log::info!("Successfully verified public values!");
+    log::info!("Verified public values");
+
+    let fixture_file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/src/fixtures/fixture.json");
+    store_proof_and_metadata(&proof, &steps.vk, fixture_file.as_path());
 }

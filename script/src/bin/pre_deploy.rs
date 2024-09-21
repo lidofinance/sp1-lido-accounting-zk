@@ -36,7 +36,7 @@ async fn main() {
     let network_name = network.as_str().to_owned();
     log::info!("Running for network {:?}, slot: {}", network, args.slot);
 
-    let bs_reader: BeaconStateReaderEnum = BeaconStateReaderEnum::new_from_env(network);
+    let bs_reader: BeaconStateReaderEnum = BeaconStateReaderEnum::new_from_env(&network);
     let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
 
     let bs = bs_reader
@@ -56,7 +56,9 @@ async fn main() {
     let prover_client = ProverClient::local();
     let (_pk, vk) = prover_client.setup(ELF);
     let mut vk_bytes: [u8; 32] = [0; 32];
-    hex::decode_to_slice(vk.bytes32(), &mut vk_bytes).expect("Failed to decode verification key to [u8; 32]");
+    let vk = vk.bytes32();
+    let stripped_vk = vk.strip_prefix("0x").unwrap_or(&vk);
+    hex::decode_to_slice(stripped_vk.as_bytes(), &mut vk_bytes).expect("Failed to decode verification key to [u8; 32]");
 
     let deploy_manifesto = ContractDeployParametersRust {
         network: network_name.clone(),
