@@ -5,7 +5,7 @@ use log;
 use reqwest::{header::ACCEPT, Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 
-use crate::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Root};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Root};
 
 use super::{
     file::{FileBasedBeaconStateReader, FileBeaconStateWriter},
@@ -73,8 +73,8 @@ impl TryFrom<BeaconHeaderResponseDataHeaderMessage> for BeaconBlockHeader {
             .map_err(ConvertionError::FailedToParseHashField)?;
 
         let result = BeaconBlockHeader {
-            slot: slot,
-            proposer_index: proposer_index,
+            slot,
+            proposer_index,
             parent_root: parent_root.into(),
             state_root: state_root.into(),
             body_root: body_root.into(),
@@ -108,7 +108,7 @@ impl ReqwestBeaconStateReader {
         Self {
             consensus_layer_base_uri: Self::normalize_url(consensus_layer_base_uri),
             beacon_state_base_uri: Self::normalize_url(beacon_state_base_uri),
-            client: client,
+            client,
         }
     }
 

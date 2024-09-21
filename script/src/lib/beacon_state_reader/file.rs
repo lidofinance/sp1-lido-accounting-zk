@@ -6,7 +6,7 @@ use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
-use crate::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 
 use super::BeaconStateReader;
 

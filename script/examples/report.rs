@@ -1,18 +1,17 @@
 use ethereum_types::H256;
 use hex::FromHex;
-use log;
 use serde_json::Value;
-use sp1_lido_accounting_zk_shared::consts;
+use sp1_lido_accounting_scripts::consts;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic::{
-    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
+use sp1_lido_accounting_scripts::beacon_state_reader::{
+    file::FileBasedBeaconStateReader,
+    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
+    BeaconStateReader,
 };
 use std::path::PathBuf;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
+use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, Hash256};
-use sp1_lido_accounting_zk_shared::report::ReportData;
 
 use simple_logger::SimpleLogger;
 
@@ -47,7 +46,7 @@ fn verify_report(report: &ReportData, manifesto: &Value) {
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
     let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
-    let withdrawal_creds: H256 = consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
+    let withdrawal_creds: H256 = consts::lido_credentials::MAINNET.into();
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true);
     let reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&ssz_folder);
 

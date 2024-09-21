@@ -67,7 +67,7 @@ impl Network {
             },
             Self::Anvil => NetworkConfig {
                 chain_id: 31337,
-                genesis_block_timestamp: 1695902400,
+                genesis_block_timestamp: 1655733600,
                 verifier: SP1_GATEWAY,
                 lido_withdrawal_credentials: lido_credentials::SEPOLIA,
             },

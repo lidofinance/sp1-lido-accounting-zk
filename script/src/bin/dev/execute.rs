@@ -2,17 +2,15 @@ use alloy_sol_types::SolType;
 use anyhow::anyhow;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use sp1_lido_accounting_scripts::beacon_state_reader_enum::BeaconStateReaderEnum;
+use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum};
+use sp1_lido_accounting_scripts::consts::Network;
 use sp1_lido_accounting_scripts::validator_delta::ValidatorDeltaCompute;
-use sp1_lido_accounting_scripts::ELF;
-use sp1_lido_accounting_zk_shared::consts::Network;
 use sp1_sdk::{
     ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
     SP1VerifyingKey,
 };
 use std::path::PathBuf;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, BeaconBlockHeader, BeaconState, Hash256, Slot};
@@ -25,7 +23,6 @@ use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLea
 use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
 
 use anyhow::Result;
-use log;
 
 use std::env;
 
@@ -64,7 +61,7 @@ struct ScriptSteps {
 
 impl ScriptSteps {
     pub fn new(client: ProverClient, config: ScriptConfig) -> Self {
-        let (pk, vk) = client.setup(ELF);
+        let (pk, vk) = client.setup(sp1_lido_accounting_scripts::ELF);
         Self { client, pk, vk, config }
     }
 
@@ -73,7 +70,7 @@ impl ScriptSteps {
     }
 
     pub fn execute(&self, input: SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
-        self.client.execute(ELF, input).run()
+        self.client.execute(sp1_lido_accounting_scripts::ELF, input).run()
     }
 
     pub fn prove(&self, input: SP1Stdin) -> Result<SP1ProofWithPublicValues> {

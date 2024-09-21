@@ -1,8 +1,7 @@
 use alloy::primitives::{Address, U256};
 use clap::Parser;
-use log;
+use sp1_lido_accounting_scripts::consts::Network;
 use sp1_lido_accounting_scripts::eth_client::{ProviderFactory, Sp1LidoAccountingReportContract};
-use sp1_lido_accounting_zk_shared::consts::Network;
 
 use std::env;
 use std::path::PathBuf;

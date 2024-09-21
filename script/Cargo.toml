@@ -21,6 +21,35 @@ path = "src/bin/dev/submit_cached.rs"
 name = "submit"
 path = "src/bin/submit.rs"
 
+[[example]]
+name = "ssz_e2e_test"
+path = "examples/ssz_e2e_test.rs"
+required-features = ["synthetic"]
+
+[[example]]
+name = "report_e2e_test"
+path = "examples/report.rs"
+required-features = ["synthetic"]
+
+[[example]]
+name = "lido_state_e2e_test"
+path = "examples/lido_state.rs"
+required-features = ["synthetic"]
+
+[[example]]
+name = "gen_pair"
+path = "examples/gen_synthetic_bs_pair.rs"
+required-features = ["synthetic"]
+
+[[example]]
+name = "list_multiproofs"
+path = "examples/list_multiproofs.rs"
+required-features = ["synthetic"]
+
+[[example]]
+name = "read_bs_pair"
+path = "examples/read_bs_pair.rs"
+
 [[bin]]
 name = "pre-deploy"
 path = "src/bin/pre_deploy.rs"
@@ -40,7 +69,7 @@ log = "0.4.21"
 hex-literal = "0.4.1"
 hex = "0.4"
 anyhow = "1.0.86"
-sp1_lido_accounting_zk_shared = { path = "../shared", features = ["reqwest"] }
+sp1_lido_accounting_zk_shared = { path = "../shared" }
 tokio = "1.39.2"
 tree_hash = "0.6.0"
 alloy-primitives = "0.7.7"
@@ -49,10 +78,26 @@ alloy = { version = "0.3.5", features = ["contract", "json", "providers", "signe
 eyre = "0.6.12"
 thiserror = "1.0.63"
 k256 = "0.13.3"
+reqwest = "0.12.7"
+ethereum_ssz = "0.5.4"
+ethereum_serde_utils = "0.5.2"
+ethereum_ssz_derive = "0.5.4"
 
 [build-dependencies]
 sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", tag="v1.1.0" }
 
+[patch.crates-io]
+sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
+ethereum_hashing = { path = "../../../ethereum_hashing" }
+
 [dev-dependencies]
 alloy = { version = "0.3.5", features = ["node-bindings"] }
 simple_logger = "5.0.0"
+dotenv = "0.15.0"
+log = "0.4.21"
+tokio = { version = "1.38.0", features = ["full"] }
+typenum = "1.17.0"
+ethereum-types = "0.14.1"
+
+[features]
+synthetic = []

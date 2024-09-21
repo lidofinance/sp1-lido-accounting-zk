@@ -1,12 +1,23 @@
-use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::reqwest::{
-    CachedReqwestBeaconStateReader, ReqwestBeaconStateReader,
-};
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
-use sp1_lido_accounting_zk_shared::consts::Network;
+use anyhow;
+
+use crate::beacon_state_reader::file::FileBasedBeaconStateReader;
+use crate::beacon_state_reader::reqwest::{CachedReqwestBeaconStateReader, ReqwestBeaconStateReader};
+use crate::consts::Network;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 use std::env;
 use std::path::PathBuf;
+
+pub mod file;
+pub mod reqwest;
+#[cfg(feature = "synthetic")]
+pub mod synthetic;
+
+pub trait BeaconStateReader {
+    #[allow(async_fn_in_trait)]
+    async fn read_beacon_state(&self, slot: u64) -> anyhow::Result<BeaconState>;
+    #[allow(async_fn_in_trait)]
+    async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader>;
+}
 
 pub enum BeaconStateReaderEnum {
     File(FileBasedBeaconStateReader),

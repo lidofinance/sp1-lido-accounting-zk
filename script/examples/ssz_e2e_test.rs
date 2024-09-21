@@ -1,14 +1,13 @@
 use hex::FromHex;
-use log;
 use serde_json::Value;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic::{
-    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
+use sp1_lido_accounting_scripts::beacon_state_reader::{
+    file::FileBasedBeaconStateReader,
+    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
+    BeaconStateReader,
 };
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves, RsMerkleHash};
 

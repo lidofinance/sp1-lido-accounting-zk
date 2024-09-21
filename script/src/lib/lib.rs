@@ -9,7 +9,8 @@ use sp1_sdk::{SP1ProofWithPublicValues, SP1VerifyingKey};
 
 use sp1_lido_accounting_zk_shared::io::serde_utils::serde_hex_as_string;
 
-pub mod beacon_state_reader_enum;
+pub mod beacon_state_reader;
+pub mod consts;
 pub mod eth_client;
 pub mod validator_delta;
 

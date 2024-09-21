@@ -1,19 +1,17 @@
 use hex::FromHex;
-use log;
 use serde_json::Value;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
-use sp1_lido_accounting_zk_shared::consts::LIDO_WITHDRAWAL_CREDENTIALS;
+use sp1_lido_accounting_scripts::beacon_state_reader::{
+    file::FileBasedBeaconStateReader,
+    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
+    BeaconStateReader,
+};
+use sp1_lido_accounting_scripts::consts::lido_credentials;
 use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
-use util::synthetic_beacon_state_reader::GenerationSpec;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic::{
-    BalanceGenerationMode, SyntheticBeaconStateCreator,
-};
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::util::usize_to_u64;
 
@@ -46,7 +44,7 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
     );
 
     let epoch = epoch(beacon_state.slot).unwrap();
-    let withdrawal_creds: Hash256 = LIDO_WITHDRAWAL_CREDENTIALS.into();
+    let withdrawal_creds: Hash256 = lido_credentials::MAINNET.into();
 
     let deposited_hash_set: HashSet<u64> = HashSet::from_iter(state.deposited_lido_validator_indices.clone());
     let pending_deposit_hash_set: HashSet<u64> =

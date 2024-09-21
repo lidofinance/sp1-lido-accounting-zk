@@ -1,4 +1,3 @@
-use log;
 use sp1_lido_accounting_zk_shared::eth_spec;
 use typenum::Unsigned;
 
@@ -6,8 +5,8 @@ use tree_hash::TreeHash;
 
 use dotenv::dotenv;
 use simple_logger::SimpleLogger;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::reqwest::{BeaconChainRPC, CachedReqwestBeaconStateReader};
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
+use sp1_lido_accounting_scripts::beacon_state_reader::reqwest::{BeaconChainRPC, CachedReqwestBeaconStateReader};
+use sp1_lido_accounting_scripts::beacon_state_reader::BeaconStateReader;
 use std::env;
 use std::path::PathBuf;
 
@@ -17,9 +16,10 @@ async fn main() {
     SimpleLogger::new().env().init().unwrap();
 
     let consensus_layer_rpc_url = env::var("CONSENSUS_LAYER_RPC").expect("Failed to read CONSENSUS_LAYER_RPC env var");
+    let bs_endpoint = env::var("BEACON_STATE_RPC").expect("Failed to read BEACON_STATE_RPC env var");
     let file_store = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
 
-    let bs_reader = CachedReqwestBeaconStateReader::new(&consensus_layer_rpc_url, &file_store);
+    let bs_reader = CachedReqwestBeaconStateReader::new(&consensus_layer_rpc_url, &bs_endpoint, &file_store);
 
     let finalized_slot: u64 = bs_reader
         .get_finalized_slot()

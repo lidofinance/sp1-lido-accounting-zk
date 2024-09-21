@@ -1,16 +1,16 @@
-use log;
 use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
 
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic::{
-    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
+use sp1_lido_accounting_scripts::beacon_state_reader::{
+    file::FileBasedBeaconStateReader,
+    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
+    BeaconStateReader,
 };
+use sp1_lido_accounting_scripts::consts;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, RsMerkleHash};
-use sp1_lido_accounting_zk_shared::{beacon_state_reader::BeaconStateReader, consts};
 
 use simple_logger::SimpleLogger;
 
@@ -20,7 +20,7 @@ async fn main() {
     let file_store = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
     let creator = SyntheticBeaconStateCreator::new(&file_store, false, true);
     let reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&file_store);
-    let withdrawal_creds: Hash256 = consts::LIDO_WITHDRAWAL_CREDENTIALS.into();
+    let withdrawal_creds: Hash256 = consts::lido_credentials::MAINNET.into();
     let old_slot = 100;
     let new_slot = 200;
     let base_state_spec = GenerationSpec {

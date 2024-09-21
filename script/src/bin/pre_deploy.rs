@@ -3,11 +3,9 @@ use sp1_sdk::{HashableKey, ProverClient};
 use std::{env, path::PathBuf};
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_scripts::beacon_state_reader_enum::BeaconStateReaderEnum;
-use sp1_lido_accounting_scripts::ELF;
+use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum};
+use sp1_lido_accounting_scripts::consts::Network;
 use sp1_lido_accounting_zk_shared::{
-    beacon_state_reader::BeaconStateReader,
-    consts::Network,
     eth_consensus_layer::Hash256,
     io::eth_io::{ContractDeployParametersRust, LidoValidatorStateRust},
     lido::LidoValidatorState,
@@ -54,7 +52,7 @@ async fn main() {
     let lido_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, &lido_withdrawal_credentials);
 
     let prover_client = ProverClient::local();
-    let (_pk, vk) = prover_client.setup(ELF);
+    let (_pk, vk) = prover_client.setup(sp1_lido_accounting_scripts::ELF);
     let mut vk_bytes: [u8; 32] = [0; 32];
     let vk = vk.bytes32();
     let stripped_vk = vk.strip_prefix("0x").unwrap_or(&vk);

@@ -1,15 +1,12 @@
-use log;
-use sp1_lido_accounting_zk_shared::beacon_state_reader::file::FileBasedBeaconStateReader;
-
+use simple_logger::SimpleLogger;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::beacon_state_reader::synthetic::{
-    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
+use sp1_lido_accounting_scripts::beacon_state_reader::{
+    file::FileBasedBeaconStateReader,
+    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
+    BeaconStateReader,
 };
-use sp1_lido_accounting_zk_shared::beacon_state_reader::BeaconStateReader;
-
-use simple_logger::SimpleLogger;
 
 fn small_problem_size(old_slot: u64, new_slot: u64) -> (GenerationSpec, GenerationSpec) {
     let base_state_spec = GenerationSpec {
