@@ -42,10 +42,12 @@ mod tests {
         circuit_logic::report::ReportData,
         io::eth_io::{LidoValidatorStateRust, PublicValuesRust, ReportMetadataRust, ReportRust},
     };
+    use hex_literal::hex;
 
+    #[test]
     pub fn round_trip() {
         let (slot, epoch) = (123, 10);
-        let credentials = crate::consts::lido_credentials::MAINNET;
+        let credentials = hex!("010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f");
         let report_data = ReportData {
             slot: slot,
             epoch: epoch,

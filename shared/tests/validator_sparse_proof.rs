@@ -4,7 +4,7 @@ use sp1_lido_accounting_zk_shared::{
     circuit_logic::input_verification::{InputVerifier, NoopCycleTracker},
     eth_consensus_layer::{Hash256, Validator, Validators},
     lido::ValidatorWithIndex,
-    merkle_proof::{build_root_from_proof, FieldProof},
+    merkle_proof::FieldProof,
     util::usize_to_u64,
 };
 use tree_hash::TreeHash;

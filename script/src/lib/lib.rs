@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use alloy_sol_types::SolType;
 use serde::{Deserialize, Serialize};
