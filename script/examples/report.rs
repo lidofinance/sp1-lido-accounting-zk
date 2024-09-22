@@ -1,4 +1,3 @@
-use ethereum_types::H256;
 use hex::FromHex;
 use serde_json::Value;
 use sp1_lido_accounting_scripts::consts;
@@ -46,7 +45,7 @@ fn verify_report(report: &ReportData, manifesto: &Value) {
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
     let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
-    let withdrawal_creds: H256 = consts::lido_credentials::MAINNET.into();
+    let withdrawal_creds: Hash256 = consts::lido_credentials::MAINNET.into();
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true);
     let reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&ssz_folder);
 
