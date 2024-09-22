@@ -97,7 +97,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         let validator_from_delta = old_state.total_validators() + usize_to_u64(delta.all_added.len());
         assert!(
             validator_from_delta == actual_valdiator_count,
-            "Not all new validators were passed"
+            "Not all new validators were passed - expected {validator_from_delta}, got {actual_valdiator_count}"
         );
 
         let lido_changed_indices: HashSet<u64> = delta.lido_changed_indices().map(|v| v.clone()).collect();

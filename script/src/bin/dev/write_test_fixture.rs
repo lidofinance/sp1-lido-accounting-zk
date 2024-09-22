@@ -1,11 +1,12 @@
 use alloy_sol_types::SolType;
 use anyhow::anyhow;
 use clap::Parser;
+use sp1_core_machine::io::SP1PublicValues; // TODO: remove when Sp1PublicValues are exported from sp1_sdk
 use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum};
 use sp1_lido_accounting_scripts::consts::Network;
 use sp1_lido_accounting_scripts::validator_delta::ValidatorDeltaCompute;
 use sp1_lido_accounting_scripts::{store_proof_and_metadata, ELF};
-use sp1_sdk::{ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey};
+use sp1_sdk::{ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};

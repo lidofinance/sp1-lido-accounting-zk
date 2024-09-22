@@ -6,7 +6,7 @@ fn build_contract_abi(path: &str) {
     let constracts_dir = std::path::Path::new(path);
     print!("Building contracts in {:#?}", constracts_dir.as_os_str());
 
-    let mut command = Command::new("forge");
+    let mut command = Command::new("/home/john/.foundry/bin/forge");
     command.arg("build").current_dir(constracts_dir);
     command.status().expect("Failed to forge build");
 

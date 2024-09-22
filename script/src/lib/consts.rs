@@ -69,7 +69,7 @@ impl Network {
                 chain_id: 31337,
                 genesis_block_timestamp: 1655733600,
                 verifier: SP1_GATEWAY,
-                lido_withdrawal_credentials: lido_credentials::SEPOLIA,
+                lido_withdrawal_credentials: lido_credentials::MAINNET,
             },
         }
     }

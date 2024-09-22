@@ -71,6 +71,9 @@ log.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 simple_logger.workspace = true
+# TOOO: this seems to be an internal crate, but SP1PUblicValues were
+# moved there and aren't reexported, so this is a workaround until it is fixed
+sp1-core-machine.workspace = true
 sp1-sdk.workspace = true
 tokio.workspace = true
 tree_hash.workspace = true
