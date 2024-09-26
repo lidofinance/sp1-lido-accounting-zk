@@ -1,14 +1,15 @@
 use hex_literal::hex;
 
+pub const ELF: &[u8] = include_bytes!("../../../program/elf/riscv32im-succinct-zkvm-elf");
+// https://docs.succinct.xyz/onchain-verification/contract-addresses.html
+const SP1_GATEWAY: [u8; 20] = hex!("3B6041173B80E77f038f3F2C0f9744f04837185e");
+
 pub struct NetworkConfig {
     pub chain_id: u64,
     pub genesis_block_timestamp: u64,
     pub verifier: [u8; 20],
     pub lido_withdrawal_credentials: [u8; 32],
 }
-
-// https://docs.succinct.xyz/onchain-verification/contract-addresses.html
-const SP1_GATEWAY: [u8; 20] = hex!("3B6041173B80E77f038f3F2C0f9744f04837185e");
 
 #[derive(Debug)]
 pub enum Network {

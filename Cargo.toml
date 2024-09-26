@@ -11,9 +11,9 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-alloy = { version = "0.3.5", features = ["contract", "json", "providers", "signer-local", "signers", "sol-types"] }
+alloy = { version = "0.2.1", features = ["contract", "json", "providers", "signer-local", "signers", "sol-types", "network"] }
 alloy-primitives = "0.7.7"
-alloy-sol-types = "0.7.2"
+alloy-sol-types = "0.7.7"
 anyhow = "1.0.86"
 ethereum_hashing = "0.6.0"
 ethereum_serde_utils = "0.5.2"

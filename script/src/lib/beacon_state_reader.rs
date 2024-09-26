@@ -17,6 +17,12 @@ pub trait BeaconStateReader {
     async fn read_beacon_state(&self, slot: u64) -> anyhow::Result<BeaconState>;
     #[allow(async_fn_in_trait)]
     async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader>;
+    #[allow(async_fn_in_trait)]
+    async fn read_beacon_state_and_header(&self, slot: u64) -> anyhow::Result<(BeaconBlockHeader, BeaconState)> {
+        let bs = self.read_beacon_state(slot).await?;
+        let bh = self.read_beacon_block_header(slot).await?;
+        Ok((bh, bs))
+    }
 }
 
 pub enum BeaconStateReaderEnum {

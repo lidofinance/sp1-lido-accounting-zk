@@ -90,7 +90,7 @@ tracing = "0.1.40"
 sp1-helper.workspace = true
 
 [dev-dependencies]
-alloy = { version = "0.3.5", features = ["node-bindings"] }
+alloy = { version = "0.2.1", features = ["node-bindings"] }
 dotenv = "0.15.0"
 typenum.workspace = true
 

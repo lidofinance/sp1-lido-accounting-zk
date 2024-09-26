@@ -18,7 +18,7 @@ fn check_epoch_based_change(old_bs_epoch: Epoch, new_bs_epoch: Epoch, old_epoch:
     if (old_epoch < old_bs_epoch) != (new_epoch < new_bs_epoch) {
         return true;
     }
-    return false;
+    false
 }
 
 impl<'a> ValidatorDeltaCompute<'a> {

@@ -1,16 +1,17 @@
-use alloy::sol_types::SolError;
-use alloy::transports::http::reqwest::Url;
-use alloy::{network::EthereumWallet, primitives::Address};
+use alloy::network::Ethereum;
+use alloy::primitives::Address;
 use alloy_primitives::U256;
 use sp1_lido_accounting_zk_shared::io::eth_io::{
     ContractDeployParametersRust, LidoValidatorStateRust, ReportMetadataRust, ReportRust,
 };
-use std::env;
+use ISP1VerifierGateway::ISP1VerifierGatewayErrors;
+use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
 
-use alloy::{providers::ProviderBuilder, signers::local::PrivateKeySigner, sol};
+use alloy::sol;
+use alloy::transports::Transport;
+use core::clone::Clone;
 use eyre::Result;
-use k256;
 use thiserror::Error;
 
 sol!(
@@ -21,67 +22,24 @@ sol!(
     "../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
 );
 
-#[derive(Debug)]
-pub enum RejectionError {
-    NoBlockRootFound(Sp1LidoAccountingReportContract::NoBlockRootFound),
-    TimestampOutOfRange(Sp1LidoAccountingReportContract::TimestampOutOfRange),
-    CustomError(String),
-}
+sol!(
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    #[derive(Debug)]
+    ISP1VerifierGateway,
+    "../contracts/out/ISP1VerifierGateway.sol/ISP1VerifierGateway.json",
+);
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Failed to convert string to hex")]
-    FromHexError,
-    #[error("Failed to parse private key")]
-    ParsePrivateKeyError,
-    #[error("Failed to deserialize private key")]
-    DeserializePrivateKeyError,
-    #[error("Failed to read env var")]
-    FailedToReadEnvVar(String),
+    #[error("Contract rejected")]
+    Rejection(Sp1LidoAccountingReportContractErrors),
 
-    #[error("Failed to submit report")]
-    ReportSubmissionFailure,
-    #[error("Failed to parse URL")]
-    FailedToParseUrl,
+    #[error("Sp1 verifier gateway rejected")]
+    VerifierRejection(ISP1VerifierGatewayErrors),
 
-    #[error("Rejected report")]
-    RejectionError(RejectionError),
-}
-
-impl Error {
-    pub fn parse_rejection(error_data: Vec<u8>) -> Self {
-        let rejection_error = {
-            if let Some(selector) = error_data.get(0..4) {
-                let mut fixed_selector: [u8; 4] = [0u8; 4];
-                fixed_selector.copy_from_slice(selector);
-                match fixed_selector {
-                    Sp1LidoAccountingReportContract::NoBlockRootFound::SELECTOR => {
-                        if let Ok(decoded) =
-                            Sp1LidoAccountingReportContract::NoBlockRootFound::abi_decode(error_data.as_slice(), true)
-                        {
-                            RejectionError::NoBlockRootFound(decoded)
-                        } else {
-                            RejectionError::CustomError(hex::encode(error_data))
-                        }
-                    }
-                    Sp1LidoAccountingReportContract::TimestampOutOfRange::SELECTOR => {
-                        if let Ok(decoded) = Sp1LidoAccountingReportContract::TimestampOutOfRange::abi_decode(
-                            error_data.as_slice(),
-                            true,
-                        ) {
-                            RejectionError::TimestampOutOfRange(decoded)
-                        } else {
-                            RejectionError::CustomError(hex::encode(error_data))
-                        }
-                    }
-                    _ => RejectionError::CustomError(hex::encode(error_data)),
-                }
-            } else {
-                RejectionError::CustomError(hex::encode(error_data))
-            }
-        };
-        Error::RejectionError(rejection_error)
-    }
+    #[error("Other alloy error")]
+    AlloyError(alloy::contract::Error),
 }
 
 impl From<ReportRust> for Sp1LidoAccountingReportContract::Report {
@@ -117,20 +75,19 @@ impl From<ReportMetadataRust> for Sp1LidoAccountingReportContract::ReportMetadat
     }
 }
 
-pub struct Sp1LidoAccountingReportContractWrapper<P>
+pub struct Sp1LidoAccountingReportContractWrapper<P, T: Transport + Clone>
 where
-    P: alloy::providers::Provider,
+    P: alloy::providers::Provider<T, Ethereum>,
 {
-    contract: Sp1LidoAccountingReportContractInstance<alloy::transports::BoxTransport, P>,
+    contract: Sp1LidoAccountingReportContractInstance<T, P>,
 }
 
-impl<P> Sp1LidoAccountingReportContractWrapper<P>
+impl<P, T: Transport + Clone> Sp1LidoAccountingReportContractWrapper<P, T>
 where
-    P: alloy::providers::Provider,
+    P: alloy::providers::Provider<T, Ethereum>,
 {
     pub fn new(provider: P, contract_address: Address) -> Self {
-        let contract: Sp1LidoAccountingReportContractInstance<alloy::transports::BoxTransport, P> =
-            Sp1LidoAccountingReportContract::new(contract_address, provider);
+        let contract = Sp1LidoAccountingReportContract::new(contract_address, provider);
         Sp1LidoAccountingReportContractWrapper { contract }
     }
 
@@ -141,16 +98,15 @@ where
                 slot: U256::from(constructor_args.initial_validator_state.slot),
                 merkle_root: constructor_args.initial_validator_state.merkle_root.into(),
             };
-        let contract: Sp1LidoAccountingReportContractInstance<alloy::transports::BoxTransport, P> =
-            Sp1LidoAccountingReportContract::deploy(
-                provider,
-                constructor_args.verifier.into(),
-                constructor_args.vkey.into(),
-                constructor_args.withdrawal_credentials.into(),
-                U256::from(constructor_args.genesis_timestamp),
-                validator_state_solidity,
-            )
-            .await?;
+        let contract = Sp1LidoAccountingReportContract::deploy(
+            provider,
+            constructor_args.verifier.into(),
+            constructor_args.vkey.into(),
+            constructor_args.withdrawal_credentials.into(),
+            U256::from(constructor_args.genesis_timestamp),
+            validator_state_solidity,
+        )
+        .await?;
         Ok(Sp1LidoAccountingReportContractWrapper { contract })
     }
 
@@ -161,64 +117,51 @@ where
         metadata: ReportMetadataRust,
         proof: Vec<u8>,
         public_values: Vec<u8>,
-    ) -> Result<Sp1LidoAccountingReportContract::submitReportDataReturn, Error> {
+    ) -> Result<alloy_primitives::TxHash, Error> {
         let report_solidity: Sp1LidoAccountingReportContract::Report = report.into();
         let metadata_solidity: Sp1LidoAccountingReportContract::ReportMetadata = metadata.into();
 
-        let result = self
+        let tx_builder = self.contract.submitReportData(
+            U256::from(slot),
+            report_solidity,
+            metadata_solidity,
+            proof.into(),
+            public_values.into(),
+        );
+
+        let tx = tx_builder
+            .send()
+            .await
+            .map_err(|e: alloy::contract::Error| self.map_alloy_error(e))?;
+
+        log::info!("Waiting for report transaction");
+        let tx_result = tx.watch().await.expect("Failed to wait for confirmation");
+        Ok(tx_result)
+    }
+
+    pub async fn get_latest_report_slot(&self) -> Result<u64, Error> {
+        let latest_report_response = self
             .contract
-            .submitReportData(
-                U256::from(slot),
-                report_solidity,
-                metadata_solidity,
-                proof.into(),
-                public_values.into(),
-            )
+            .getLatestLidoValidatorStateSlot()
             .call()
             .await
-            .map_err(|_e| Error::ReportSubmissionFailure)?;
-        Ok(result)
-    }
-}
-
-pub struct ProviderFactory {}
-impl ProviderFactory {
-    fn decode_key(private_key_raw: &str) -> Result<k256::SecretKey, Error> {
-        let key_str = private_key_raw
-            .split("0x")
-            .last()
-            .ok_or(Error::ParsePrivateKeyError)?
-            .trim();
-        let key_hex = hex::decode(key_str).map_err(|_e| Error::FromHexError)?;
-        let key = k256::SecretKey::from_bytes((&key_hex[..]).into()).map_err(|_e| Error::DeserializePrivateKeyError)?;
-        Ok(key)
+            .map_err(|e: alloy::contract::Error| self.map_alloy_error(e))?;
+        let latest_report_slot = latest_report_response._0;
+        Ok(latest_report_slot.to::<u64>())
     }
 
-    pub fn create(
-        endpoint: Url,
-        private_key: k256::SecretKey,
-    ) -> std::result::Result<
-        impl alloy::providers::Provider<alloy::transports::http::Http<alloy::transports::http::Client>> + Clone,
-        Error,
-    > {
-        let signer: PrivateKeySigner = PrivateKeySigner::from(private_key);
-        let wallet: EthereumWallet = EthereumWallet::from(signer);
-        let provider = ProviderBuilder::new()
-            .with_recommended_fillers()
-            .wallet(wallet)
-            .on_http(endpoint);
-        Ok(provider)
-    }
-
-    pub fn create_from_env() -> Result<
-        impl alloy::providers::Provider<alloy::transports::http::Http<alloy::transports::http::Client>> + Clone,
-        Error,
-    > {
-        let raw_endpoint: String = env::var("EXECUTION_LAYER_RPC")
-            .map_err(|_e| Error::FailedToReadEnvVar("EXECUTION_LAYER_RPC".to_owned()))?;
-        let endpoint: Url = raw_endpoint.parse().map_err(|_e| Error::FailedToParseUrl)?;
-        let private_key = env::var("PRIVATE_KEY").expect("Failed to read PRIVATE_KEY env var");
-        let key = Self::decode_key(&private_key)?;
-        Self::create(endpoint, key)
+    fn map_alloy_error(&self, error: alloy::contract::Error) -> Error {
+        if let alloy::contract::Error::TransportError(alloy::transports::RpcError::ErrorResp(ref error_payload)) = error
+        {
+            None.or(error_payload
+                .as_decoded_error::<Sp1LidoAccountingReportContractErrors>(true)
+                .map(Error::Rejection))
+                .or(error_payload
+                    .as_decoded_error::<ISP1VerifierGatewayErrors>(true)
+                    .map(Error::VerifierRejection))
+                .unwrap_or(Error::AlloyError(error))
+        } else {
+            Error::AlloyError(error)
+        }
     }
 }
