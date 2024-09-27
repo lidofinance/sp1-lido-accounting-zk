@@ -50,8 +50,8 @@ name = "read_bs_pair"
 path = "examples/read_bs_pair.rs"
 
 [[bin]]
-name = "pre-deploy"
-path = "src/bin/pre_deploy.rs"
+name = "deploy"
+path = "src/bin/deploy.rs"
 
 [lib]
 name = "sp1_lido_accounting_scripts"

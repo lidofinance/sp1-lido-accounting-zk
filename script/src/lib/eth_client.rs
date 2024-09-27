@@ -110,6 +110,10 @@ where
         Ok(Sp1LidoAccountingReportContractWrapper { contract })
     }
 
+    pub fn address(&self) -> &Address {
+        self.contract.address()
+    }
+
     pub async fn submit_report_data(
         &self,
         slot: u64,

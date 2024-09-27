@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::beacon_state_reader::BeaconStateReader;
-use crate::consts::{Network, NetworkInfo};
+use crate::consts::NetworkInfo;
 use crate::proof_storage;
 use crate::scripts::prelude::Contract;
 use crate::scripts::shared as shared_logic;

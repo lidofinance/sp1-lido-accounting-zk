@@ -51,30 +51,26 @@ fn decode_key(private_key_raw: &str) -> Result<k256::SecretKey, Error> {
     Ok(key)
 }
 
-pub type Contract = Sp1LidoAccountingReportContractWrapper<
-    alloy::providers::fillers::FillProvider<
+pub type DefaultProvider = alloy::providers::fillers::FillProvider<
+    alloy::providers::fillers::JoinFill<
         alloy::providers::fillers::JoinFill<
             alloy::providers::fillers::JoinFill<
-                alloy::providers::fillers::JoinFill<
-                    alloy::providers::fillers::JoinFill<
-                        alloy::providers::Identity,
-                        alloy::providers::fillers::GasFiller,
-                    >,
-                    alloy::providers::fillers::NonceFiller,
-                >,
-                alloy::providers::fillers::ChainIdFiller,
+                alloy::providers::fillers::JoinFill<alloy::providers::Identity, alloy::providers::fillers::GasFiller>,
+                alloy::providers::fillers::NonceFiller,
             >,
-            alloy::providers::fillers::WalletFiller<EthereumWallet>,
+            alloy::providers::fillers::ChainIdFiller,
         >,
-        alloy::providers::RootProvider<alloy::transports::http::Http<reqwest::Client>>,
-        alloy::transports::http::Http<reqwest::Client>,
-        alloy::network::Ethereum,
+        alloy::providers::fillers::WalletFiller<EthereumWallet>,
     >,
+    alloy::providers::RootProvider<alloy::transports::http::Http<reqwest::Client>>,
     alloy::transports::http::Http<reqwest::Client>,
+    alloy::network::Ethereum,
 >;
 
-// TODO: simplify return type
-pub fn initialize_contract() -> Contract {
+pub type Contract =
+    Sp1LidoAccountingReportContractWrapper<DefaultProvider, alloy::transports::http::Http<reqwest::Client>>;
+
+pub fn initialize_provider() -> DefaultProvider {
     let raw_endpoint: String = env::var("EXECUTION_LAYER_RPC").expect("Couldn't read EXECUTION_LAYER_RPC env var");
     let endpoint: Url = raw_endpoint.parse().expect("Couldn't parse endpoint URL");
     let private_key = env::var("PRIVATE_KEY").expect("Failed to read PRIVATE_KEY env var");
@@ -85,10 +81,15 @@ pub fn initialize_contract() -> Contract {
         .with_recommended_fillers()
         .wallet(wallet)
         .on_http(endpoint);
+    provider
+}
 
+// TODO: simplify return type
+pub fn initialize_contract() -> Contract {
     let address: Address = env::var("CONTRACT_ADDRESS")
         .expect("Failed to read CONTRACT_ADDRESS env var")
         .parse()
         .expect("Failed to parse CONTRACT_ADDRESS into URL");
+    let provider = initialize_provider();
     Sp1LidoAccountingReportContractWrapper::new(provider, address)
 }
