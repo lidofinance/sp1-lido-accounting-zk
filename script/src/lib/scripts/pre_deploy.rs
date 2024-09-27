@@ -6,7 +6,7 @@ use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use std::{env, path::PathBuf};
 use tree_hash::TreeHash;
 
-use crate::consts::Network;
+use crate::consts::NetworkInfo;
 use sp1_lido_accounting_zk_shared::{
     io::eth_io::{ContractDeployParametersRust, LidoValidatorStateRust},
     lido::LidoValidatorState,
@@ -16,10 +16,10 @@ pub async fn run(
     client: SP1ClientWrapper,
     bs_reader: impl BeaconStateReader,
     target_slot: u64,
-    network: Network,
+    network: impl NetworkInfo,
 ) -> anyhow::Result<()> {
     let network_config = network.get_config();
-    let network_name = network.as_str().to_owned();
+    let network_name = network.as_str();
     let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
     let target_bs = bs_reader.read_beacon_state(target_slot).await?;
 

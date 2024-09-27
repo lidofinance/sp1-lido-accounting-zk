@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::beacon_state_reader::BeaconStateReader;
-use crate::consts::Network;
+use crate::consts::{Network, NetworkInfo};
 use crate::proof_storage;
 use crate::scripts::prelude::Contract;
 use crate::scripts::shared as shared_logic;
@@ -21,7 +21,7 @@ pub async fn run(
     contract: Contract,
     target_slot: u64,
     prev_slot: Option<u64>,
-    network: Network,
+    network: impl NetworkInfo,
     flags: Flags,
 ) -> anyhow::Result<TxHash> {
     let previous_slot = if let Some(prev) = prev_slot {
@@ -32,7 +32,7 @@ pub async fn run(
 
     log::info!(
         "Submitting report for network {:?}, slot: {}, previous_slot: {}",
-        network,
+        network.as_str(),
         target_slot,
         previous_slot,
     );

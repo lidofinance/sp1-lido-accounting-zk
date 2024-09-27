@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use log;
+use sp1_lido_accounting_scripts::consts::NetworkInfo;
 use sp1_lido_accounting_scripts::scripts;
 
 #[derive(Parser, Debug)]

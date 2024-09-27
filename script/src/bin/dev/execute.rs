@@ -1,5 +1,5 @@
 use clap::Parser;
-use sp1_lido_accounting_scripts::scripts;
+use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]

@@ -11,12 +11,76 @@ pub struct NetworkConfig {
     pub lido_withdrawal_credentials: [u8; 32],
 }
 
+pub trait NetworkInfo {
+    fn as_str(&self) -> String;
+    fn get_config(&self) -> NetworkConfig;
+}
+
 #[derive(Debug)]
 pub enum Network {
     Mainnet,
     Sepolia,
     Holesky,
-    Anvil,
+}
+
+impl NetworkInfo for Network {
+    fn as_str(&self) -> String {
+        let value = match self {
+            Self::Mainnet => "mainnet",
+            Self::Sepolia => "sepolia",
+            Self::Holesky => "holesky",
+        };
+        value.to_owned()
+    }
+
+    fn get_config(&self) -> NetworkConfig {
+        match self {
+            Self::Mainnet => NetworkConfig {
+                chain_id: 1,
+                genesis_block_timestamp: 1606824023,
+                verifier: SP1_GATEWAY,
+                lido_withdrawal_credentials: lido_credentials::MAINNET,
+            },
+            Self::Sepolia => NetworkConfig {
+                chain_id: 11155111,
+                genesis_block_timestamp: 1655733600,
+                verifier: SP1_GATEWAY,
+                lido_withdrawal_credentials: lido_credentials::SEPOLIA,
+            },
+            Self::Holesky => NetworkConfig {
+                chain_id: 17000,
+                genesis_block_timestamp: 1695902400,
+                verifier: SP1_GATEWAY,
+                lido_withdrawal_credentials: lido_credentials::HOLESKY,
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum WrappedNetwork {
+    Anvil(Network),
+    Id(Network),
+}
+
+impl NetworkInfo for WrappedNetwork {
+    fn as_str(&self) -> String {
+        match self {
+            Self::Anvil(fork) => format!("anvil-{}", fork.as_str()),
+            Self::Id(network) => network.as_str().to_owned(),
+        }
+    }
+
+    fn get_config(&self) -> NetworkConfig {
+        match self {
+            Self::Id(network) => network.get_config(),
+            Self::Anvil(fork) => {
+                let mut fork_config = fork.get_config();
+                fork_config.chain_id = 31337;
+                fork_config
+            }
+        }
+    }
 }
 
 pub mod lido_credentials {
@@ -26,23 +90,35 @@ pub mod lido_credentials {
     pub const HOLESKY: [u8; 32] = hex!("010000000000000000000000F0179dEC45a37423EAD4FaD5fCb136197872EAd9");
 }
 
+pub fn read_network(val: &str) -> WrappedNetwork {
+    let is_anvil = val.starts_with("anvil");
+    let base_network: &str = if is_anvil {
+        let mut parts = val.splitn(2, "-");
+        parts.nth(1).unwrap()
+    } else {
+        val
+    };
+
+    let network = match base_network {
+        "mainnet" => Network::Mainnet,
+        "sepolia" => Network::Sepolia,
+        "holesky" => Network::Holesky,
+        _ => panic!("Unknown network"),
+    };
+
+    if is_anvil {
+        WrappedNetwork::Anvil(network)
+    } else {
+        WrappedNetwork::Id(network)
+    }
+}
+
 impl Network {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Mainnet => "mainnet",
             Self::Sepolia => "sepolia",
             Self::Holesky => "holesky",
-            Self::Anvil => "anvil",
-        }
-    }
-
-    pub fn from_str(val: &str) -> Option<Self> {
-        match val {
-            "mainnet" => Some(Self::Mainnet),
-            "sepolia" => Some(Self::Sepolia),
-            "holesky" => Some(Self::Holesky),
-            "anvil" => Some(Self::Anvil),
-            _ => None,
         }
     }
 
@@ -65,12 +141,6 @@ impl Network {
                 genesis_block_timestamp: 1695902400,
                 verifier: SP1_GATEWAY,
                 lido_withdrawal_credentials: lido_credentials::HOLESKY,
-            },
-            Self::Anvil => NetworkConfig {
-                chain_id: 31337,
-                genesis_block_timestamp: 1655733600,
-                verifier: SP1_GATEWAY,
-                lido_withdrawal_credentials: lido_credentials::MAINNET,
             },
         }
     }

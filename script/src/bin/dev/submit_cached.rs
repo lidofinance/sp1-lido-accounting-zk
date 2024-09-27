@@ -1,5 +1,5 @@
 use clap::Parser;
-use sp1_lido_accounting_scripts::consts::Network;
+use sp1_lido_accounting_scripts::consts::{self, NetworkInfo};
 use sp1_lido_accounting_scripts::{proof_storage, scripts};
 
 use std::env;
@@ -19,7 +19,7 @@ async fn main() {
     log::debug!("Args: {:?}", args);
 
     let chain = env::var("EVM_CHAIN").expect("Couldn't read EVM_CHAIN env var");
-    let network = Network::from_str(&chain).unwrap();
+    let network = consts::read_network(&chain);
 
     let contract = scripts::prelude::initialize_contract();
 

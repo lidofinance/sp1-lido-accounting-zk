@@ -1,5 +1,5 @@
 use crate::beacon_state_reader::BeaconStateReaderEnum;
-use crate::consts::{self, Network};
+use crate::consts::{self, WrappedNetwork};
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 use sp1_sdk::ProverClient;
 
@@ -31,9 +31,9 @@ pub enum Error {
     FailedToParseUrl,
 }
 
-pub fn initialize() -> (Network, SP1ClientWrapper, BeaconStateReaderEnum) {
+pub fn initialize() -> (WrappedNetwork, SP1ClientWrapper, BeaconStateReaderEnum) {
     let chain = env::var("EVM_CHAIN").expect("Couldn't read EVM_CHAIN env var");
-    let network = Network::from_str(&chain).unwrap();
+    let network = consts::read_network(&chain);
     let client = SP1ClientWrapper::new(ProverClient::network(), consts::ELF);
     let bs_reader = BeaconStateReaderEnum::new_from_env(&network);
 

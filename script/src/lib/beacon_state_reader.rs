@@ -2,7 +2,7 @@ use anyhow;
 
 use crate::beacon_state_reader::file::FileBasedBeaconStateReader;
 use crate::beacon_state_reader::reqwest::{CachedReqwestBeaconStateReader, ReqwestBeaconStateReader};
-use crate::consts::Network;
+use crate::consts::NetworkInfo;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 use std::env;
 use std::path::PathBuf;
@@ -36,7 +36,7 @@ impl BeaconStateReaderEnum {
         env::var(env_var).unwrap_or_else(|_| panic!("{env_var} must be specified for mode {mode}"))
     }
 
-    pub fn new_from_env(network: &Network) -> BeaconStateReaderEnum {
+    pub fn new_from_env(network: &impl NetworkInfo) -> BeaconStateReaderEnum {
         let bs_reader_mode_var = env::var("BS_READER_MODE").expect("Failed to read BS_READER_MODE from env");
 
         match bs_reader_mode_var.to_lowercase().as_str() {

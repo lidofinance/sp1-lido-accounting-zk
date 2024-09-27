@@ -30,4 +30,4 @@ __pycache__
 program/elf
 temp
 
-contracts/script/deploy_manifesto_anvil.json
+contracts/script/deploy_manifesto_anvil*.json
