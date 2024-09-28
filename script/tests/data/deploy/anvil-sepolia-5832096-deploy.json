@@ -5,7 +5,7 @@
   "withdrawal_credentials": "0x010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
   "genesis_timestamp": 1655733600,
   "initial_validator_state": {
-    "slot": 5887808,
-    "merkle_root": "0x045163336baf79b3c10b03894acb809ef617b09e86c33691fe65eeab531828c0"
+    "slot": 5832096,
+    "merkle_root": "0x918070ce0cb66881d6839965371f79a600bc26b50a363a17ac00a1b295f89113"
   }
 }

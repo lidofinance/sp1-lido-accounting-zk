@@ -44,6 +44,9 @@ pub enum Error {
     #[error("Sp1 verifier gateway rejected")]
     VerifierRejection(ISP1VerifierGatewayErrors),
 
+    #[error("Report not found")]
+    ReportNotFound(u64),
+
     #[error("Other alloy error")]
     AlloyError(alloy::contract::Error),
 }
@@ -173,6 +176,27 @@ where
         Ok(latest_report_slot.to::<u64>())
     }
 
+    pub async fn get_report(&self, slot: u64) -> Result<ReportRust, Error> {
+        let report_response = self
+            .contract
+            .getReport(U256::from(slot))
+            .call()
+            .await
+            .map_err(|e: alloy::contract::Error| self.map_alloy_error(e))?;
+
+        if !report_response.success {
+            return Err(Error::ReportNotFound(slot));
+        }
+
+        let report: ReportRust = ReportRust {
+            slot,
+            deposited_lido_validators: report_response.totalDepositedValidators.to(),
+            exited_lido_validators: report_response.totalExitedValidators.to(),
+            lido_cl_balance: report_response.clBalanceGwei.to(),
+        };
+        Ok(report)
+    }
+
     fn map_alloy_error(&self, error: alloy::contract::Error) -> Error {
         if let alloy::contract::Error::TransportError(alloy::transports::RpcError::ErrorResp(ref error_payload)) = error
         {
@@ -263,8 +287,8 @@ mod tests {
             withdrawal_credentials: hex!("010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76"),
             genesis_timestamp: 1655733600,
             initial_validator_state: LidoValidatorStateRust {
-                slot: 5887808,
-                merkle_root: hex!("045163336baf79b3c10b03894acb809ef617b09e86c33691fe65eeab531828c0"),
+                slot: 5832096,
+                merkle_root: hex!("918070ce0cb66881d6839965371f79a600bc26b50a363a17ac00a1b295f89113"),
             },
         }
     }
@@ -283,7 +307,7 @@ mod tests {
     #[test]
     fn deployment_parameters_from_file() {
         let deploy_args_file =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/deploy/anvil-sepolia-deploy.json");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/deploy/anvil-sepolia-5832096-deploy.json");
         let deploy_params: ContractDeployParametersRust =
             utils::read_json(deploy_args_file).expect("Failed to read deployment args");
 

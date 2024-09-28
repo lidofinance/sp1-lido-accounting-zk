@@ -24,9 +24,8 @@ async fn main() {
     let contract = scripts::prelude::initialize_contract();
 
     let file_name = format!("proof_{}_{}.json", network.as_str(), args.target_slot);
-    let proof_file = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../temp/proofs")
-        .join(file_name);
+    let proof_file =
+        PathBuf::from(env::var("PROOF_CACHE_DIR").expect("Couldn't read PROOF_CACHE_DIR env var")).join(file_name);
     let stored_proof =
         proof_storage::read_proof_and_metadata(proof_file.as_path()).expect("failed to read cached proof");
 
