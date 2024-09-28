@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use crate::beacon_state_reader::BeaconStateReader;
 use crate::consts::NetworkInfo;
+use crate::eth_client::Contract;
 use crate::proof_storage;
-use crate::scripts::prelude::Contract;
 use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 
@@ -59,9 +59,7 @@ pub async fn run(
 
     if flags.store {
         let file_name = format!("proof_{}_{}.json", network.as_str(), target_slot);
-        let proof_file = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../temp/proofs")
-            .join(file_name);
+        let proof_file = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(file_name);
         proof_storage::store_proof_and_metadata(&proof, client.vk(), proof_file.as_path());
     }
 

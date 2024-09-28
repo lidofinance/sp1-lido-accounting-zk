@@ -1,5 +1,6 @@
 use crate::beacon_state_reader::BeaconStateReader;
-use crate::eth_client::Sp1LidoAccountingReportContractWrapper;
+use crate::consts::NetworkInfo;
+use crate::eth_client::{DefaultProvider, Sp1LidoAccountingReportContractWrapper};
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 
 use alloy::providers::WalletProvider;
@@ -13,13 +14,10 @@ use std::{
 };
 use tree_hash::TreeHash;
 
-use crate::consts::NetworkInfo;
 use sp1_lido_accounting_zk_shared::{
     io::eth_io::{ContractDeployParametersRust, LidoValidatorStateRust},
     lido::LidoValidatorState,
 };
-
-use super::prelude::DefaultProvider;
 
 pub enum Source {
     Network { slot: u64 },

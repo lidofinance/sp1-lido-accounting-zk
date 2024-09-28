@@ -3,27 +3,16 @@ use crate::consts::{self, WrappedNetwork};
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 use sp1_sdk::ProverClient;
 
-use crate::eth_client::Sp1LidoAccountingReportContractWrapper;
+use crate::eth_client::{Contract, DefaultProvider, ProviderFactory, Sp1LidoAccountingReportContractWrapper};
 use alloy::primitives::Address;
 
 use std::env;
 use thiserror::Error;
 
-use alloy::network::EthereumWallet;
 use alloy::transports::http::reqwest::Url;
-
-use alloy::{providers::ProviderBuilder, signers::local::PrivateKeySigner};
-use eyre::Result;
-use k256;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Failed to convert string to hex")]
-    FromHexError,
-    #[error("Failed to parse private key")]
-    ParsePrivateKeyError,
-    #[error("Failed to deserialize private key")]
-    DeserializePrivateKeyError,
     #[error("Failed to read env var")]
     FailedToReadEnvVar(String),
 
@@ -40,47 +29,11 @@ pub fn initialize() -> (WrappedNetwork, SP1ClientWrapper, BeaconStateReaderEnum)
     (network, client, bs_reader)
 }
 
-fn decode_key(private_key_raw: &str) -> Result<k256::SecretKey, Error> {
-    let key_str = private_key_raw
-        .split("0x")
-        .last()
-        .ok_or(Error::ParsePrivateKeyError)?
-        .trim();
-    let key_hex = hex::decode(key_str).map_err(|_e| Error::FromHexError)?;
-    let key = k256::SecretKey::from_bytes((&key_hex[..]).into()).map_err(|_e| Error::DeserializePrivateKeyError)?;
-    Ok(key)
-}
-
-pub type DefaultProvider = alloy::providers::fillers::FillProvider<
-    alloy::providers::fillers::JoinFill<
-        alloy::providers::fillers::JoinFill<
-            alloy::providers::fillers::JoinFill<
-                alloy::providers::fillers::JoinFill<alloy::providers::Identity, alloy::providers::fillers::GasFiller>,
-                alloy::providers::fillers::NonceFiller,
-            >,
-            alloy::providers::fillers::ChainIdFiller,
-        >,
-        alloy::providers::fillers::WalletFiller<EthereumWallet>,
-    >,
-    alloy::providers::RootProvider<alloy::transports::http::Http<reqwest::Client>>,
-    alloy::transports::http::Http<reqwest::Client>,
-    alloy::network::Ethereum,
->;
-
-pub type Contract =
-    Sp1LidoAccountingReportContractWrapper<DefaultProvider, alloy::transports::http::Http<reqwest::Client>>;
-
 pub fn initialize_provider() -> DefaultProvider {
     let raw_endpoint: String = env::var("EXECUTION_LAYER_RPC").expect("Couldn't read EXECUTION_LAYER_RPC env var");
     let endpoint: Url = raw_endpoint.parse().expect("Couldn't parse endpoint URL");
     let private_key = env::var("PRIVATE_KEY").expect("Failed to read PRIVATE_KEY env var");
-    let key = decode_key(&private_key).expect("Failed to decode private key");
-    let signer: PrivateKeySigner = PrivateKeySigner::from(key);
-    let wallet: EthereumWallet = EthereumWallet::from(signer);
-    ProviderBuilder::new()
-        .with_recommended_fillers()
-        .wallet(wallet)
-        .on_http(endpoint)
+    ProviderFactory::create_provider_decode_key(private_key, endpoint)
 }
 
 // TODO: simplify return type

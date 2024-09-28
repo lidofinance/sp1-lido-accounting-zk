@@ -1,18 +1,24 @@
 use alloy::network::Ethereum;
+use alloy::network::EthereumWallet;
 use alloy::primitives::Address;
+use alloy::providers::ProviderBuilder;
+use alloy::signers::local::PrivateKeySigner;
+use alloy::sol;
+use alloy::transports::http::reqwest::Url;
+use alloy::transports::Transport;
 use alloy_primitives::U256;
+
+use core::clone::Clone;
+use eyre::Result;
+use k256;
+use ISP1VerifierGateway::ISP1VerifierGatewayErrors;
+
 use sp1_lido_accounting_zk_shared::io::eth_io::{
     ContractDeployParametersRust, LidoValidatorStateRust, ReportMetadataRust, ReportRust,
 };
-use ISP1VerifierGateway::ISP1VerifierGatewayErrors;
+use thiserror::Error;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
-
-use alloy::sol;
-use alloy::transports::Transport;
-use core::clone::Clone;
-use eyre::Result;
-use thiserror::Error;
 
 sol!(
     #[allow(missing_docs)]
@@ -167,5 +173,62 @@ where
         } else {
             Error::AlloyError(error)
         }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ProviderError {
+    #[error("Failed to convert string to hex")]
+    FromHexError,
+    #[error("Failed to parse private key")]
+    ParsePrivateKeyError,
+    #[error("Failed to deserialize private key")]
+    DeserializePrivateKeyError,
+}
+
+pub type DefaultProvider = alloy::providers::fillers::FillProvider<
+    alloy::providers::fillers::JoinFill<
+        alloy::providers::fillers::JoinFill<
+            alloy::providers::fillers::JoinFill<
+                alloy::providers::fillers::JoinFill<alloy::providers::Identity, alloy::providers::fillers::GasFiller>,
+                alloy::providers::fillers::NonceFiller,
+            >,
+            alloy::providers::fillers::ChainIdFiller,
+        >,
+        alloy::providers::fillers::WalletFiller<EthereumWallet>,
+    >,
+    alloy::providers::RootProvider<alloy::transports::http::Http<reqwest::Client>>,
+    alloy::transports::http::Http<reqwest::Client>,
+    alloy::network::Ethereum,
+>;
+
+pub type Contract =
+    Sp1LidoAccountingReportContractWrapper<DefaultProvider, alloy::transports::http::Http<reqwest::Client>>;
+pub struct ProviderFactory {}
+impl ProviderFactory {
+    fn decode_key(private_key_raw: &str) -> Result<k256::SecretKey, ProviderError> {
+        let key_str = private_key_raw
+            .split("0x")
+            .last()
+            .ok_or(ProviderError::ParsePrivateKeyError)?
+            .trim();
+        let key_hex = hex::decode(key_str).map_err(|_e| ProviderError::FromHexError)?;
+        let key = k256::SecretKey::from_bytes((&key_hex[..]).into())
+            .map_err(|_e| ProviderError::DeserializePrivateKeyError)?;
+        Ok(key)
+    }
+
+    pub fn create_provider(key: k256::SecretKey, endpoint: Url) -> DefaultProvider {
+        let signer: PrivateKeySigner = PrivateKeySigner::from(key);
+        let wallet: EthereumWallet = EthereumWallet::from(signer);
+        ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_http(endpoint)
+    }
+
+    pub fn create_provider_decode_key(key_str: String, endpoint: Url) -> DefaultProvider {
+        let key = Self::decode_key(&key_str).expect("Failed to decode private key");
+        Self::create_provider(key, endpoint)
     }
 }
