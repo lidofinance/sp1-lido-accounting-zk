@@ -2,11 +2,14 @@ use crate::beacon_state_reader::BeaconStateReader;
 use crate::eth_client::Sp1LidoAccountingReportContractWrapper;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 
+use alloy::providers::WalletProvider;
+use alloy_primitives::Address;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 use tree_hash::TreeHash;
 
@@ -60,6 +63,30 @@ async fn read_from_file(slot: u64, file: &Path) -> anyhow::Result<ContractDeploy
     }
 }
 
+async fn verify(contracts_dir: &Path, address: &Address) -> anyhow::Result<()> {
+    let address_str = hex::encode(address);
+    log::debug!("Contracts folder {:#?}", contracts_dir.as_os_str());
+    log::info!("Verifying contract at {}", address_str);
+
+    let mut command = Command::new("forge");
+    command
+        .current_dir(contracts_dir)
+        .arg("verify-contract")
+        .arg(address_str)
+        .arg("Sp1LidoAccountingReportContract")
+        .arg("--watch");
+
+    log::debug!("Verification command {:#?}", command);
+    command.status()?;
+    log::info!("Verified successfully");
+    Ok(())
+}
+
+pub enum Verification {
+    Skip,
+    Verify { contracts_path: PathBuf },
+}
+
 pub async fn run(
     client: SP1ClientWrapper,
     bs_reader: impl BeaconStateReader,
@@ -68,6 +95,7 @@ pub async fn run(
     network: impl NetworkInfo,
     write_manifesto: Option<String>,
     dry_run: bool,
+    verification: Verification,
 ) -> anyhow::Result<()> {
     let deploy_params = match source {
         Source::Network { slot } => read_form_network(client, bs_reader, network, slot).await?,
@@ -87,15 +115,22 @@ pub async fn run(
         log::info!("Deploy manifesto {:?}", deploy_params);
     }
 
-    if !dry_run {
-        log::info!("Deploying contract");
-        let deployed = Sp1LidoAccountingReportContractWrapper::deploy(provider, &deploy_params)
-            .await
-            // .map_err(|e| anyhow::anyhow!("Failed to deploy {:?}", e))?;
-            .expect("Failed to deploy");
-        log::info!("Deployed contract to {}", deployed.address())
-    } else {
+    if dry_run {
         log::info!("Dryrun is set, not deploying");
+        return anyhow::Ok(());
+    }
+
+    log::info!("Deploying contract");
+    log::debug!("Deploying as {}", hex::encode(provider.default_signer_address()));
+    let deployed = Sp1LidoAccountingReportContractWrapper::deploy(provider, &deploy_params)
+        .await
+        // .map_err(|e| anyhow::anyhow!("Failed to deploy {:?}", e))?;
+        .expect("Failed to deploy");
+    log::info!("Deployed contract to {}", deployed.address());
+
+    match verification {
+        Verification::Skip => log::info!("Skipping verification"),
+        Verification::Verify { contracts_path } => verify(contracts_path.as_path(), deployed.address()).await?,
     }
 
     anyhow::Ok(())

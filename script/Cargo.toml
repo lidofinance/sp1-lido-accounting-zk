@@ -20,6 +20,10 @@ path = "src/bin/dev/submit_cached.rs"
 name = "submit"
 path = "src/bin/submit.rs"
 
+[[bin]]
+name = "deploy"
+path = "src/bin/dev/deploy.rs"
+
 [[example]]
 name = "ssz_e2e_test"
 path = "examples/ssz_e2e_test.rs"
@@ -48,10 +52,6 @@ required-features = ["synthetic"]
 [[example]]
 name = "read_bs_pair"
 path = "examples/read_bs_pair.rs"
-
-[[bin]]
-name = "deploy"
-path = "src/bin/deploy.rs"
 
 [lib]
 name = "sp1_lido_accounting_scripts"
