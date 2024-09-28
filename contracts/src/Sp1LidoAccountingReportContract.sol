@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
 
 struct Report {
@@ -28,7 +29,7 @@ struct PublicValues {
     ReportMetadata metadata;
 }
 
-contract Sp1LidoAccountingReportContract {
+contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     event ReportAccepted(Report report);
     // This should later become an error
     event ReportRejected(string reason);
@@ -231,10 +232,26 @@ contract Sp1LidoAccountingReportContract {
         );
     }
 
-    function getReport(
-        uint256 slot
-    ) public view returns (Report memory result) {
-        return (_reports[slot]);
+    function getReport(uint256 refSlot) external view returns ( 
+		bool success, 
+		uint256 clBalanceGwei, 
+		uint256 withdrawalVaultBalanceWei, 
+		uint256 totalDepositedValidators, 
+		uint256 totalExitedValidators 
+	) {
+        Report storage report = _reports[refSlot];
+        // This check handles two conditions:
+        // 1. Report is not found for a given slot - report.slot will be 0
+        // 2. Something messed up with the reporting storare, and report for a different
+        //    slot is stored there. Technically this is not necessary since it is ensured by
+        //    the write-side invariants (in _verify), 
+        //    but this adds read-side check at no additional cost, so why not.
+        success = report.slot == refSlot;
+
+        clBalanceGwei = report.lido_cl_balance;
+        withdrawalVaultBalanceWei = 0; // withdrawal vault is not reported yet
+        totalDepositedValidators = report.deposited_lido_validators;
+        totalExitedValidators = report.exited_lido_validators;
     }
 
     function _recordReport(uint256 slot, Report memory report) internal {
