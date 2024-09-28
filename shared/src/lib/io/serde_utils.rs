@@ -5,7 +5,7 @@ pub mod serde_hex_as_string {
     pub struct FixedHexStringProtocol<const N: usize> {}
 
     impl<const N: usize> FixedHexStringProtocol<N> {
-        pub fn serialize<'a, S>(value: &'a [u8], serializer: S) -> Result<S::Ok, S::Error>
+        pub fn serialize<S>(value: &[u8], serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
         {
@@ -27,7 +27,7 @@ pub mod serde_hex_as_string {
 
     pub struct HexStringProtocol {}
     impl HexStringProtocol {
-        pub fn serialize<'a, S>(value: &'a Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+        pub fn serialize<S>(value: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
         {

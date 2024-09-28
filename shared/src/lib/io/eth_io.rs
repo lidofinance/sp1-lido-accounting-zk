@@ -5,11 +5,15 @@ use crate::io::serde_utils::serde_hex_as_string;
 
 pub mod conversions {
     pub fn u64_to_uint256(value: u64) -> alloy_primitives::U256 {
-        return value.try_into().expect(&format!("Failed to convert {} to u256", value));
+        value
+            .try_into()
+            .unwrap_or_else(|_| panic!("Failed to convert {} to u256", value))
     }
 
     pub fn uint256_to_u64(value: alloy_primitives::U256) -> u64 {
-        return value.try_into().expect(&format!("Failed to convert {} to u64", value));
+        value
+            .try_into()
+            .unwrap_or_else(|_| panic!("Failed to convert {} to u64", value))
     }
 }
 
@@ -162,17 +166,4 @@ impl From<PublicValuesRust> for PublicValuesSolidity {
             metadata: value.metadata.into(),
         }
     }
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
-pub struct ContractDeployParametersRust {
-    pub network: String,
-    #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<20>")]
-    pub verifier: [u8; 20],
-    #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
-    pub vkey: [u8; 32],
-    #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
-    pub withdrawal_credentials: [u8; 32],
-    pub genesis_timestamp: u64,
-    pub initial_validator_state: LidoValidatorStateRust,
 }

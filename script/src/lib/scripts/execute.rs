@@ -5,7 +5,7 @@ use crate::sp1_client_wrapper::SP1ClientWrapper;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 
 pub async fn run(
-    client: SP1ClientWrapper,
+    client: impl SP1ClientWrapper,
     bs_reader: impl BeaconStateReader,
     target_slot: u64,
     previous_slot: u64,

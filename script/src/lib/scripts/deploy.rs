@@ -1,23 +1,20 @@
 use crate::beacon_state_reader::BeaconStateReader;
 use crate::consts::NetworkInfo;
-use crate::eth_client::{DefaultProvider, Sp1LidoAccountingReportContractWrapper};
+use crate::eth_client::{ContractDeployParametersRust, DefaultProvider, Sp1LidoAccountingReportContractWrapper};
 use crate::sp1_client_wrapper::SP1ClientWrapper;
+use crate::utils;
 
 use alloy::providers::WalletProvider;
 use alloy_primitives::Address;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 
 use std::{
-    fs,
     path::{Path, PathBuf},
     process::Command,
 };
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::{
-    io::eth_io::{ContractDeployParametersRust, LidoValidatorStateRust},
-    lido::LidoValidatorState,
-};
+use sp1_lido_accounting_zk_shared::{io::eth_io::LidoValidatorStateRust, lido::LidoValidatorState};
 
 pub enum Source {
     Network { slot: u64 },
@@ -25,7 +22,7 @@ pub enum Source {
 }
 
 async fn read_form_network(
-    client: SP1ClientWrapper,
+    client: impl SP1ClientWrapper,
     bs_reader: impl BeaconStateReader,
     network: impl NetworkInfo,
     target_slot: u64,
@@ -52,8 +49,7 @@ async fn read_form_network(
 
 async fn read_from_file(slot: u64, file: &Path) -> anyhow::Result<ContractDeployParametersRust> {
     log::info!("Reading deploy parameters for {} from {:?}", slot, file.as_os_str());
-    let file_content = fs::read(file)?;
-    let deploy_params: ContractDeployParametersRust = serde_json::from_slice(file_content.as_slice())?;
+    let deploy_params: ContractDeployParametersRust = utils::read_json(file)?;
     if deploy_params.initial_validator_state.slot == slot {
         Ok(deploy_params)
     } else {
@@ -86,7 +82,7 @@ pub enum Verification {
 }
 
 pub async fn run(
-    client: SP1ClientWrapper,
+    client: impl SP1ClientWrapper,
     bs_reader: impl BeaconStateReader,
     source: Source,
     provider: DefaultProvider,

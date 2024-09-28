@@ -1,8 +1,7 @@
+use crate::utils::{read_binary, read_json};
 use log;
-use serde::de::DeserializeOwned;
 use ssz::{Decode, Encode};
-use std::fs::File;
-use std::io::{self, BufReader, Read};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
@@ -16,10 +15,8 @@ pub struct FileBasedBeaconChainStore {
 
 impl FileBasedBeaconChainStore {
     pub fn new(store_location: &Path) -> Self {
-        let abs_path = Self::abs_path(PathBuf::from(store_location)).expect(&format!(
-            "Failed to convert {} into absolute path",
-            store_location.display()
-        ));
+        let abs_path = Self::abs_path(PathBuf::from(store_location))
+            .unwrap_or_else(|_| panic!("Failed to convert {} into absolute path", store_location.display()));
         Self {
             store_location: abs_path,
         }
@@ -48,7 +45,7 @@ impl FileBasedBeaconChainStore {
         } else {
             log::debug!("Path does not exist ({:?})", path);
         }
-        return result;
+        result
     }
 
     pub fn ensure_exists(&self) -> io::Result<()> {
@@ -63,23 +60,6 @@ impl FileBasedBeaconChainStore {
 
 pub struct FileBasedBeaconStateReader {
     file_store: FileBasedBeaconChainStore,
-}
-
-pub fn read_binary<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
-    let mut file = File::open(path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-    Ok(buffer)
-}
-
-pub async fn read_untyped_json<P: AsRef<Path>>(path: P) -> anyhow::Result<serde_json::Value> {
-    let file = File::open(path)?;
-    serde_json::from_reader(BufReader::new(file)).map_err(|e| anyhow::anyhow!("Couldn't parse json {:#?}", e))
-}
-
-pub async fn read_json<P: AsRef<Path>, T: DeserializeOwned>(path: P) -> anyhow::Result<T> {
-    let file = File::open(path)?;
-    serde_json::from_reader(BufReader::new(file)).map_err(|e| anyhow::anyhow!("Couldn't parse json {:#?}", e))
 }
 
 impl FileBasedBeaconStateReader {
@@ -103,7 +83,7 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
     async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader> {
         let beacon_block_header_path = self.file_store.get_beacon_block_header_path(slot);
         log::info!("Reading BeaconBlock from file {:?}", &beacon_block_header_path);
-        let res: BeaconBlockHeader = read_json(&beacon_block_header_path).await?;
+        let res: BeaconBlockHeader = read_json(&beacon_block_header_path)?;
         Ok(res)
     }
 }

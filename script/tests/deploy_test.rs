@@ -1,21 +1,21 @@
-use std::{fs, path::PathBuf};
+use std::{env, path::PathBuf};
 
 use alloy::node_bindings::Anvil;
 use alloy::transports::http::reqwest::Url;
 
-use sp1_lido_accounting_scripts::eth_client::{ProviderFactory, Sp1LidoAccountingReportContractWrapper};
-use sp1_lido_accounting_zk_shared::io::eth_io::ContractDeployParametersRust;
-
 use eyre::Result;
+use sp1_lido_accounting_scripts::{
+    eth_client::{ContractDeployParametersRust, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
+    utils,
+};
 
 #[tokio::test]
-async fn main() -> Result<()> {
+async fn deploy() -> Result<()> {
     simple_logger::init().unwrap();
-    let deploy_args_file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/anvil-sepolia-deploy.json");
-
-    println!("{}", deploy_args_file.display());
-    let deploy_args_str = fs::read(deploy_args_file)?;
-    let deploy_params: ContractDeployParametersRust = serde_json::from_slice(deploy_args_str.as_slice())?;
+    let deploy_args_file =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/deploy/anvil-sepolia-deploy.json");
+    let deploy_params: ContractDeployParametersRust =
+        utils::read_json(deploy_args_file).expect("Failed to read deployment args");
 
     let anvil = Anvil::new().block_time(1).try_spawn()?;
     let endpoint: Url = anvil.endpoint().parse()?;

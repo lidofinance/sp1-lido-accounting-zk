@@ -5,7 +5,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use super::file::{read_untyped_json, FileBasedBeaconChainStore};
+use super::file::FileBasedBeaconChainStore;
+use crate::utils::read_untyped_json;
 
 pub enum BalanceGenerationMode {
     RANDOM,
@@ -141,7 +142,7 @@ impl SyntheticBeaconStateCreator {
 
     async fn read_manifesto_from_file(&self, file_path: &Path) -> Result<serde_json::Value> {
         log::info!("Reading manifesto from file {:?}", file_path);
-        let res = read_untyped_json(file_path).await?;
+        let res = read_untyped_json(file_path)?;
         Ok(res)
     }
 

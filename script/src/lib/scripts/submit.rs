@@ -16,7 +16,7 @@ pub struct Flags {
 }
 
 pub async fn run(
-    client: SP1ClientWrapper,
+    client: impl SP1ClientWrapper,
     bs_reader: impl BeaconStateReader,
     contract: Contract,
     target_slot: u64,

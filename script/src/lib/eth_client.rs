@@ -7,15 +7,15 @@ use alloy::sol;
 use alloy::transports::http::reqwest::Url;
 use alloy::transports::Transport;
 use alloy_primitives::U256;
+use serde::{Deserialize, Serialize};
 
 use core::clone::Clone;
 use eyre::Result;
 use k256;
 use ISP1VerifierGateway::ISP1VerifierGatewayErrors;
 
-use sp1_lido_accounting_zk_shared::io::eth_io::{
-    ContractDeployParametersRust, LidoValidatorStateRust, ReportMetadataRust, ReportRust,
-};
+use sp1_lido_accounting_zk_shared::io::eth_io::{LidoValidatorStateRust, ReportMetadataRust, ReportRust};
+use sp1_lido_accounting_zk_shared::io::serde_utils::serde_hex_as_string;
 use thiserror::Error;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
@@ -79,6 +79,19 @@ impl From<ReportMetadataRust> for Sp1LidoAccountingReportContract::ReportMetadat
             new_state: value.new_state.into(),
         }
     }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+pub struct ContractDeployParametersRust {
+    pub network: String,
+    #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<20>")]
+    pub verifier: [u8; 20],
+    #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
+    pub vkey: [u8; 32],
+    #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
+    pub withdrawal_credentials: [u8; 32],
+    pub genesis_timestamp: u64,
+    pub initial_validator_state: LidoValidatorStateRust,
 }
 
 pub struct Sp1LidoAccountingReportContractWrapper<P, T: Transport + Clone>
@@ -230,5 +243,50 @@ impl ProviderFactory {
     pub fn create_provider_decode_key(key_str: String, endpoint: Url) -> DefaultProvider {
         let key = Self::decode_key(&key_str).expect("Failed to decode private key");
         Self::create_provider(key, endpoint)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use crate::utils;
+
+    use super::*;
+    use hex_literal::hex;
+
+    fn default_params() -> ContractDeployParametersRust {
+        ContractDeployParametersRust {
+            network: "anvil-sepolia".to_owned(),
+            verifier: hex!("3b6041173b80e77f038f3f2c0f9744f04837185e"),
+            vkey: hex!("00ef920869ce612ffdb77d73a149e972ae27637a60e9da8520131063329ffe6f"),
+            withdrawal_credentials: hex!("010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76"),
+            genesis_timestamp: 1655733600,
+            initial_validator_state: LidoValidatorStateRust {
+                slot: 5887808,
+                merkle_root: hex!("045163336baf79b3c10b03894acb809ef617b09e86c33691fe65eeab531828c0"),
+            },
+        }
+    }
+
+    #[test]
+    fn deployment_parameters_serde() {
+        let params = default_params();
+
+        let serialized = serde_json::to_string_pretty(&params).expect("Failed to serialize");
+        let deserialized: ContractDeployParametersRust =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
+
+        assert_eq!(params, deserialized);
+    }
+
+    #[test]
+    fn deployment_parameters_from_file() {
+        let deploy_args_file =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/deploy/anvil-sepolia-deploy.json");
+        let deploy_params: ContractDeployParametersRust =
+            utils::read_json(deploy_args_file).expect("Failed to read deployment args");
+
+        assert_eq!(deploy_params, default_params());
     }
 }
