@@ -14,6 +14,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
     Sp1LidoAccountingReportContractControllable public _contract;
 
     uint256 public immutable GENESIS_BLOCK_TIMESTAMP = 1606824023;
+    uint256 public immutable SECONDS_PER_SLOT = 12;
+
 
     struct SP1ProofFixtureJson {
         bytes32 vkey;
@@ -76,12 +78,22 @@ contract Sp1LidoAccountingReportContractTest is Test {
         );
     }
 
+    function getSlotTimestamp(uint256 slot) internal view returns (uint256) {
+        uint256 timestamp = _contract.GENESIS_BLOCK_TIMESTAMP() + ((slot + 1) * _contract.SECONDS_PER_SLOT());
+        return (timestamp);
+    }
+
+    function setBeaconBlockHash(uint256 slot, bytes32 expected_hash) internal {
+        uint256 reportBlockTimestamp = getSlotTimestamp(slot);
+        vm.mockCall(_contract.BEACON_ROOTS(), abi.encode(reportBlockTimestamp), abi.encode(expected_hash));
+
+        vm.warp(reportBlockTimestamp + 15 * _contract.SECONDS_PER_SLOT());
+    }
+
     function test_validProof() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
-        _contract.setBeaconBlockHash(
-            fixture.metadata.slot,
-            fixture.metadata.beacon_block_hash
-        );
+
+        setBeaconBlockHash(fixture.metadata.slot, fixture.metadata.beacon_block_hash);
         vm.mockCall(
             verifier,
             abi.encodeWithSelector(SP1VerifierGateway.verifyProof.selector),
@@ -100,7 +112,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
     function test_validProofWrongExpectedSlot_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
-        _contract.setBeaconBlockHash(
+        setBeaconBlockHash(
             fixture.metadata.slot,
             fixture.metadata.beacon_block_hash
         );
@@ -124,7 +136,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         SP1ProofFixtureJson memory fixture = loadFixture();
         bytes32 expectedHash = 0x1111111100000000000000000000000000000000000000000000000022222222;
 
-        _contract.setBeaconBlockHash(fixture.metadata.slot, expectedHash);
+        setBeaconBlockHash(fixture.metadata.slot, expectedHash);
         vm.mockCall(
             verifier,
             abi.encodeWithSelector(SP1VerifierGateway.verifyProof.selector),
@@ -144,7 +156,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
     function test_validProofWrongLidoWithdrawalCredentials_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
-        _contract.setBeaconBlockHash(
+        setBeaconBlockHash(
             fixture.metadata.slot,
             fixture.metadata.beacon_block_hash
         );
@@ -167,7 +179,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
     function test_invalidProof_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
-        _contract.setBeaconBlockHash(
+        setBeaconBlockHash(
             fixture.metadata.slot,
             fixture.metadata.beacon_block_hash
         );
@@ -192,7 +204,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
     function test_invalidPublicValues_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
-        _contract.setBeaconBlockHash(
+        setBeaconBlockHash(
             fixture.metadata.slot,
             fixture.metadata.beacon_block_hash
         );
@@ -219,7 +231,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         SP1ProofFixtureJson memory fixture = loadFixture();
         fixture.metadata.old_state.slot = 1111111;
 
-        _contract.setBeaconBlockHash(
+        setBeaconBlockHash(
             fixture.metadata.slot,
             fixture.metadata.beacon_block_hash
         );
@@ -246,7 +258,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
             .old_state
             .merkle_root = 0x0102030405060708090000000000000000000000000000000000000000000000;
 
-        _contract.setBeaconBlockHash(
+        setBeaconBlockHash(
             fixture.metadata.slot,
             fixture.metadata.beacon_block_hash
         );

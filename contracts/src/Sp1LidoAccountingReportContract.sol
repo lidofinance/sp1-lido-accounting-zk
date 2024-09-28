@@ -39,7 +39,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     mapping(uint256 => bytes32) private _states;
     address public immutable VERIFIER;
     bytes32 public immutable VKEY;
-
     bytes32 public immutable WITHDRAWAL_CREDENTIALS;
 
     uint256 _latestValidatorStateSlot;
@@ -52,7 +51,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
 
     /// @notice The address of the beacon roots precompile.
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
-    address internal constant BEACON_ROOTS =
+    address public constant BEACON_ROOTS =
         0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
 
     /// @notice The length of the beacon roots ring buffer.
@@ -304,7 +303,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
             ((slot + 1) * SECONDS_PER_SLOT);
 
         uint256 earliestBlockTimestamp = block.timestamp -
-            (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SECONDS_PER_SLOT);
+            (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SECONDS_PER_SLOT);            
         if (currBlockTimestamp <= earliestBlockTimestamp) {
             revert TimestampOutOfRange(TimestampOutOfRangeData({
                 target_slot: slot,

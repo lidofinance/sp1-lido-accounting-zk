@@ -16,18 +16,6 @@ contract Sp1LidoAccountingReportContractControllable is
         LidoValidatorState memory _initial_state
     ) Sp1LidoAccountingReportContract(_verifier, _vkey, _lido_withdrawal_credentials, _genesis_timestamp, _initial_state)  {
     }
-    
-    function setBeaconBlockHash(uint256 slot, bytes32 beaconBlockHash) public {
-        _beaconBlockHashes[slot] = beaconBlockHash;
-    }
-
-    function _getBeaconBlockHash(
-        uint256 slot
-    ) internal view override returns (bytes32) {
-        bytes32 result = _beaconBlockHashes[slot];
-        require(result != 0, "Block hash is not set for target slot");
-        return result;
-    }
 
     function verify(
         uint256 slot,
