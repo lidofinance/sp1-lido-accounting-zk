@@ -77,11 +77,10 @@ pub fn initialize_provider() -> DefaultProvider {
     let key = decode_key(&private_key).expect("Failed to decode private key");
     let signer: PrivateKeySigner = PrivateKeySigner::from(key);
     let wallet: EthereumWallet = EthereumWallet::from(signer);
-    let provider = ProviderBuilder::new()
+    ProviderBuilder::new()
         .with_recommended_fillers()
         .wallet(wallet)
-        .on_http(endpoint);
-    provider
+        .on_http(endpoint)
 }
 
 // TODO: simplify return type
@@ -89,7 +88,7 @@ pub fn initialize_contract() -> Contract {
     let address: Address = env::var("CONTRACT_ADDRESS")
         .expect("Failed to read CONTRACT_ADDRESS env var")
         .parse()
-        .expect("Failed to parse CONTRACT_ADDRESS into URL");
+        .expect("Failed to parse CONTRACT_ADDRESS into Address");
     let provider = initialize_provider();
     Sp1LidoAccountingReportContractWrapper::new(provider, address)
 }
