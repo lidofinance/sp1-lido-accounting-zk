@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 
 use sp1_lido_accounting_scripts::consts::NetworkInfo;
@@ -26,12 +28,15 @@ async fn main() {
         args.previous_slot
     );
 
+    let fixture_file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/test/fixtures/fixture.json");
+
     scripts::write_test_fixture::run(
         client,
         bs_reader,
         args.target_slot,
         args.previous_slot,
         &network.get_config().lido_withdrawal_credentials,
+        fixture_file.as_path(),
     )
     .await
     .expect("Failed to run `write_test_fixture");

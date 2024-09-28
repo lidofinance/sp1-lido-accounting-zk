@@ -25,7 +25,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
     function loadFixture() public view returns (SP1ProofFixtureJson memory) {
         string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/src/fixtures/fixture.json");
+        string memory path = string.concat(root, "/test/fixtures/fixture.json");
         string memory json = vm.readFile(path);
         // This should be
         // return abi.decode(json.parseRaw("."), (SP1ProofFixtureJson));
