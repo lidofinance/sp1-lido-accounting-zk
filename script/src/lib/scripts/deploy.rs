@@ -57,7 +57,7 @@ async fn read_from_file(slot: u64, file: &Path) -> anyhow::Result<ContractDeploy
     }
 }
 
-async fn verify(contracts_dir: &Path, address: &Address) -> anyhow::Result<()> {
+async fn verify(contracts_dir: &Path, address: &Address, chain_id: u64) -> anyhow::Result<()> {
     let address_str = hex::encode(address);
     log::debug!("Contracts folder {:#?}", contracts_dir.as_os_str());
     log::info!("Verifying contract at {}", address_str);
@@ -68,6 +68,7 @@ async fn verify(contracts_dir: &Path, address: &Address) -> anyhow::Result<()> {
         .arg("verify-contract")
         .arg(address_str)
         .arg("Sp1LidoAccountingReportContract")
+        .args(["--chain_id", &chain_id.to_string()])
         .arg("--watch");
 
     log::debug!("Verification command {:#?}", command);
@@ -78,7 +79,7 @@ async fn verify(contracts_dir: &Path, address: &Address) -> anyhow::Result<()> {
 
 pub enum Verification {
     Skip,
-    Verify { contracts_path: PathBuf },
+    Verify { contracts_path: PathBuf, chain_id: u64 },
 }
 
 pub async fn run(
@@ -91,6 +92,13 @@ pub async fn run(
     dry_run: bool,
     verification: Verification,
 ) -> anyhow::Result<()> {
+    if let Verification::Verify {
+        contracts_path,
+        chain_id,
+    } = verification
+    {
+        panic!("Verification is incomplete yet");
+    }
     let deploy_params = match source {
         Source::Network { slot } => read_form_network(client, bs_reader, network, slot).await?,
         Source::File { slot, path } => read_from_file(slot, &path).await?,
@@ -124,7 +132,10 @@ pub async fn run(
 
     match verification {
         Verification::Skip => log::info!("Skipping verification"),
-        Verification::Verify { contracts_path } => verify(contracts_path.as_path(), deployed.address()).await?,
+        Verification::Verify {
+            contracts_path,
+            chain_id,
+        } => verify(contracts_path.as_path(), deployed.address(), chain_id).await?,
     }
 
     anyhow::Ok(())

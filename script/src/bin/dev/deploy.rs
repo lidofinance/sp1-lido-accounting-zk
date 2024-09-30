@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use sp1_lido_accounting_scripts::scripts;
+use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts};
 
 /*
 Run variants:
@@ -10,6 +10,9 @@ cargo run --bin deploy --release -- --target-slot 5887808 --store "../temp/deplo
 
 * Read from manifesto and deploy
 cargo run --bin deploy --release -- --target-slot 5887808 --source "../temp/deploy/${EVM_CHAIN}-deploy.json"
+
+* Read from manifesto, deploy and verify
+cargo run --bin deploy --release -- --target-slot 5887808 --source "../temp/deploy/${EVM_CHAIN}-deploy.json" --verify
 
 * Read from network and deploy, don't save manifest
 cargo run --bin deploy --release -- --target-slot 5887808
@@ -53,10 +56,13 @@ async fn main() {
         scripts::deploy::Source::Network { slot: args.target_slot }
     };
 
+    let network_config = network.get_config();
+
     let verification = if args.verify {
         let constracts_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/");
         scripts::deploy::Verification::Verify {
             contracts_path: constracts_dir,
+            chain_id: network_config.chain_id,
         }
     } else {
         scripts::deploy::Verification::Skip
