@@ -1,6 +1,8 @@
 use clap::Parser;
 use sp1_lido_accounting_scripts::scripts;
 
+// cargo run --bin submit --release -- --target-slot 5982336 --store --local-verify
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct ProveArgs {
@@ -10,6 +12,8 @@ struct ProveArgs {
     previous_slot: Option<u64>,
     #[clap(long, required = false)]
     store: bool,
+    #[clap(long, required = false)]
+    local_verify: bool,
 }
 
 #[tokio::main]
@@ -29,7 +33,7 @@ async fn main() {
         args.previous_slot,
         network,
         scripts::submit::Flags {
-            verify: true,
+            verify: args.local_verify,
             store: args.store,
         },
     )

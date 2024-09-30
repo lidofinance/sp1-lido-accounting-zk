@@ -49,18 +49,20 @@ pub async fn run(
     let proof = client.prove(program_input).expect("Failed to generate proof");
     log::info!("Generated proof");
 
-    if flags.verify {
-        client.verify_proof(&proof).expect("Failed to verify proof");
-        log::info!("Verified proof");
-    }
-
-    shared_logic::verify_public_values(&proof.public_values, &public_values).expect("Failed to verify public inputs");
-    log::info!("Verified public values");
-
     if flags.store {
+        log::info!("Storing proof");
         let file_name = format!("proof_{}_{}.json", network.as_str(), target_slot);
         let proof_file = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(file_name);
         proof_storage::store_proof_and_metadata(&proof, client.vk(), proof_file.as_path());
+    }
+
+    if flags.verify {
+        client.verify_proof(&proof).expect("Failed to verify proof");
+        log::info!("Verified proof");
+
+        shared_logic::verify_public_values(&proof.public_values, &public_values)
+            .expect("Public values from proof do not match expected ones");
+        log::info!("Verified public values");
     }
 
     log::info!("Sending report");
