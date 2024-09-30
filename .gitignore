@@ -27,7 +27,7 @@ pgo-data.profdata
 __pycache__
 
 # Generated
-program/elf
+elf
 temp
 
 contracts/script/deploy_manifesto_anvil*.json
