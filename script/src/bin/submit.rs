@@ -1,3 +1,4 @@
+use anyhow;
 use clap::Parser;
 use sp1_lido_accounting_scripts::scripts;
 
@@ -17,7 +18,7 @@ struct ProveArgs {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     sp1_sdk::utils::setup_logger();
     let args = ProveArgs::parse();
     log::debug!("Args: {:?}", args);
@@ -37,7 +38,7 @@ async fn main() {
             store: args.store,
         },
     )
-    .await
-    .expect("Failed to run `submit");
+    .await?;
     log::info!("Report transaction complete {}", hex::encode(tx_hash));
+    Ok(())
 }

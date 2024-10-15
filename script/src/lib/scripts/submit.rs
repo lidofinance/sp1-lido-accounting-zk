@@ -8,6 +8,7 @@ use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 
 use alloy_primitives::TxHash;
+use anyhow::{self, Context};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 
 pub struct Flags {
@@ -46,7 +47,7 @@ pub async fn run(
     let (program_input, public_values) =
         shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials);
 
-    let proof = client.prove(program_input).expect("Failed to generate proof");
+    let proof = client.prove(program_input).context("Failed to generate proof")?;
     log::info!("Generated proof");
 
     if flags.store {
@@ -57,12 +58,12 @@ pub async fn run(
     }
 
     if flags.verify {
-        client.verify_proof(&proof).expect("Failed to verify proof");
-        log::info!("Verified proof");
-
         shared_logic::verify_public_values(&proof.public_values, &public_values)
-            .expect("Public values from proof do not match expected ones");
+            .context("Public values from proof do not match expected ones")?;
         log::info!("Verified public values");
+
+        client.verify_proof(&proof).context("Failed to verify proof")?;
+        log::info!("Verified proof");
     }
 
     log::info!("Sending report");
@@ -74,6 +75,7 @@ pub async fn run(
             proof.bytes(),
             proof.public_values.to_vec(),
         )
-        .await?;
-    anyhow::Ok(tx_hash)
+        .await
+        .context("Failed to submit report")?;
+    Ok(tx_hash)
 }

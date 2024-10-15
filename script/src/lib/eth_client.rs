@@ -200,13 +200,14 @@ where
     fn map_alloy_error(&self, error: alloy::contract::Error) -> Error {
         if let alloy::contract::Error::TransportError(alloy::transports::RpcError::ErrorResp(ref error_payload)) = error
         {
-            None.or(error_payload
-                .as_decoded_error::<Sp1LidoAccountingReportContractErrors>(true)
-                .map(Error::Rejection))
-                .or(error_payload
-                    .as_decoded_error::<ISP1VerifierGatewayErrors>(true)
-                    .map(Error::VerifierRejection))
-                .unwrap_or(Error::AlloyError(error))
+            if let Some(contract_error) = error_payload.as_decoded_error::<Sp1LidoAccountingReportContractErrors>(true)
+            {
+                Error::Rejection(contract_error)
+            } else if let Some(verifier_error) = error_payload.as_decoded_error::<ISP1VerifierGatewayErrors>(true) {
+                Error::VerifierRejection(verifier_error)
+            } else {
+                Error::AlloyError(error)
+            }
         } else {
             Error::AlloyError(error)
         }
