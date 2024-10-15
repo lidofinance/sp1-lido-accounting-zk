@@ -59,7 +59,7 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
 
     fn prove(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues> {
         let sp1_stdin = self.write_sp1_stdin(&input);
-        self.client.prove(&self.pk, sp1_stdin).plonk().run()
+        self.client.prove(&self.pk, sp1_stdin).groth16().run()
     }
 
     fn verify_proof(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
