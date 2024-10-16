@@ -3,7 +3,7 @@ use anyhow;
 use crate::beacon_state_reader::file::FileBasedBeaconStateReader;
 use crate::beacon_state_reader::reqwest::{CachedReqwestBeaconStateReader, ReqwestBeaconStateReader};
 use crate::consts::NetworkInfo;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use std::env;
 use std::path::PathBuf;
 
@@ -12,15 +12,40 @@ pub mod reqwest;
 #[cfg(feature = "synthetic")]
 pub mod synthetic;
 
+pub enum StateId {
+    Head,
+    Genesis,
+    Finalized,
+    Justified,
+    Slot(u64),
+    Hash(Hash256),
+}
+
+impl StateId {
+    fn as_str(&self) -> String {
+        match self {
+            Self::Head => "head".to_owned(),
+            Self::Genesis => "genesis".to_owned(),
+            Self::Finalized => "finalized".to_owned(),
+            Self::Justified => "justified".to_owned(),
+            Self::Slot(slot) => slot.to_string(),
+            Self::Hash(hash) => hex::encode(hash),
+        }
+    }
+}
+
 pub trait BeaconStateReader {
     #[allow(async_fn_in_trait)]
-    async fn read_beacon_state(&self, slot: u64) -> anyhow::Result<BeaconState>;
+    async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState>;
     #[allow(async_fn_in_trait)]
-    async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader>;
+    async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader>;
     #[allow(async_fn_in_trait)]
-    async fn read_beacon_state_and_header(&self, slot: u64) -> anyhow::Result<(BeaconBlockHeader, BeaconState)> {
-        let bs = self.read_beacon_state(slot).await?;
-        let bh = self.read_beacon_block_header(slot).await?;
+    async fn read_beacon_state_and_header(
+        &self,
+        state_id: &StateId,
+    ) -> anyhow::Result<(BeaconBlockHeader, BeaconState)> {
+        let bs = self.read_beacon_state(state_id).await?;
+        let bh = self.read_beacon_block_header(state_id).await?;
         Ok((bh, bs))
     }
 }
@@ -69,19 +94,19 @@ impl BeaconStateReaderEnum {
 }
 
 impl BeaconStateReader for BeaconStateReaderEnum {
-    async fn read_beacon_state(&self, slot: u64) -> anyhow::Result<BeaconState> {
+    async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
         match self {
-            Self::File(reader) => reader.read_beacon_state(slot).await,
-            Self::RPC(reader) => reader.read_beacon_state(slot).await,
-            Self::RPCCached(reader) => reader.read_beacon_state(slot).await,
+            Self::File(reader) => reader.read_beacon_state(state_id).await,
+            Self::RPC(reader) => reader.read_beacon_state(state_id).await,
+            Self::RPCCached(reader) => reader.read_beacon_state(state_id).await,
         }
     }
 
-    async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader> {
+    async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
         match self {
-            Self::File(reader) => reader.read_beacon_block_header(slot).await,
-            Self::RPC(reader) => reader.read_beacon_block_header(slot).await,
-            Self::RPCCached(reader) => reader.read_beacon_block_header(slot).await,
+            Self::File(reader) => reader.read_beacon_block_header(state_id).await,
+            Self::RPC(reader) => reader.read_beacon_block_header(state_id).await,
+            Self::RPCCached(reader) => reader.read_beacon_block_header(state_id).await,
         }
     }
 }

@@ -4,7 +4,7 @@ use serde_json::Value;
 use sp1_lido_accounting_scripts::beacon_state_reader::{
     file::FileBasedBeaconStateReader,
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
-    BeaconStateReader,
+    BeaconStateReader, StateId,
 };
 use sp1_lido_accounting_scripts::consts::lido_credentials;
 use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
@@ -97,7 +97,7 @@ async fn main() {
         .await
         .expect("Failed to create beacon state");
     let beacon_state = reader
-        .read_beacon_state(slot)
+        .read_beacon_state(&StateId::Slot(slot))
         .await
         .expect("Failed to read beacon state");
     log::info!(

@@ -107,7 +107,7 @@ pub struct ExecutionPayloadHeader {
     logs_bloom: FixedVector<u8, eth_spec::BytesPerLogBloom>,
     prev_randao: Hash256,
     // #[serde(with = "serde_utils::quoted_u64")]
-    block_number: u64,
+    pub block_number: u64,
     // #[serde(with = "serde_utils::quoted_u64")]
     gas_limit: u64,
     // #[serde(with = "serde_utils::quoted_u64")]
@@ -118,7 +118,7 @@ pub struct ExecutionPayloadHeader {
     // workaround - looks like ByteList is partially broken, but extra data is exactly bytes32
     // extra_data: Hash256
     base_fee_per_gas: U256,
-    block_hash: Hash256,
+    pub block_hash: Hash256,
     transactions_root: Root,
     withdrawals_root: Root,
     // Since Deneb

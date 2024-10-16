@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::beacon_state_reader::BeaconStateReader;
+use crate::beacon_state_reader::{BeaconStateReader, StateId};
 use crate::consts::NetworkInfo;
 use crate::eth_client::Contract;
 use crate::proof_storage;
@@ -40,9 +40,9 @@ pub async fn run(
 
     let lido_withdrawal_credentials: Hash256 = network.get_config().lido_withdrawal_credentials.into();
 
-    let target_bh = bs_reader.read_beacon_block_header(target_slot).await?;
-    let target_bs = bs_reader.read_beacon_state(target_slot).await?;
-    let old_bs = bs_reader.read_beacon_state(previous_slot).await?;
+    let target_bh = bs_reader.read_beacon_block_header(&StateId::Slot(target_slot)).await?;
+    let target_bs = bs_reader.read_beacon_state(&StateId::Slot(target_slot)).await?;
+    let old_bs = bs_reader.read_beacon_state(&StateId::Slot(previous_slot)).await?;
 
     let (program_input, public_values) =
         shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials);

@@ -5,7 +5,7 @@ use tree_hash::TreeHash;
 use sp1_lido_accounting_scripts::beacon_state_reader::{
     file::FileBasedBeaconStateReader,
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
-    BeaconStateReader,
+    BeaconStateReader, StateId,
 };
 
 fn small_problem_size(old_slot: u64, new_slot: u64) -> (GenerationSpec, GenerationSpec) {
@@ -85,11 +85,11 @@ async fn main() {
     let bs_reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&file_store);
 
     let beacon_state1 = bs_reader
-        .read_beacon_state(old_slot)
+        .read_beacon_state(&StateId::Slot(old_slot))
         .await
         .expect("Failed to read beacon state");
     let beacon_block_header1 = bs_reader
-        .read_beacon_block_header(old_slot)
+        .read_beacon_block_header(&StateId::Slot(old_slot))
         .await
         .expect("Failed to read beacon block header");
     log::info!(
@@ -100,11 +100,11 @@ async fn main() {
     );
 
     let beacon_state2 = bs_reader
-        .read_beacon_state(new_slot)
+        .read_beacon_state(&StateId::Slot(new_slot))
         .await
         .expect("Failed to read beacon state");
     let beacon_block_header2 = bs_reader
-        .read_beacon_block_header(new_slot)
+        .read_beacon_block_header(&StateId::Slot(new_slot))
         .await
         .expect("Failed to read beacon block header");
     log::info!(

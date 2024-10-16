@@ -1,5 +1,6 @@
 use hex::FromHex;
 use serde_json::Value;
+use sp1_lido_accounting_scripts::beacon_state_reader::StateId;
 use sp1_lido_accounting_scripts::consts;
 
 use sp1_lido_accounting_scripts::beacon_state_reader::{
@@ -53,7 +54,7 @@ async fn main() {
     let new_slot = old_slot + 216000; // (30 * 24 * 60 * 60 / 12) slots per month
 
     let old_beacon_state = reader
-        .read_beacon_state(old_slot)
+        .read_beacon_state(&StateId::Slot(old_slot))
         .await
         .expect("Failed to read beacon state");
     log::info!(
@@ -97,7 +98,7 @@ async fn main() {
         .expect("Failed to create new BeaconState");
 
     let new_beacon_state = reader
-        .read_beacon_state(new_slot)
+        .read_beacon_state(&StateId::Slot(new_slot))
         .await
         .expect("Failed to read beacon state");
     log::info!(

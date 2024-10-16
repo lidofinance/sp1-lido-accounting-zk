@@ -6,7 +6,7 @@ use tree_hash::TreeHash;
 use sp1_lido_accounting_scripts::beacon_state_reader::{
     file::FileBasedBeaconStateReader,
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
-    BeaconStateReader,
+    BeaconStateReader, StateId,
 };
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves, RsMerkleHash};
@@ -196,7 +196,7 @@ async fn main() {
 
     let slot = 1000000;
     let generation_spec = GenerationSpec {
-        slot: slot,
+        slot,
         non_lido_validators: 2_u64.pow(11),
         deposited_lido_validators: 2_u64.pow(11),
         exited_lido_validators: 0,
@@ -216,16 +216,16 @@ async fn main() {
         .expect("Failed to create beacon state");
 
     reader
-        .read_beacon_state(slot)
+        .read_beacon_state(&StateId::Slot(slot))
         .await
-        .expect(&format!("Failed to evict cache for slot {}", slot));
+        .unwrap_or_else(|_| panic!("Failed to evict cache for slot {}", slot));
 
     let beacon_state = reader
-        .read_beacon_state(slot)
+        .read_beacon_state(&StateId::Slot(slot))
         .await
         .expect("Failed to read beacon state");
     let beacon_block_header = reader
-        .read_beacon_block_header(slot)
+        .read_beacon_block_header(&StateId::Slot(slot))
         .await
         .expect("Failed to read beacon block header");
     log::info!(

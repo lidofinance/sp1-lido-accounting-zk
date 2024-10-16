@@ -325,4 +325,8 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         }
         revert NoBlockRootFound(NoBlockRootFoundData({target_slot: slot}));
     }
+
+    function getBeaconBlockHash(uint256 slot) public view returns (bytes32) {
+        return _getBeaconBlockHash(slot);
+    }
 }

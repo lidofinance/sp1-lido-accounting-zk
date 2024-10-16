@@ -16,7 +16,7 @@ pub trait NetworkInfo {
     fn get_config(&self) -> NetworkConfig;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Network {
     Mainnet,
     Sepolia,
@@ -57,7 +57,7 @@ impl NetworkInfo for Network {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WrappedNetwork {
     Anvil(Network),
     Id(Network),

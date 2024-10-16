@@ -1,4 +1,5 @@
 use crate::utils::{read_binary, read_json};
+use anyhow::anyhow;
 use log;
 use ssz::{Decode, Encode};
 use std::io;
@@ -7,7 +8,7 @@ use std::{env, fs};
 
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 
-use super::BeaconStateReader;
+use super::{BeaconStateReader, StateId};
 
 pub struct FileBasedBeaconChainStore {
     pub store_location: PathBuf,
@@ -30,12 +31,12 @@ impl FileBasedBeaconChainStore {
         }
     }
 
-    pub fn get_beacon_state_path(&self, slot: u64) -> PathBuf {
-        self.store_location.join(format!("bs_{}.ssz", slot))
+    pub fn get_beacon_state_path(&self, state_id: &str) -> PathBuf {
+        self.store_location.join(format!("bs_{}.ssz", state_id))
     }
 
-    pub fn get_beacon_block_header_path(&self, slot: u64) -> PathBuf {
-        self.store_location.join(format!("bs_{}_header.json", slot))
+    pub fn get_beacon_block_header_path(&self, state_id: &str) -> PathBuf {
+        self.store_location.join(format!("bs_{}_header.json", state_id))
     }
 
     pub fn exists(path: &Path) -> bool {
@@ -68,11 +69,20 @@ impl FileBasedBeaconStateReader {
             file_store: FileBasedBeaconChainStore::new(store_location),
         }
     }
+
+    fn get_permanent_state_id(&self, state_id: &StateId) -> anyhow::Result<String> {
+        match state_id {
+            StateId::Slot(slot_id) => Ok(slot_id.to_string()),
+            StateId::Hash(block_hash) => Ok(hex::encode(block_hash)),
+            _ => Err(anyhow::anyhow!("Cannot read transient state ids from file reader")),
+        }
+    }
 }
 
 impl BeaconStateReader for FileBasedBeaconStateReader {
-    async fn read_beacon_state(&self, slot: u64) -> anyhow::Result<BeaconState> {
-        let beacon_state_path = self.file_store.get_beacon_state_path(slot);
+    async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+        let permanent_state = self.get_permanent_state_id(state_id)?;
+        let beacon_state_path = self.file_store.get_beacon_state_path(&permanent_state);
         log::info!("Reading BeaconState from file {:?}", beacon_state_path);
         let data = read_binary(beacon_state_path)?;
         // TODO: better mapping ssz::DecodeError to std::error::Error/anyhow::Error
@@ -80,8 +90,9 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
             .map_err(|decode_err| anyhow::anyhow!("Couldn't decode ssz {:#?}", decode_err))
     }
 
-    async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader> {
-        let beacon_block_header_path = self.file_store.get_beacon_block_header_path(slot);
+    async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
+        let permanent_state = self.get_permanent_state_id(state_id)?;
+        let beacon_block_header_path = self.file_store.get_beacon_block_header_path(&permanent_state);
         log::info!("Reading BeaconBlock from file {:?}", &beacon_block_header_path);
         let res: BeaconBlockHeader = read_json(&beacon_block_header_path)?;
         Ok(res)
@@ -107,7 +118,7 @@ impl FileBeaconStateWriter {
 
         let serialized = bs.as_ssz_bytes();
 
-        fs::write(self.file_store.get_beacon_state_path(bs.slot), serialized)
+        fs::write(self.file_store.get_beacon_state_path(&bs.slot.to_string()), serialized)
             .map_err(|write_err| anyhow::anyhow!("Couldn't write ssz {:#?}", write_err))
     }
 
@@ -118,7 +129,10 @@ impl FileBeaconStateWriter {
         let mut serialized: Vec<u8> = Vec::new();
         serde_json::to_writer(&mut serialized, &bh)
             .map_err(|serde_err| anyhow::anyhow!("Couldn't decode ssz {:#?}", serde_err))?;
-        fs::write(self.file_store.get_beacon_block_header_path(bh.slot), serialized)
-            .map_err(|write_err| anyhow::anyhow!("Couldn't write ssz {:#?}", write_err))
+        fs::write(
+            self.file_store.get_beacon_block_header_path(&bh.slot.to_string()),
+            serialized,
+        )
+        .map_err(|write_err| anyhow::anyhow!("Couldn't write ssz {:#?}", write_err))
     }
 }

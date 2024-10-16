@@ -1,4 +1,4 @@
-use crate::beacon_state_reader::BeaconStateReader;
+use crate::beacon_state_reader::{BeaconStateReader, StateId};
 use crate::consts::NetworkInfo;
 use crate::eth_client::{ContractDeployParametersRust, DefaultProvider, Sp1LidoAccountingReportContractWrapper};
 use crate::sp1_client_wrapper::SP1ClientWrapper;
@@ -6,7 +6,7 @@ use crate::utils;
 
 use alloy::providers::WalletProvider;
 use alloy_primitives::Address;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
 
 use std::{
     path::{Path, PathBuf},
@@ -21,30 +21,38 @@ pub enum Source {
     File { slot: u64, path: PathBuf },
 }
 
-async fn read_form_network(
+async fn compute_form_network(
     client: impl SP1ClientWrapper,
     bs_reader: impl BeaconStateReader,
     network: impl NetworkInfo,
     target_slot: u64,
 ) -> anyhow::Result<ContractDeployParametersRust> {
+    let target_bs = bs_reader.read_beacon_state(&StateId::Slot(target_slot)).await?;
+
+    Ok(prepare_deploy_params(client.vk_bytes(), &target_bs, &network))
+}
+
+pub fn prepare_deploy_params(
+    vkey: [u8; 32],
+    target_bs: &BeaconState,
+    network: &impl NetworkInfo,
+) -> ContractDeployParametersRust {
     let network_config = network.get_config();
     let network_name = network.as_str();
     let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
-    let target_bs = bs_reader.read_beacon_state(target_slot).await?;
-    let lido_validator_state = LidoValidatorState::compute_from_beacon_state(&target_bs, &lido_withdrawal_credentials);
+    let lido_validator_state = LidoValidatorState::compute_from_beacon_state(target_bs, &lido_withdrawal_credentials);
 
-    let result = ContractDeployParametersRust {
+    ContractDeployParametersRust {
         network: network_name.clone(),
         verifier: network_config.verifier,
-        vkey: client.vk_bytes(),
+        vkey,
         withdrawal_credentials: lido_withdrawal_credentials.to_fixed_bytes(),
         genesis_timestamp: network_config.genesis_block_timestamp,
         initial_validator_state: LidoValidatorStateRust {
             slot: lido_validator_state.slot,
             merkle_root: lido_validator_state.tree_hash_root().to_fixed_bytes(),
         },
-    };
-    Ok(result)
+    }
 }
 
 async fn read_from_file(slot: u64, file: &Path) -> anyhow::Result<ContractDeployParametersRust> {
@@ -100,7 +108,7 @@ pub async fn run(
         panic!("Verification is incomplete yet");
     }
     let deploy_params = match source {
-        Source::Network { slot } => read_form_network(client, bs_reader, network, slot).await?,
+        Source::Network { slot } => compute_form_network(client, bs_reader, network, slot).await?,
         Source::File { slot, path } => read_from_file(slot, &path).await?,
     };
 

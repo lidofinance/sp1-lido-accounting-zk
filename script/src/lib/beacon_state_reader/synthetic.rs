@@ -118,7 +118,7 @@ impl SyntheticBeaconStateCreator {
             command.arg("--shuffle");
         }
         if let Some(base_slot) = generation_spec.base_slot {
-            let old_beacon_state_file = self.file_store.get_beacon_state_path(base_slot);
+            let old_beacon_state_file = self.file_store.get_beacon_state_path(&base_slot.to_string());
             assert!(
                 self.exists(&old_beacon_state_file),
                 "Beacon state for base slot {} was not found at {:?}",
@@ -147,13 +147,13 @@ impl SyntheticBeaconStateCreator {
     }
 
     pub fn evict_cache(&self, slot: u64) -> io::Result<()> {
-        let beacon_state_file = self.file_store.get_beacon_state_path(slot);
+        let beacon_state_file = self.file_store.get_beacon_state_path(&slot.to_string());
         if self.exists(&beacon_state_file) {
             log::debug!("Evicting beacon state file");
             FileBasedBeaconChainStore::delete(&beacon_state_file)?;
         }
 
-        let beacon_block_header_file = self.file_store.get_beacon_block_header_path(slot);
+        let beacon_block_header_file = self.file_store.get_beacon_block_header_path(&slot.to_string());
         if self.exists(&beacon_block_header_file) {
             log::debug!("Evicting beacon block state file");
             FileBasedBeaconChainStore::delete(&beacon_block_header_file)?;
@@ -169,7 +169,7 @@ impl SyntheticBeaconStateCreator {
         if generation_spec.overwrite {
             self.evict_cache(generation_spec.slot)?;
         }
-        let beacon_state_file = self.file_store.get_beacon_state_path(generation_spec.slot);
+        let beacon_state_file = self.file_store.get_beacon_state_path(&generation_spec.slot.to_string());
         if !self.exists(&beacon_state_file) {
             self.generate_beacon_state(&beacon_state_file, generation_spec).await;
         }

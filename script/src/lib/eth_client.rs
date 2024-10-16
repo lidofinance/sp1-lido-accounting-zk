@@ -10,6 +10,7 @@ use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
 
 use core::clone::Clone;
+use core::fmt;
 use eyre::Result;
 use k256;
 use ISP1VerifierGateway::ISP1VerifierGatewayErrors;
@@ -38,16 +39,16 @@ sol!(
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Contract rejected")]
+    #[error("Contract rejected: {0:#?}")]
     Rejection(Sp1LidoAccountingReportContractErrors),
 
-    #[error("Sp1 verifier gateway rejected")]
+    #[error("Sp1 verifier gateway rejected: {0:#?}")]
     VerifierRejection(ISP1VerifierGatewayErrors),
 
-    #[error("Report not found")]
+    #[error("Report for slot {0} not found")]
     ReportNotFound(u64),
 
-    #[error("Other alloy error")]
+    #[error("Other alloy error {0:#?}")]
     AlloyError(alloy::contract::Error),
 }
 
@@ -95,6 +96,19 @@ pub struct ContractDeployParametersRust {
     pub withdrawal_credentials: [u8; 32],
     pub genesis_timestamp: u64,
     pub initial_validator_state: LidoValidatorStateRust,
+}
+
+impl fmt::Display for ContractDeployParametersRust {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContractDeployParametersRust")
+            .field("network", &self.network)
+            .field("verifier", &hex::encode(self.verifier))
+            .field("vkey", &hex::encode(self.vkey))
+            .field("withdrawal_credentials", &hex::encode(self.withdrawal_credentials))
+            .field("genesis_timestamp", &self.genesis_timestamp)
+            .field("initial_validator_state", &self.initial_validator_state)
+            .finish()
+    }
 }
 
 pub struct Sp1LidoAccountingReportContractWrapper<P, T: Transport + Clone>

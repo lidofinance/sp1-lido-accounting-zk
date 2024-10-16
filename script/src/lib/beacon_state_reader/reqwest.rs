@@ -9,7 +9,7 @@ use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, Beac
 
 use super::{
     file::{FileBasedBeaconStateReader, FileBeaconStateWriter},
-    BeaconStateReader,
+    BeaconStateReader, StateId,
 };
 use ssz::Decode;
 
@@ -48,7 +48,7 @@ struct BeaconHeaderResponseDataHeaderMessage {
     pub body_root: String,
 }
 
-fn _strip_0x_prefix<'a>(value: &'a str) -> &'a str {
+fn _strip_0x_prefix(value: &str) -> &str {
     value.strip_prefix("0x").unwrap_or(value)
 }
 
@@ -96,7 +96,7 @@ pub struct ReqwestBeaconStateReader {
 
 impl ReqwestBeaconStateReader {
     fn normalize_url(base_url: &str) -> String {
-        base_url.strip_suffix("/").unwrap_or(&base_url).to_owned()
+        base_url.strip_suffix('/').unwrap_or(base_url).to_owned()
     }
 
     pub fn new(consensus_layer_base_uri: &str, beacon_state_base_uri: &str) -> Self {
@@ -116,9 +116,13 @@ impl ReqwestBeaconStateReader {
         anyhow!("{}: {:#?}", label, e)
     }
 
-    async fn read_bs(&self, block_id: &str) -> anyhow::Result<BeaconState> {
-        log::info!("Loading beacon state for {block_id}");
-        let url = format!("{}/eth/v2/debug/beacon/states/{}", self.beacon_state_base_uri, block_id);
+    async fn read_bs(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+        log::info!("Loading beacon state for {}", state_id.as_str());
+        let url = format!(
+            "{}/eth/v2/debug/beacon/states/{}",
+            self.beacon_state_base_uri,
+            state_id.as_str()
+        );
         log::debug!("Url: {url}");
         let response = self
             .client
@@ -144,14 +148,18 @@ impl ReqwestBeaconStateReader {
             .await
             .map_err(|e| Self::map_err("Failed to get response body", e))?;
 
-        log::info!("Received response for {block_id} - {} bytes", bytes.len());
+        log::info!("Received response for {} - {} bytes", state_id.as_str(), bytes.len());
         BeaconState::from_ssz_bytes(&bytes)
             .map_err(|decode_err| anyhow::anyhow!("Couldn't decode ssz {:#?}", decode_err))
     }
 
-    async fn read_beacon_header(&self, block_id: &str) -> anyhow::Result<BeaconBlockHeader> {
-        let url = format!("{}/eth/v1/beacon/headers/{}", self.consensus_layer_base_uri, block_id);
-        log::info!("Loading beacon header for {block_id}");
+    async fn read_beacon_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
+        let url = format!(
+            "{}/eth/v1/beacon/headers/{}",
+            self.consensus_layer_base_uri,
+            state_id.as_str()
+        );
+        log::info!("Loading beacon header for {}", state_id.as_str());
 
         let response = self
             .client
@@ -180,18 +188,20 @@ impl ReqwestBeaconStateReader {
 }
 
 impl BeaconStateReader for ReqwestBeaconStateReader {
-    async fn read_beacon_state(&self, slot: u64) -> anyhow::Result<BeaconState> {
-        return self.read_bs(&slot.to_string()).await;
+    async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+        self.read_bs(state_id).await
     }
 
-    async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader> {
-        return self.read_beacon_header(&slot.to_string()).await;
+    async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
+        self.read_beacon_header(state_id).await
     }
 }
 
 impl BeaconChainRPC for ReqwestBeaconStateReader {
     async fn get_finalized_slot(&self) -> anyhow::Result<u64> {
-        self.read_beacon_header("finalized").await.map(|header| header.slot)
+        self.read_beacon_header(&StateId::Finalized)
+            .await
+            .map(|header| header.slot)
     }
 }
 
@@ -212,31 +222,31 @@ impl CachedReqwestBeaconStateReader {
 }
 
 impl BeaconStateReader for CachedReqwestBeaconStateReader {
-    async fn read_beacon_state(&self, slot: u64) -> anyhow::Result<BeaconState> {
-        let try_from_file = self.file_reader.read_beacon_state(slot).await;
+    async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+        let try_from_file = self.file_reader.read_beacon_state(state_id).await;
         if let core::result::Result::Ok(beacon_state) = try_from_file {
             return Ok(beacon_state);
         }
-        let try_from_rpc = self.rpc_reader.read_beacon_state(slot).await;
+        let try_from_rpc = self.rpc_reader.read_beacon_state(state_id).await;
         if let core::result::Result::Ok(beacon_state) = try_from_rpc {
             self.file_writer.write_beacon_state(&beacon_state)?;
-            return Ok(beacon_state);
+            Ok(beacon_state)
         } else {
-            return try_from_rpc;
+            try_from_rpc
         }
     }
 
-    async fn read_beacon_block_header(&self, slot: u64) -> anyhow::Result<BeaconBlockHeader> {
-        let try_from_file = self.file_reader.read_beacon_block_header(slot).await;
+    async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
+        let try_from_file = self.file_reader.read_beacon_block_header(state_id).await;
         if let core::result::Result::Ok(block_header) = try_from_file {
             return Ok(block_header);
         }
-        let try_from_rpc = self.rpc_reader.read_beacon_block_header(slot).await;
+        let try_from_rpc = self.rpc_reader.read_beacon_block_header(state_id).await;
         if let core::result::Result::Ok(block_header) = try_from_rpc {
             self.file_writer.write_beacon_block_header(&block_header)?;
-            return Ok(block_header);
+            Ok(block_header)
         } else {
-            return try_from_rpc;
+            try_from_rpc
         }
     }
 }

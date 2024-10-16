@@ -1,4 +1,4 @@
-use crate::beacon_state_reader::BeaconStateReader;
+use crate::beacon_state_reader::{BeaconStateReader, StateId};
 
 use crate::proof_storage;
 use crate::scripts::shared as shared_logic;
@@ -18,8 +18,12 @@ pub async fn run(
     fixture_file: &Path,
 ) -> anyhow::Result<()> {
     let lido_withdrawal_credentials: Hash256 = withdrawal_credentials.into();
-    let (target_bh, target_bs) = bs_reader.read_beacon_state_and_header(target_slot).await?;
-    let (_old_bh, old_bs) = bs_reader.read_beacon_state_and_header(previous_slot).await?;
+    let (target_bh, target_bs) = bs_reader
+        .read_beacon_state_and_header(&StateId::Slot(target_slot))
+        .await?;
+    let (_old_bh, old_bs) = bs_reader
+        .read_beacon_state_and_header(&StateId::Slot(previous_slot))
+        .await?;
 
     let (program_input, public_values) =
         shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials);

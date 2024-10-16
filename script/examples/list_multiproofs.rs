@@ -6,7 +6,7 @@ use tree_hash::TreeHash;
 use sp1_lido_accounting_scripts::beacon_state_reader::{
     file::FileBasedBeaconStateReader,
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
-    BeaconStateReader,
+    BeaconStateReader, StateId,
 };
 use sp1_lido_accounting_scripts::consts;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
@@ -57,13 +57,13 @@ async fn main() {
         .expect(&format!("Failed to create beacon state for slot {}", new_slot));
 
     let beacon_state1 = reader
-        .read_beacon_state(old_slot)
+        .read_beacon_state(&StateId::Slot(old_slot))
         .await
         .expect("Failed to read beacon state");
     let lido_state1 = LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
 
     let beacon_state2 = reader
-        .read_beacon_state(new_slot)
+        .read_beacon_state(&StateId::Slot(new_slot))
         .await
         .expect("Failed to read beacon state");
     let lido_state2 = LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
