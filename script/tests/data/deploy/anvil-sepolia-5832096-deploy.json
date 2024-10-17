@@ -1,0 +1,11 @@
+{
+  "network": "anvil-sepolia",
+  "verifier": "0x3b6041173b80e77f038f3f2c0f9744f04837185e",
+  "vkey": "0x00ef920869ce612ffdb77d73a149e972ae27637a60e9da8520131063329ffe6f",
+  "withdrawal_credentials": "0x010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
+  "genesis_timestamp": 1655733600,
+  "initial_validator_state": {
+    "slot": 5832096,
+    "merkle_root": "0x918070ce0cb66881d6839965371f79a600bc26b50a363a17ac00a1b295f89113"
+  }
+}
