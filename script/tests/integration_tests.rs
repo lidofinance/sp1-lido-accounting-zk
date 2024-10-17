@@ -12,7 +12,6 @@ use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconState;
 use sp1_sdk::ProverClient;
 use std::env;
 use test_utils::TestFiles;
-
 mod test_utils;
 
 #[tokio::test]
@@ -64,8 +63,8 @@ async fn submission_success() -> Result<()> {
     log::info!("Deployed contract at {}", contract.address());
 
     scripts::submit::run(
-        client,
-        bs_reader,
+        &client,
+        &bs_reader,
         contract,
         target_slot,
         None, // alternatively Some(deploy_slot) should do the same

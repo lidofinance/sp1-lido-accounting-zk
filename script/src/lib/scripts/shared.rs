@@ -23,6 +23,7 @@ pub fn prepare_program_input(
     bh: &BeaconBlockHeader,
     old_bs: &BeaconState,
     lido_withdrawal_credentials: &Hash256,
+    verify: bool,
 ) -> (ProgramInput, PublicValuesRust) {
     let beacon_block_hash = bh.tree_hash_root();
 
@@ -81,7 +82,7 @@ pub fn prepare_program_input(
     log::debug!("Report {report:?}");
     log::debug!("Public values {public_values:?}");
 
-    let validator_delta = ValidatorDeltaCompute::new(&old_bs, &old_validator_state, &bs).compute();
+    let validator_delta = ValidatorDeltaCompute::new(old_bs, &old_validator_state, bs).compute();
     log::info!(
         "Computed validator delta. Added: {}, lido changed: {}",
         validator_delta.all_added.len(),
@@ -123,14 +124,16 @@ pub fn prepare_program_input(
         new_lido_validator_state_hash: new_validator_state.tree_hash_root(),
     };
 
-    verify_input_correctness(
-        bs.slot,
-        &program_input,
-        &old_validator_state,
-        &new_validator_state,
-        lido_withdrawal_credentials,
-    )
-    .expect("Failed to verify input correctness");
+    if verify {
+        verify_input_correctness(
+            bs.slot,
+            &program_input,
+            &old_validator_state,
+            &new_validator_state,
+            lido_withdrawal_credentials,
+        )
+        .expect("Failed to verify input correctness");
+    }
 
     (program_input, public_values)
 }

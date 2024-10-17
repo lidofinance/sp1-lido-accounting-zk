@@ -27,8 +27,8 @@ async fn main() -> anyhow::Result<()> {
     let contract = scripts::prelude::initialize_contract();
 
     let tx_hash = scripts::submit::run(
-        client,
-        bs_reader,
+        &client,
+        &bs_reader,
         contract,
         args.target_slot,
         args.previous_slot,

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::{env, path::PathBuf};
 
 use eyre::{eyre, Result, WrapErr};
@@ -9,6 +10,7 @@ use sp1_lido_accounting_scripts::proof_storage::StoredProof;
 use sp1_lido_accounting_scripts::{proof_storage, utils};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconState;
 use sp1_lido_accounting_zk_shared::eth_spec;
+use tree_hash::TreeHash;
 use typenum::Unsigned;
 
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);
@@ -86,4 +88,60 @@ pub async fn read_latest_bs_at_or_before(
         }
     };
     result.map_err(|e| eyre!("Failed to read beacon state {:#?}", e))
+}
+
+pub struct TamperableBeaconStateReader<'a, T, Mut>
+where
+    T: BeaconStateReader,
+    Mut: Fn(BeaconState) -> BeaconState,
+{
+    inner: &'a T,
+    beacon_state_mutators: HashMap<StateId, Mut>,
+}
+
+impl<'a, T, Mut> TamperableBeaconStateReader<'a, T, Mut>
+where
+    T: BeaconStateReader,
+    Mut: Fn(BeaconState) -> BeaconState,
+{
+    pub fn new(inner: &'a T) -> Self {
+        Self {
+            inner,
+            beacon_state_mutators: HashMap::new(),
+        }
+    }
+
+    pub fn add_mutator(&mut self, state_id: StateId, mutator: Mut) -> &mut Self {
+        self.beacon_state_mutators.insert(state_id, mutator);
+        self
+    }
+}
+
+impl<'a, T, Mut> BeaconStateReader for TamperableBeaconStateReader<'a, T, Mut>
+where
+    T: BeaconStateReader,
+    Mut: Fn(BeaconState) -> BeaconState,
+{
+    async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+        let bs = self.inner.read_beacon_state(state_id).await?;
+        match self.beacon_state_mutators.get(state_id) {
+            Some(mutator) => Ok((mutator)(bs)),
+            None => Ok(bs),
+        }
+    }
+
+    async fn read_beacon_block_header(
+        &self,
+        state_id: &StateId,
+    ) -> anyhow::Result<sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconBlockHeader> {
+        let mut bh = self.inner.read_beacon_block_header(state_id).await?;
+        match self.beacon_state_mutators.get(state_id) {
+            Some(_mut) => {
+                let bs = self.read_beacon_state(state_id).await?;
+                bh.state_root = bs.tree_hash_root();
+                Ok(bh)
+            }
+            None => Ok(bh),
+        }
+    }
 }

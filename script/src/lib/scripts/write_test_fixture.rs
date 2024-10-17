@@ -26,7 +26,7 @@ pub async fn run(
         .await?;
 
     let (program_input, public_values) =
-        shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials);
+        shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials, true);
 
     let proof = client.prove(program_input).expect("Failed to generate proof");
     log::info!("Generated proof");

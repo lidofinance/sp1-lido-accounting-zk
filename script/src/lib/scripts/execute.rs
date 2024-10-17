@@ -18,7 +18,7 @@ pub async fn run(
     let old_bs = bs_reader.read_beacon_state(&StateId::Slot(previous_slot)).await?;
 
     let (program_input, public_values) =
-        shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials);
+        shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials, true);
 
     log::info!("Executing program");
     let (exec_public_values, execution_report) = client.execute(program_input).unwrap();

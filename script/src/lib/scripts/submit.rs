@@ -17,8 +17,8 @@ pub struct Flags {
 }
 
 pub async fn run(
-    client: impl SP1ClientWrapper,
-    bs_reader: impl BeaconStateReader,
+    client: &impl SP1ClientWrapper,
+    bs_reader: &impl BeaconStateReader,
     contract: Contract,
     target_slot: u64,
     prev_slot: Option<u64>,
@@ -45,8 +45,7 @@ pub async fn run(
     let old_bs = bs_reader.read_beacon_state(&StateId::Slot(previous_slot)).await?;
 
     let (program_input, public_values) =
-        shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials);
-
+        shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials, true);
     let proof = client.prove(program_input).context("Failed to generate proof")?;
     log::info!("Generated proof");
 
