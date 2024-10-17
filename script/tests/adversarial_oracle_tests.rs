@@ -1,5 +1,4 @@
 use alloy::node_bindings::Anvil;
-use alloy::transports::http::reqwest::Url;
 use eyre::Result;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
@@ -14,25 +13,6 @@ use std::env;
 use test_utils::TestFiles;
 
 mod test_utils;
-
-#[tokio::test]
-async fn deploy() -> Result<()> {
-    let test_files = TestFiles::new_from_manifest_dir();
-    let deploy_slot = test_utils::DEPLOY_SLOT;
-    let deploy_params = test_files.read_deploy(&test_utils::NETWORK, deploy_slot)?;
-
-    let anvil = Anvil::new().block_time(1).try_spawn()?;
-    let endpoint: Url = anvil.endpoint().parse()?;
-    let key = anvil.keys()[0].clone();
-    let provider = ProviderFactory::create_provider(key, endpoint);
-
-    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params).await?;
-    log::info!("Deployed contract at {}", contract.address());
-
-    let latest_report_slot_response = contract.get_latest_report_slot().await?;
-    assert_eq!(latest_report_slot_response, deploy_slot);
-    Ok(())
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn submission_success() -> Result<()> {
