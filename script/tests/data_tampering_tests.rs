@@ -181,3 +181,24 @@ async fn add_active_lido_validator_fails() -> Result<()> {
 
     executor.run_test().await
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn make_non_lido_validator_fails() -> Result<()> {
+    let network = &test_utils::NETWORK;
+
+    let bs_reader = BeaconStateReaderEnum::new_from_env(network);
+    let mut executor = TestExecutor::new(&bs_reader);
+    let target_slot = executor.get_target_slot().await;
+    executor.add_mutator(StateId::Slot(target_slot), |beacon_state| {
+        let network = &test_utils::NETWORK;
+        let creds: Hash256 = network.get_config().lido_withdrawal_credentials.into();
+        let validator_idx = find_nth_lido_validator_index(&beacon_state, &creds, 0).unwrap();
+
+        let mut new_bs = beacon_state.clone();
+
+        new_bs.validators[validator_idx].withdrawal_credentials = [0u8; 32].into();
+        new_bs
+    });
+
+    executor.run_test().await
+}
