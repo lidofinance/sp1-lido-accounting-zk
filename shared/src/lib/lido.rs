@@ -96,11 +96,8 @@ impl LidoValidatorState {
         // pending deposit is a bit special - we want to conveniently add and remove to it
         // and convert to sorted at the end. This list will generally be small (<10**3, roughly)
         // so additional overhead of list -> set -> list -> sort should be small/negligible
-        let mut new_pending_deposit: HashSet<u64> = self
-            .pending_deposit_lido_validator_indices
-            .iter()
-            .map(|v| v.clone())
-            .collect();
+        let mut new_pending_deposit: HashSet<u64> =
+            self.pending_deposit_lido_validator_indices.iter().copied().collect();
         let mut new_exited = self.exited_lido_validator_indices.to_vec().clone();
 
         let epoch = eth_consensus_layer::epoch(slot).unwrap();
@@ -174,14 +171,14 @@ impl LidoValidatorState {
 
         let result = Self {
             slot,
-            epoch: epoch,
+            epoch,
             max_validator_index: self.max_validator_index + usize_to_u64(validator_delta.all_added.len()),
             deposited_lido_validator_indices: deposited_list,
             pending_deposit_lido_validator_indices: pending_deposit_list,
             exited_lido_validator_indices: exited_list,
         };
 
-        return result;
+        result
     }
 }
 

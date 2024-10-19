@@ -36,7 +36,7 @@ pub trait MerkleTreeFieldLeaves {
         for (idx, name) in field_names.iter().enumerate() {
             result[idx] = self.get_leaf_index(name)?;
         }
-        return Ok(result);
+        Ok(result)
     }
     fn tree_field_leaves(&self) -> Vec<Hash256>;
 }
@@ -90,7 +90,7 @@ pub fn build_root_from_proof(
         root = tree_hash::mix_in_length(&root, size);
     }
 
-    return Ok(root);
+    Ok(root)
 }
 
 pub fn verify_hashes(expected: &Hash256, actual: &Hash256) -> Result<(), Error> {
@@ -103,7 +103,7 @@ pub fn verify_hashes(expected: &Hash256, actual: &Hash256) -> Result<(), Error> 
         hex::encode(expected),
         hex::encode(actual)
     );
-    return Err(Error::HashesMistmatch(err_msg, actual.clone(), expected.clone()));
+    Err(Error::HashesMistmatch(err_msg, *actual, *expected))
 }
 
 pub trait FieldProof {
@@ -139,7 +139,7 @@ where
 
         let merkle_tree = MerkleTree::<Sha256>::from_leaves(leaves_vec.as_slice());
 
-        return merkle_tree.proof(indices);
+        merkle_tree.proof(indices)
     }
 
     fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex], leaves: &[RsMerkleHash]) -> Result<(), Error> {
@@ -153,7 +153,7 @@ where
         );
         let root_from_proof = build_root_from_proof(proof, T::TREE_FIELDS_LENGTH, indices, leaves, None, None)?;
 
-        return verify_hashes(&self.tree_hash_root(), &root_from_proof);
+        verify_hashes(&self.tree_hash_root(), &root_from_proof)
     }
 }
 
@@ -379,7 +379,7 @@ mod test {
                 self.uint1.tree_hash_root(),
                 self.uint2.tree_hash_root(),
                 self.hash,
-                ZEROHASH_H256.clone(),
+                ZEROHASH_H256,
             ];
             // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
             assert!(result.len() == Self::TREE_FIELDS_LENGTH);
@@ -411,15 +411,15 @@ mod test {
             .expect("Verification failed")
     }
 
-    fn test_list<N: Unsigned>(input: &Vec<GuineaPig>, target_indices: &[usize]) {
-        let list: VariableList<GuineaPig, N> = input.clone().into();
+    fn test_list<N: Unsigned>(input: &[GuineaPig], target_indices: &[usize]) {
+        let list: VariableList<GuineaPig, N> = input.to_vec().into();
         let target_hashes: Vec<RsMerkleHash> = target_indices
             .iter()
             .map(|index| input[*index].tree_hash_root().to_fixed_bytes())
             .collect();
 
-        let proof = list.get_field_multiproof(&target_indices);
-        list.verify(&proof, &target_indices, target_hashes.as_slice())
+        let proof = list.get_field_multiproof(target_indices);
+        list.verify(&proof, target_indices, target_hashes.as_slice())
             .expect("Verification failed")
     }
 
@@ -446,8 +446,8 @@ mod test {
         test_list::<typenum::U999>(&guinea_pigs, &[3, 1, 2, 0]);
     }
 
-    fn test_list_against_hash<N: Unsigned>(input: &Vec<GuineaPig>, target_indices: &[usize]) {
-        let list: VariableList<GuineaPig, N> = input.clone().into();
+    fn test_list_against_hash<N: Unsigned>(input: &[GuineaPig], target_indices: &[usize]) {
+        let list: VariableList<GuineaPig, N> = input.to_vec().into();
 
         let expected_root = list.tree_hash_root();
         let total_leaves_count = input.len().next_power_of_two();
@@ -458,7 +458,7 @@ mod test {
             .map(|index| input[*index].tree_hash_root().to_fixed_bytes())
             .collect();
 
-        let proof = list.get_field_multiproof(&target_indices);
+        let proof = list.get_field_multiproof(target_indices);
         let actiual_hash = build_root_from_proof(
             &proof,
             total_leaves_count,

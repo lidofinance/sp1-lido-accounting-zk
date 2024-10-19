@@ -29,7 +29,7 @@ impl ReportData {
         let mut exited: u64 = 0;
 
         // make a clone to disentangle report lifetime from withdrawal credential lifetime
-        let creds = lido_withdrawal_credentials.clone();
+        let creds = *lido_withdrawal_credentials;
 
         for (validator, balance) in validators.iter().zip(balances.iter()) {
             if validator.withdrawal_credentials != creds {
@@ -67,13 +67,13 @@ impl ReportData {
             cl_balance += balances[u64_to_usize(*index)];
         }
 
-        return Self {
+        Self {
             slot: lido_validators_state.slot,
             epoch: lido_validators_state.epoch,
-            lido_withdrawal_credentials: lido_withdrawal_credentials.clone(),
+            lido_withdrawal_credentials: *lido_withdrawal_credentials,
             deposited_lido_validators: usize_to_u64(deposited_indices.len()),
             exited_lido_validators: usize_to_u64(lido_validators_state.exited_lido_validator_indices.len()),
             lido_cl_balance: cl_balance,
-        };
+        }
     }
 }

@@ -12,7 +12,7 @@ pub fn pad_to_depth(hash: &Hash256, current_depth: usize, target_depth: usize) -
     for depth in current_depth..target_depth {
         curhash = hash32_concat(&curhash, ZERO_HASHES[depth].as_slice());
     }
-    return curhash.into();
+    curhash.into()
 }
 
 pub fn packing_factor<T: TreeHash>() -> usize {
