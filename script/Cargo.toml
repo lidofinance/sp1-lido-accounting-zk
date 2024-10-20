@@ -92,6 +92,7 @@ sp1-helper.workspace = true
 [dev-dependencies]
 alloy = { version = "0.2.1", features = ["node-bindings"] }
 dotenv = "0.15.0"
+lazy_static = "1.5.0"
 typenum.workspace = true
 
 [features]

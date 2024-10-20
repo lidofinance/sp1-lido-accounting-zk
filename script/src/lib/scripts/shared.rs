@@ -82,7 +82,7 @@ pub fn prepare_program_input(
     log::debug!("Report {report:?}");
     log::debug!("Public values {public_values:?}");
 
-    let validator_delta = ValidatorDeltaCompute::new(old_bs, &old_validator_state, bs).compute();
+    let validator_delta = ValidatorDeltaCompute::new(old_bs, &old_validator_state, bs, !verify).compute();
     log::info!(
         "Computed validator delta. Added: {}, lido changed: {}",
         validator_delta.all_added.len(),

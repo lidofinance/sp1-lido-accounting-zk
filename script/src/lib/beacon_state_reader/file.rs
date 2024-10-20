@@ -93,7 +93,7 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
     async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
         let permanent_state = self.get_permanent_state_id(state_id)?;
         let beacon_block_header_path = self.file_store.get_beacon_block_header_path(&permanent_state);
-        log::info!("Reading BeaconBlock from file {:?}", &beacon_block_header_path);
+        log::info!("Reading BeaconBlockHeader from file {:?}", &beacon_block_header_path);
         let res: BeaconBlockHeader = read_json(&beacon_block_header_path)?;
         Ok(res)
     }

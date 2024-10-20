@@ -12,7 +12,7 @@ pub mod reqwest;
 #[cfg(feature = "synthetic")]
 pub mod synthetic;
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub enum StateId {
     Head,
     Genesis,

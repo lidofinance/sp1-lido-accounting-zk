@@ -71,6 +71,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         uint256 target_slot;
     }
 
+    error VerificationError(string);
 
     constructor(
         address _verifier,
@@ -281,7 +282,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
 
     function _require(bool condition, string memory reason) internal pure {
         if (!condition) {
-            revert(reason);
+            revert VerificationError(reason);
         }
     }
 

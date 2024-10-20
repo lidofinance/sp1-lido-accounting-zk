@@ -9,6 +9,10 @@ pub struct ValidatorDeltaCompute<'a> {
     old_bs: &'a BeaconState,
     old_state: &'a LidoValidatorState,
     new_bs: &'a BeaconState,
+    // This flag disables some sanity checks
+    // This should normally be set to true, except for the data tampering tests, where it gets in
+    // the way of some tampering scenarios
+    skip_verification: bool,
 }
 
 fn check_epoch_based_change(old_bs_epoch: Epoch, new_bs_epoch: Epoch, old_epoch: Epoch, new_epoch: Epoch) -> bool {
@@ -22,11 +26,17 @@ fn check_epoch_based_change(old_bs_epoch: Epoch, new_bs_epoch: Epoch, old_epoch:
 }
 
 impl<'a> ValidatorDeltaCompute<'a> {
-    pub fn new(old_bs: &'a BeaconState, old_state: &'a LidoValidatorState, new_bs: &'a BeaconState) -> Self {
+    pub fn new(
+        old_bs: &'a BeaconState,
+        old_state: &'a LidoValidatorState,
+        new_bs: &'a BeaconState,
+        skip_verification: bool,
+    ) -> Self {
         Self {
             old_bs,
             old_state,
             new_bs,
+            skip_verification,
         }
     }
 
@@ -38,10 +48,10 @@ impl<'a> ValidatorDeltaCompute<'a> {
             .copied()
             .collect();
 
-        // ballpark estimating ~32000 validators changed per oracle report should waaaay more than enough
+        // ballpark estimating ~32000 validators changed per oracle report should be waaaay more than enough
         // Better estimate could be (new_slot - old_slot) * avg_changes_per_slot, but the impact is likely marginal
         // If underestimated, the vec will transparently resize and reallocate more memory, so the only
-        // effect is slightly slower run time - which is ok, unless (again) this gets into shared and used in the ZK part
+        // effect is slightly slower run time - which has negligible impact, unless this gets into shared and used in the ZK part
         lido_changed_indices.reserve(32000);
 
         let old_bs_epoch = self.old_bs.epoch();
@@ -55,11 +65,13 @@ impl<'a> ValidatorDeltaCompute<'a> {
             let old_validator = &self.old_bs.validators[index_usize];
             let new_validator = &self.new_bs.validators[index_usize];
 
-            assert!(
-                old_validator.pubkey == new_validator.pubkey,
-                "Validators at index {} in old and new beacon state have different pubkeys",
-                index
-            );
+            if !self.skip_verification {
+                assert!(
+                    old_validator.pubkey == new_validator.pubkey,
+                    "Validators at index {} in old and new beacon state have different pubkeys",
+                    index
+                );
+            }
             if check_epoch_based_change(
                 old_bs_epoch,
                 new_bs_epoch,
@@ -89,7 +101,7 @@ impl<'a> ValidatorDeltaCompute<'a> {
                     .validators
                     .get(u64_to_usize(*index))
                     .map(|v| ValidatorWithIndex {
-                        index: index.clone(),
+                        index: *index,
                         validator: v.clone(),
                     })
             })

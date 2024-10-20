@@ -8,7 +8,7 @@ use sp1_lido_accounting_scripts::consts::{Network, NetworkInfo, WrappedNetwork};
 use sp1_lido_accounting_scripts::eth_client::ContractDeployParametersRust;
 use sp1_lido_accounting_scripts::proof_storage::StoredProof;
 use sp1_lido_accounting_scripts::{proof_storage, utils};
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconState;
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::eth_spec;
 use tree_hash::TreeHash;
 use typenum::Unsigned;
@@ -97,6 +97,7 @@ where
 {
     inner: &'a T,
     beacon_state_mutators: HashMap<StateId, Mut>,
+    should_update_block_header: HashMap<StateId, bool>,
 }
 
 impl<'a, T, Mut> TamperableBeaconStateReader<'a, T, Mut>
@@ -108,11 +109,14 @@ where
         Self {
             inner,
             beacon_state_mutators: HashMap::new(),
+            should_update_block_header: HashMap::new(),
         }
     }
 
-    pub fn add_mutator(&mut self, state_id: StateId, mutator: Mut) -> &mut Self {
-        self.beacon_state_mutators.insert(state_id, mutator);
+    pub fn set_mutator(&mut self, state_id: StateId, update_block_header: bool, mutator: Mut) -> &mut Self {
+        self.beacon_state_mutators.insert(state_id.clone(), mutator);
+        self.should_update_block_header
+            .insert(state_id.clone(), update_block_header);
         self
     }
 }
@@ -123,25 +127,39 @@ where
     Mut: Fn(BeaconState) -> BeaconState,
 {
     async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
-        let bs = self.inner.read_beacon_state(state_id).await?;
-        match self.beacon_state_mutators.get(state_id) {
-            Some(mutator) => Ok((mutator)(bs)),
-            None => Ok(bs),
-        }
+        let (_, bs) = self.read_beacon_state_and_header(state_id).await?;
+        Ok(bs)
     }
 
     async fn read_beacon_block_header(
         &self,
         state_id: &StateId,
     ) -> anyhow::Result<sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconBlockHeader> {
-        let mut bh = self.inner.read_beacon_block_header(state_id).await?;
-        match self.beacon_state_mutators.get(state_id) {
-            Some(_mut) => {
-                let bs = self.read_beacon_state(state_id).await?;
-                bh.state_root = bs.tree_hash_root();
-                Ok(bh)
+        let (bh, _) = self.read_beacon_state_and_header(state_id).await?;
+        Ok(bh)
+    }
+
+    async fn read_beacon_state_and_header(
+        &self,
+        state_id: &StateId,
+    ) -> anyhow::Result<(BeaconBlockHeader, BeaconState)> {
+        let (orig_bh, orig_bs) = self.inner.read_beacon_state_and_header(state_id).await?;
+
+        let (result_bh, result_bs) = match self.beacon_state_mutators.get(state_id) {
+            Some(mutator) => {
+                let new_bs = (mutator)(orig_bs);
+                let new_bh = match self.should_update_block_header.get(state_id) {
+                    Some(true) => {
+                        let mut new_bh = orig_bh.clone();
+                        new_bh.state_root = new_bs.tree_hash_root();
+                        new_bh
+                    }
+                    _ => orig_bh,
+                };
+                (new_bh, new_bs)
             }
-            None => Ok(bh),
-        }
+            None => (orig_bh, orig_bs),
+        };
+        Ok((result_bh, result_bs))
     }
 }

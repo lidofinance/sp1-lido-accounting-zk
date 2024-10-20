@@ -5371,6 +5371,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "k256",
+ "lazy_static",
  "log",
  "reqwest 0.12.7",
  "serde",
