@@ -1,5 +1,3 @@
-use std::u64;
-
 use sp1_lido_accounting_zk_shared::{
     circuit_logic::input_verification::{InputVerifier, NoopCycleTracker},
     eth_consensus_layer::{Hash256, Validator, Validators},
@@ -31,7 +29,7 @@ fn test_validator_multiproof(validators: Vec<Validator>, target_indices: Vec<usi
     let validators_with_indices: Vec<ValidatorWithIndex> = target_indices
         .iter()
         .map(|idx| ValidatorWithIndex {
-            index: usize_to_u64(idx.clone()),
+            index: usize_to_u64(*idx),
             validator: validators[*idx].clone(),
         })
         .collect();
