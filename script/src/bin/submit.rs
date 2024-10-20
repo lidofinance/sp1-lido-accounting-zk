@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let tx_hash = scripts::submit::run(
         &client,
         &bs_reader,
-        contract,
+        &contract,
         args.target_slot,
         args.previous_slot,
         network,
