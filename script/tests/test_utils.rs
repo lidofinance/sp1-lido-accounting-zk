@@ -19,7 +19,6 @@ use typenum::Unsigned;
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);
 pub const DEPLOY_SLOT: u64 = 5832096;
 pub const DEPLOY_BLOCK: u64 = 6649650;
-pub const CACHED_BEACON_STATE_SLOT: u64 = 5887808;
 pub const RETRIES: usize = 3;
 
 // TODO: Enable local prover if/when it becomes feasible.

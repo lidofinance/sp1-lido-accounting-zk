@@ -1,33 +1,32 @@
-use alloy::node_bindings::{Anvil, AnvilInstance};
-use anyhow::{anyhow, Result};
+use alloy::node_bindings::{anvil, Anvil, AnvilInstance};
+use anyhow::Context;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
     consts::{self, NetworkInfo, WrappedNetwork},
     eth_client::{self, Contract, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
+    proof_storage::StoredProof,
     scripts::{self, shared as shared_logic},
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 
 use lazy_static::lazy_static;
 use sp1_lido_accounting_zk_shared::{
-    eth_consensus_layer::{BeaconState, Hash256, Validator},
+    eth_consensus_layer::{BeaconState, Hash256},
     io::eth_io::{ReportMetadataRust, ReportRust},
 };
-use sp1_sdk::ProverClient;
+use sp1_sdk::{HashableKey, ProverClient};
 use std::env;
 use test_utils::TestFiles;
+use thiserror::Error;
 mod test_utils;
 use hex_literal::hex;
 
 static NETWORK: &WrappedNetwork = &test_utils::NETWORK;
+const STORED_PROOF_FILE_NAME: &str = "fixture.json";
 
 lazy_static! {
     static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::network(), consts::ELF);
     static ref LIDO_CREDS: Hash256 = NETWORK.get_config().lido_withdrawal_credentials.into();
-}
-
-fn eyre_to_anyhow(err: eyre::Error) -> anyhow::Error {
-    anyhow!("Eyre error: {:#?}", err)
 }
 
 struct TestExecutor {
@@ -36,6 +35,49 @@ struct TestExecutor {
     test_files: test_utils::TestFiles,
     tamper_report: fn(ReportRust) -> ReportRust,
     tamper_metadata: fn(ReportMetadataRust) -> ReportMetadataRust,
+}
+
+#[derive(Debug, Error)]
+enum ExecutorError {
+    #[error("Contract rejected: {0:#?}")]
+    Contract(eth_client::Error),
+    #[error("Failed o launch anvil: {0:#?}")]
+    AnvilLaunch(anvil::AnvilError),
+    // TODO: eyre is a fork of anvil, and neither are good for inspecting error causes and handling
+    // them - but standardizing on one of them and/or replacing existing call sites with
+    // "structured" error handling is not worth it right now.
+    #[error("Eyre error: {0:#?}")]
+    Eyre(eyre::Error),
+    #[error("Anyhow error: {0:#?}")]
+    Anyhow(anyhow::Error),
+}
+
+type Result<T> = std::result::Result<T, ExecutorError>;
+type TestExecutorResult = Result<alloy_primitives::TxHash>;
+
+// TODO: derive these
+impl From<eth_client::Error> for ExecutorError {
+    fn from(value: eth_client::Error) -> Self {
+        ExecutorError::Contract(value)
+    }
+}
+
+impl From<anvil::AnvilError> for ExecutorError {
+    fn from(value: anvil::AnvilError) -> Self {
+        ExecutorError::AnvilLaunch(value)
+    }
+}
+
+impl From<eyre::Error> for ExecutorError {
+    fn from(value: eyre::Error) -> Self {
+        ExecutorError::Eyre(value)
+    }
+}
+
+impl From<anyhow::Error> for ExecutorError {
+    fn from(value: anyhow::Error) -> Self {
+        ExecutorError::Anyhow(value)
+    }
 }
 
 impl TestExecutor {
@@ -53,14 +95,14 @@ impl TestExecutor {
         }
     }
 
-    fn get_target_slot(&self) -> u64 {
-        test_utils::CACHED_BEACON_STATE_SLOT
+    fn get_stored_proof(&self) -> Result<StoredProof> {
+        let proof = self.test_files.read_proof(STORED_PROOF_FILE_NAME)?;
+        Ok(proof)
     }
 
     async fn start_anvil(&self, target_slot: u64) -> Result<AnvilInstance> {
-        let finalized_bs = test_utils::read_latest_bs_at_or_before(&self.bs_reader, target_slot, test_utils::RETRIES)
-            .await
-            .map_err(eyre_to_anyhow)?;
+        let finalized_bs =
+            test_utils::read_latest_bs_at_or_before(&self.bs_reader, target_slot, test_utils::RETRIES).await?;
         let fork_url =
             env::var("INTEGRATION_TEST_FORK_URL").expect("INTEGRATION_TEST_FORK_URL env var must be specified");
         let fork_block_number = finalized_bs.latest_execution_payload_header.block_number + 2;
@@ -77,28 +119,30 @@ impl TestExecutor {
     }
 
     async fn deploy_contract(&self, network: &impl NetworkInfo, anvil: &AnvilInstance) -> Result<Contract> {
-        let provider = ProviderFactory::create_provider(anvil.keys()[0].clone(), anvil.endpoint().parse()?);
+        let endpoint = anvil
+            .endpoint()
+            .parse()
+            .context("Failed to parse anvil endpoint as url")?;
+        let provider = ProviderFactory::create_provider(anvil.keys()[0].clone(), endpoint);
 
         let deploy_bs: BeaconState = self
             .test_files
             .read_beacon_state(&StateId::Slot(test_utils::DEPLOY_SLOT))
-            .await
-            .map_err(eyre_to_anyhow)?;
+            .await?;
         let deploy_params = scripts::deploy::prepare_deploy_params(self.client.vk_bytes(), &deploy_bs, network);
 
         log::info!("Deploying contract with parameters {:?}", deploy_params);
-        let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider, &deploy_params)
-            .await
-            .map_err(eyre_to_anyhow)?;
+        let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider, &deploy_params).await?;
         log::info!("Deployed contract at {}", contract.address());
         Ok(contract)
     }
 
-    async fn run_test(&self) -> Result<()> {
+    async fn run_test(&self) -> TestExecutorResult {
         sp1_sdk::utils::setup_logger();
         let lido_withdrawal_credentials: Hash256 = NETWORK.get_config().lido_withdrawal_credentials.into();
+        let stored_proof = self.get_stored_proof()?;
 
-        let target_slot = self.get_target_slot();
+        let target_slot = stored_proof.report.slot;
         // // Anvil needs to be here in scope for the duration of the test, otherwise it terminates
         // // Hence creating it here (i.e. owner is this function) and passing down to deploy conract
         let anvil = self.start_anvil(target_slot).await?;
@@ -116,7 +160,6 @@ impl TestExecutor {
         let (_program_input, public_values) =
             shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials, false);
         log::info!("Reading proof");
-        let proof = self.test_files.read_proof("fixture.json").map_err(eyre_to_anyhow)?;
 
         log::info!("Sending report");
         let result = contract
@@ -124,56 +167,13 @@ impl TestExecutor {
                 target_bs.slot,
                 (self.tamper_report)(public_values.report),
                 (self.tamper_metadata)(public_values.metadata),
-                proof.proof,
-                proof.public_values,
+                stored_proof.proof,
+                stored_proof.public_values,
             )
-            .await;
+            .await?;
 
-        match result {
-            Err(eth_client::Error::Rejection(err)) => {
-                log::info!("As expected, contract rejected {:#?}", err);
-                Ok(())
-            }
-            Err(eth_client::Error::VerifierRejection(err)) => {
-                log::info!("As expected, verifier rejected {:#?}", err);
-                Ok(())
-            }
-            Err(other_err) => Err(anyhow!(
-                "Submission failed due to technical reasons - inconclusive outcome {:#?}",
-                other_err
-            )),
-            Ok(_txhash) => Err(anyhow!("Report accepted")),
-        }
+        Ok(result)
     }
-}
-
-fn validator_indices<P>(bs: &BeaconState, positions: &[usize], predicate: P) -> Vec<usize>
-where
-    P: Fn(&Validator) -> bool,
-{
-    let filtered_validator_indices: Vec<usize> = bs
-        .validators
-        .iter()
-        .enumerate()
-        .filter_map(
-            |(index, validator)| {
-                if predicate(validator) {
-                    Some(index)
-                } else {
-                    None
-                }
-            },
-        )
-        .collect();
-    positions.iter().map(|idx| filtered_validator_indices[*idx]).collect()
-}
-
-fn is_lido(validator: &Validator) -> bool {
-    validator.withdrawal_credentials == *LIDO_CREDS
-}
-
-fn is_non_lido(validator: &Validator) -> bool {
-    !is_lido(validator)
 }
 
 /*
@@ -200,6 +200,43 @@ fn id<T>(val: T) -> T {
     val
 }
 
+fn assert_rejects(result: TestExecutorResult) -> Result<()> {
+    match result {
+        Err(ExecutorError::Contract(eth_client::Error::Rejection(err))) => {
+            log::info!("As expected, contract rejected {:#?}", err);
+            Ok(())
+        }
+        Err(ExecutorError::Contract(eth_client::Error::VerifierRejection(err))) => {
+            log::info!("As expected, verifier rejected {:#?}", err);
+            Ok(())
+        }
+        Err(other_err) => Err(other_err),
+        Ok(_txhash) => Err(ExecutorError::Anyhow(anyhow::anyhow!("Report accepted"))),
+    }
+}
+
+#[test]
+fn check_vkey_matches() -> Result<()> {
+    let test_files = test_utils::TestFiles::new_from_manifest_dir();
+    let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;
+    assert_eq!(SP1_CLIENT.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn report_tampering_sanity_check_should_pass() -> Result<()> {
+    let executor = TestExecutor::new(id, id);
+
+    let result = executor.run_test().await;
+    match result {
+        Ok(_txhash) => {
+            log::info!("Sanity check succeeded - submitting valid report with no tampering succeeds");
+            Ok(())
+        }
+        Err(err) => Err(err),
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_report_slot() -> Result<()> {
     let executor = TestExecutor::new(
@@ -211,7 +248,7 @@ async fn report_tampering_report_slot() -> Result<()> {
         id,
     );
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -225,7 +262,7 @@ async fn report_tampering_report_cl_balance() -> Result<()> {
         id,
     );
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -239,7 +276,7 @@ async fn report_tampering_report_deposited_count() -> Result<()> {
         id,
     );
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -253,7 +290,7 @@ async fn report_tampering_report_exited_count() -> Result<()> {
         id,
     );
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -264,7 +301,7 @@ async fn report_tampering_metadata_slot() -> Result<()> {
         new_metadata
     });
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -275,7 +312,7 @@ async fn report_tampering_metadata_epoch() -> Result<()> {
         new_metadata
     });
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -287,7 +324,7 @@ async fn report_tampering_metadata_withdrawal_credentials() -> Result<()> {
         new_metadata
     });
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -298,7 +335,7 @@ async fn report_tampering_metadata_beacon_block_hash() -> Result<()> {
         new_metadata
     });
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -309,7 +346,7 @@ async fn report_tampering_metadata_old_state_slot() -> Result<()> {
         new_metadata
     });
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -321,7 +358,7 @@ async fn report_tampering_metadata_old_state_merkle_root() -> Result<()> {
         new_metadata
     });
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -332,7 +369,7 @@ async fn report_tampering_metadata_new_state_slot() -> Result<()> {
         new_metadata
     });
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -343,5 +380,5 @@ async fn report_tampering_metadata_new_state_merkle_root() -> Result<()> {
         new_metadata
     });
 
-    executor.run_test().await
+    assert_rejects(executor.run_test().await)
 }
