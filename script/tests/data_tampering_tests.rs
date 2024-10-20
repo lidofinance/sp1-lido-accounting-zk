@@ -2,7 +2,7 @@ use alloy::node_bindings::{Anvil, AnvilInstance};
 use anyhow::{anyhow, Result};
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
-    consts::{self, NetworkInfo, WrappedNetwork},
+    consts::NetworkInfo,
     eth_client::{self, Contract, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
     scripts::{self, shared as shared_logic},
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},

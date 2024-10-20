@@ -1,5 +1,4 @@
 use crate::utils::{read_binary, read_json};
-use anyhow::anyhow;
 use log;
 use ssz::{Decode, Encode};
 use std::io;
@@ -40,7 +39,7 @@ impl FileBasedBeaconChainStore {
     }
 
     pub fn exists(path: &Path) -> bool {
-        let result = Path::exists(&path);
+        let result = Path::exists(path);
         if result {
             log::debug!("Path exists {:?}", path);
         } else {

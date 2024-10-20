@@ -1,4 +1,3 @@
-use anyhow;
 use clap::Parser;
 use sp1_lido_accounting_scripts::scripts;
 

@@ -4,7 +4,7 @@ use crate::proof_storage;
 use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 
 use log;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;

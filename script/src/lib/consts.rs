@@ -93,7 +93,7 @@ pub mod lido_credentials {
 pub fn read_network(val: &str) -> WrappedNetwork {
     let is_anvil = val.starts_with("anvil");
     let base_network: &str = if is_anvil {
-        let mut parts = val.splitn(2, "-");
+        let mut parts = val.splitn(2, '-');
         parts.nth(1).unwrap()
     } else {
         val
