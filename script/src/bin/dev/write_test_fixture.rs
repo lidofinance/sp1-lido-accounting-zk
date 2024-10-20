@@ -28,7 +28,12 @@ async fn main() {
         args.previous_slot
     );
 
-    let fixture_file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/test/fixtures/fixture.json");
+    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    let fixture_files = vec![
+        project_root.join("../contracts/test/fixtures/fixture.json"),
+        project_root.join("../script/tests/data/proofs/fixture.json"),
+    ];
 
     scripts::write_test_fixture::run(
         client,
@@ -36,7 +41,7 @@ async fn main() {
         args.target_slot,
         args.previous_slot,
         &network.get_config().lido_withdrawal_credentials,
-        fixture_file.as_path(),
+        fixture_files,
     )
     .await
     .expect("Failed to run `write_test_fixture");

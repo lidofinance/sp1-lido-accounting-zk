@@ -4,7 +4,7 @@ use crate::proof_storage;
 use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use log;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
@@ -15,7 +15,7 @@ pub async fn run(
     target_slot: u64,
     previous_slot: u64,
     withdrawal_credentials: &[u8; 32],
-    fixture_file: &Path,
+    fixture_files: Vec<PathBuf>,
 ) -> anyhow::Result<()> {
     let lido_withdrawal_credentials: Hash256 = withdrawal_credentials.into();
     let (target_bh, target_bs) = bs_reader
@@ -37,6 +37,9 @@ pub async fn run(
     shared_logic::verify_public_values(&proof.public_values, &public_values).expect("Failed to verify public inputs");
     log::info!("Verified public values");
 
-    proof_storage::store_proof_and_metadata(&proof, client.vk(), fixture_file);
+    for fixture_file in fixture_files {
+        proof_storage::store_proof_and_metadata(&proof, client.vk(), fixture_file.as_path());
+    }
+
     anyhow::Ok(())
 }

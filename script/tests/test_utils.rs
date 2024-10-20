@@ -2,21 +2,42 @@ use std::collections::HashMap;
 use std::{env, path::PathBuf};
 
 use eyre::{eyre, Result, WrapErr};
+use lazy_static::lazy_static;
 use sp1_lido_accounting_scripts::beacon_state_reader::file::FileBasedBeaconStateReader;
 use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
-use sp1_lido_accounting_scripts::consts::{Network, NetworkInfo, WrappedNetwork};
+use sp1_lido_accounting_scripts::consts::{Network, NetworkInfo, WrappedNetwork, ELF};
 use sp1_lido_accounting_scripts::eth_client::ContractDeployParametersRust;
 use sp1_lido_accounting_scripts::proof_storage::StoredProof;
+use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapperImpl;
 use sp1_lido_accounting_scripts::{proof_storage, utils};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::eth_spec;
+use sp1_sdk::ProverClient;
 use tree_hash::TreeHash;
 use typenum::Unsigned;
 
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);
 pub const DEPLOY_SLOT: u64 = 5832096;
 pub const DEPLOY_BLOCK: u64 = 6649650;
+pub const CACHED_BEACON_STATE_SLOT: u64 = 5887808;
 pub const RETRIES: usize = 3;
+
+// TODO: Enable local prover if/when it becomes feasible.
+// In short, local proving with groth16 seems to not really work at the moment -
+// get stuck at generating proof with ~100% CPU utilization for ~40 minutes.
+// This makes local prover impractical - network takes ~5-10 minutes to finish
+// #[cfg(not(feature = "test_network_prover"))]
+// lazy_static! {
+//     pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::local(), ELF);
+// }
+// #[cfg(feature = "test_network_prover")]
+lazy_static! {
+    pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::network(), ELF);
+}
+
+lazy_static! {
+    pub static ref LIDO_CREDS: Hash256 = NETWORK.get_config().lido_withdrawal_credentials.into();
+}
 
 pub struct TestFiles {
     pub base: PathBuf,

@@ -33,6 +33,9 @@ async fn deploy() -> Result<()> {
     Ok(())
 }
 
+// Note: this will hit SP1 prover network - will take noticeable time (a few mins) and might incur
+// costs.
+#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn submission_success() -> Result<()> {
     sp1_sdk::utils::setup_logger();

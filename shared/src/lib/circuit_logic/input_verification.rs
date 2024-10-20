@@ -100,11 +100,11 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             "Not all new validators were passed - expected {validator_from_delta}, got {actual_valdiator_count}"
         );
 
-        let lido_changed_indices: HashSet<u64> = delta.lido_changed_indices().map(|v| v.clone()).collect();
+        let lido_changed_indices: HashSet<u64> = delta.lido_changed_indices().copied().collect();
         let pending_deposit_from_old_state: HashSet<u64> = old_state
             .pending_deposit_lido_validator_indices
             .iter()
-            .map(|v| v.clone())
+            .copied()
             .collect();
 
         // all validators with pending deposits from old state are required - to make sure they are not omitted
@@ -135,7 +135,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         self.cycle_tracker.start_span("prove_input.beacon_block_header");
         let bh_root = beacon_block_header.tree_hash_root();
         assert!(
-            bh_root == input.beacon_block_hash.into(),
+            bh_root == input.beacon_block_hash,
             "Failed to verify Beacon Block Header hash, got {}, expected {}",
             hex::encode(bh_root),
             hex::encode(input.beacon_block_hash),
