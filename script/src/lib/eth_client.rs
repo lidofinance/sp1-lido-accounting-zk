@@ -45,6 +45,9 @@ pub enum Error {
     #[error("Sp1 verifier gateway rejected: {0:#?}")]
     VerifierRejection(ISP1VerifierGatewayErrors),
 
+    #[error("Custom rejection: {0:#?}")]
+    CustomRejection(String),
+
     #[error("Report for slot {0} not found")]
     ReportNotFound(u64),
 
@@ -219,6 +222,9 @@ where
                 Error::Rejection(contract_error)
             } else if let Some(verifier_error) = error_payload.as_decoded_error::<ISP1VerifierGatewayErrors>(true) {
                 Error::VerifierRejection(verifier_error)
+            } else if error_payload.message.contains("execution reverted") {
+                // todo - might be good to preserve the data, but ErrorPayload is a generic
+                Error::CustomRejection(error_payload.message.clone())
             } else {
                 Error::AlloyError(error)
             }

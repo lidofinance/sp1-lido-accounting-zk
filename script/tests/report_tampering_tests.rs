@@ -1,4 +1,5 @@
 use alloy::node_bindings::{anvil, Anvil, AnvilInstance};
+use alloy_sol_types::SolType;
 use anyhow::Context;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
@@ -12,7 +13,7 @@ use sp1_lido_accounting_scripts::{
 use lazy_static::lazy_static;
 use sp1_lido_accounting_zk_shared::{
     eth_consensus_layer::{BeaconState, Hash256},
-    io::eth_io::{ReportMetadataRust, ReportRust},
+    io::eth_io::{PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust},
 };
 use sp1_sdk::{HashableKey, ProverClient};
 use std::env;
@@ -27,14 +28,6 @@ const STORED_PROOF_FILE_NAME: &str = "fixture.json";
 lazy_static! {
     static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::network(), consts::ELF);
     static ref LIDO_CREDS: Hash256 = NETWORK.get_config().lido_withdrawal_credentials.into();
-}
-
-struct TestExecutor {
-    bs_reader: BeaconStateReaderEnum,
-    client: &'static SP1ClientWrapperImpl,
-    test_files: test_utils::TestFiles,
-    tamper_report: fn(ReportRust) -> ReportRust,
-    tamper_metadata: fn(ReportMetadataRust) -> ReportMetadataRust,
 }
 
 #[derive(Debug, Error)]
@@ -80,18 +73,21 @@ impl From<anyhow::Error> for ExecutorError {
     }
 }
 
-impl TestExecutor {
-    fn new(
-        tamper_report: fn(ReportRust) -> ReportRust,
-        tamper_metadata: fn(ReportMetadataRust) -> ReportMetadataRust,
-    ) -> Self {
+struct TestExecutor<M: Fn(PublicValuesRust) -> PublicValuesRust> {
+    bs_reader: BeaconStateReaderEnum,
+    client: &'static SP1ClientWrapperImpl,
+    test_files: test_utils::TestFiles,
+    tamper_public_values: M,
+}
+
+impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
+    fn new(tamper_public_values: M) -> Self {
         let test_files = TestFiles::new_from_manifest_dir();
         Self {
             bs_reader: BeaconStateReaderEnum::new_from_env(NETWORK),
             client: &SP1_CLIENT,
             test_files,
-            tamper_report,
-            tamper_metadata,
+            tamper_public_values,
         }
     }
 
@@ -137,7 +133,7 @@ impl TestExecutor {
         Ok(contract)
     }
 
-    async fn run_test(&self) -> TestExecutorResult {
+    async fn run_test(&self, tamper_public_values_bytes: bool) -> TestExecutorResult {
         sp1_sdk::utils::setup_logger();
         let lido_withdrawal_credentials: Hash256 = NETWORK.get_config().lido_withdrawal_credentials.into();
         let stored_proof = self.get_stored_proof()?;
@@ -161,14 +157,23 @@ impl TestExecutor {
             shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials, false);
         log::info!("Reading proof");
 
+        let tampered_public_values = (self.tamper_public_values)(public_values);
+
+        let public_values_bytes: Vec<u8> = if tamper_public_values_bytes {
+            let pub_vals_solidity: PublicValuesSolidity = tampered_public_values.clone().into();
+            PublicValuesSolidity::abi_encode(&pub_vals_solidity)
+        } else {
+            stored_proof.public_values
+        };
+
         log::info!("Sending report");
         let result = contract
             .submit_report_data(
                 target_bs.slot,
-                (self.tamper_report)(public_values.report),
-                (self.tamper_metadata)(public_values.metadata),
+                tampered_public_values.report,
+                tampered_public_values.metadata,
                 stored_proof.proof,
-                stored_proof.public_values,
+                public_values_bytes,
             )
             .await?;
 
@@ -200,6 +205,24 @@ fn id<T>(val: T) -> T {
     val
 }
 
+fn wrap_report_mapper(mapper: fn(ReportRust) -> ReportRust) -> impl Fn(PublicValuesRust) -> PublicValuesRust {
+    move |pub_vals| {
+        let mut new_pub_values = pub_vals.clone();
+        new_pub_values.report = (mapper)(new_pub_values.report);
+        new_pub_values
+    }
+}
+
+fn wrap_metadata_mapper(
+    mapper: fn(ReportMetadataRust) -> ReportMetadataRust,
+) -> impl Fn(PublicValuesRust) -> PublicValuesRust {
+    move |pub_vals| {
+        let mut new_pub_values = pub_vals.clone();
+        new_pub_values.metadata = (mapper)(new_pub_values.metadata);
+        new_pub_values
+    }
+}
+
 fn assert_rejects(result: TestExecutorResult) -> Result<()> {
     match result {
         Err(ExecutorError::Contract(eth_client::Error::Rejection(err))) => {
@@ -207,6 +230,10 @@ fn assert_rejects(result: TestExecutorResult) -> Result<()> {
             Ok(())
         }
         Err(ExecutorError::Contract(eth_client::Error::VerifierRejection(err))) => {
+            log::info!("As expected, verifier rejected {:#?}", err);
+            Ok(())
+        }
+        Err(ExecutorError::Contract(eth_client::Error::CustomRejection(err))) => {
             log::info!("As expected, verifier rejected {:#?}", err);
             Ok(())
         }
@@ -225,9 +252,9 @@ fn check_vkey_matches() -> Result<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_sanity_check_should_pass() -> Result<()> {
-    let executor = TestExecutor::new(id, id);
+    let executor = TestExecutor::new(id);
 
-    let result = executor.run_test().await;
+    let result = executor.run_test(false).await;
     match result {
         Ok(_txhash) => {
             log::info!("Sanity check succeeded - submitting valid report with no tampering succeeds");
@@ -239,146 +266,146 @@ async fn report_tampering_sanity_check_should_pass() -> Result<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_report_slot() -> Result<()> {
-    let executor = TestExecutor::new(
-        |report| {
-            let mut new_report = report.clone();
-            new_report.slot = 1234567890;
-            new_report
-        },
-        id,
-    );
+    let executor = TestExecutor::new(wrap_report_mapper(|report| {
+        let mut new_report = report.clone();
+        new_report.slot = 1234567890;
+        new_report
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_report_cl_balance() -> Result<()> {
-    let executor = TestExecutor::new(
-        |report| {
-            let mut new_report = report.clone();
-            new_report.lido_cl_balance += 50;
-            new_report
-        },
-        id,
-    );
+    let executor = TestExecutor::new(wrap_report_mapper(|report| {
+        let mut new_report = report.clone();
+        new_report.lido_cl_balance += 50;
+        new_report
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_report_deposited_count() -> Result<()> {
-    let executor = TestExecutor::new(
-        |report| {
-            let mut new_report = report.clone();
-            new_report.deposited_lido_validators += 1;
-            new_report
-        },
-        id,
-    );
+    let executor = TestExecutor::new(wrap_report_mapper(|report| {
+        let mut new_report = report.clone();
+        new_report.deposited_lido_validators += 1;
+        new_report
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_report_exited_count() -> Result<()> {
-    let executor = TestExecutor::new(
-        |report| {
-            let mut new_report = report.clone();
-            new_report.exited_lido_validators += 1;
-            new_report
-        },
-        id,
-    );
+    let executor = TestExecutor::new(wrap_report_mapper(|report| {
+        let mut new_report = report.clone();
+        new_report.exited_lido_validators += 1;
+        new_report
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_metadata_slot() -> Result<()> {
-    let executor = TestExecutor::new(id, |metadata| {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
         new_metadata.slot = 1234567890;
         new_metadata
-    });
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_metadata_epoch() -> Result<()> {
-    let executor = TestExecutor::new(id, |metadata| {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
         new_metadata.epoch = 9876543;
         new_metadata
-    });
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_metadata_withdrawal_credentials() -> Result<()> {
-    let executor = TestExecutor::new(id, |metadata| {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
         new_metadata.lido_withdrawal_credentials =
             hex!("010000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd");
         new_metadata
-    });
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_metadata_beacon_block_hash() -> Result<()> {
-    let executor = TestExecutor::new(id, |metadata| {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
         new_metadata.beacon_block_hash = hex!("123456789000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd");
         new_metadata
-    });
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_metadata_old_state_slot() -> Result<()> {
-    let executor = TestExecutor::new(id, |metadata| {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
         new_metadata.state_for_previous_report.slot = 1234567890;
         new_metadata
-    });
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_metadata_old_state_merkle_root() -> Result<()> {
-    let executor = TestExecutor::new(id, |metadata| {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
         new_metadata.state_for_previous_report.merkle_root =
             hex!("1234567890000000000000000000000000000000000000000000000000000000");
         new_metadata
-    });
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_metadata_new_state_slot() -> Result<()> {
-    let executor = TestExecutor::new(id, |metadata| {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
         new_metadata.new_state.slot = 1234567890;
         new_metadata
-    });
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_metadata_new_state_merkle_root() -> Result<()> {
-    let executor = TestExecutor::new(id, |metadata| {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
         new_metadata.new_state.merkle_root = hex!("1234567890000000000000000000000000000000000000000000000000000000");
         new_metadata
-    });
+    }));
 
-    assert_rejects(executor.run_test().await)
+    assert_rejects(executor.run_test(true).await)?;
+    assert_rejects(executor.run_test(false).await)
 }
