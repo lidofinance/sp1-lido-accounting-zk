@@ -44,4 +44,4 @@ typenum = "1.17.0"
 
 [patch.crates-io]
 sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
-ethereum_hashing = { path = "../../ethereum_hashing" }
+ethereum_hashing = { git = "https://github.com/sp1-patches/ethereum_hashing", branch = "v0.6.0" }

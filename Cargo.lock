@@ -1964,6 +1964,7 @@ dependencies = [
 [[package]]
 name = "ethereum_hashing"
 version = "0.6.0"
+source = "git+https://github.com/sp1-patches/ethereum_hashing?branch=v0.6.0#b6462f5d1427d8a568904808dd7791c58bba9370"
 dependencies = [
  "lazy_static",
  "sha2",
