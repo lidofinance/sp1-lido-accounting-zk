@@ -23,9 +23,12 @@ pub struct LidoValidatorState {
     // The only way to close this loophole is to include all the lido validators in each update, but
     // it generally defeats the purpose of state caching, since lido operates ~30% validators.
     //
-    // So this field is skipped from hashing to prevent a denial of service attack - by manipulating
+    // This field is skipped from hashing to prevent a denial of service attack - by manipulating
     // the exited validators, an attacker can "corrupt" the validator state hash and cause future updates
-    // from legitimate oracles to fail
+    // from legitimate oracles to fail.
+    //
+    // Moreover, the harm done this way is temporary - future report from correct, non-compromised oracle
+    // will correctly count the previously omitted validators as exited.
     #[tree_hash(skip_hashing)]
     pub exited_lido_validator_indices: ValidatorIndexList,
 }
