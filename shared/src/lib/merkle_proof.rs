@@ -16,7 +16,6 @@ use tree_hash::TreeHash;
 type LeafIndex = usize;
 pub type RsMerkleHash = <Sha256 as rs_merkle::Hasher>::Hash;
 
-// TODO: better error
 #[derive(Debug)]
 pub enum Error {
     FieldDoesNotExist(String),
@@ -157,7 +156,6 @@ where
     }
 }
 
-// TODO: derive
 impl MerkleTreeFieldLeaves for BeaconState {
     const TREE_FIELDS_LENGTH: usize = 32;
     fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
@@ -174,7 +172,6 @@ impl MerkleTreeFieldLeaves for BeaconState {
     }
 }
 
-// TODO: derive
 impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
     const TREE_FIELDS_LENGTH: usize = 32;
     fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
@@ -254,7 +251,6 @@ impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
     }
 }
 
-// TODO: derive
 impl MerkleTreeFieldLeaves for BeaconBlockHeader {
     const TREE_FIELDS_LENGTH: usize = 8;
     fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {

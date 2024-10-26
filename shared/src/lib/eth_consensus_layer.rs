@@ -207,7 +207,6 @@ impl BeaconState {
     }
 }
 
-// TODO: Derive?
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct BeaconStatePrecomputedHashes {
     // Versioning
@@ -307,7 +306,6 @@ impl From<BeaconState> for BeaconStatePrecomputedHashes {
     }
 }
 
-// TODO: Derive?
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct BeaconBlockHeaderPrecomputedHashes {
     pub slot: Hash256,

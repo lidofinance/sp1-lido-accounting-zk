@@ -1,10 +1,3 @@
-//! A simple program that takes a number `n` as input, and writes the `n-1`th and `n`th fibonacci
-//! number as an output.
-
-// These two lines are necessary for the program to properly compile.
-//
-// Under the hood, we wrap your main function with some extra code so that it behaves properly
-// inside the zkVM.
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
@@ -52,8 +45,6 @@ pub fn main() {
     cycle_tracker.end_span("main.compute_new_state.merge_delta");
     cycle_tracker.end_span("main.compute_new_state");
 
-    // TODO: new_state and old_state should be largely the same, except a few additions/deletions
-    // Caching tree segments might be helpful to optimize this section
     cycle_tracker.start_span("main.compute_new_state.hash_root");
     let new_state_hash_root = new_state.tree_hash_root();
     assert_eq!(new_state_hash_root, input.new_lido_validator_state_hash);
