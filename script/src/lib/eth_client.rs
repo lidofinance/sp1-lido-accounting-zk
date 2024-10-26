@@ -303,7 +303,7 @@ mod tests {
         ContractDeployParametersRust {
             network: "anvil-sepolia".to_owned(),
             verifier: hex!("3b6041173b80e77f038f3f2c0f9744f04837185e"),
-            vkey: hex!("00ef920869ce612ffdb77d73a149e972ae27637a60e9da8520131063329ffe6f"),
+            vkey: hex!("00da6bb9e019268e8f2494fc5dbcda36d7c1c854ca2682df448f761cf47887f4"),
             withdrawal_credentials: hex!("010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76"),
             genesis_timestamp: 1655733600,
             initial_validator_state: LidoValidatorStateRust {

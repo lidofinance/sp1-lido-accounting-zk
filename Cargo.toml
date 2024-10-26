@@ -34,11 +34,11 @@ serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_derive = "1.0.204"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 simple_logger = "5.0.0"
-sp1-core-machine = "3.0.0-rc1"
-sp1-derive = "3.0.0-rc1"
-sp1-helper = "3.0.0-rc1"
-sp1-sdk = "3.0.0-rc1"
-sp1-zkvm = "3.0.0-rc1"
+sp1-core-machine = "3.0.0"
+sp1-derive = "3.0.0"
+sp1-helper = "3.0.0"
+sp1-sdk = "3.0.0"
+sp1-zkvm = "3.0.0"
 ssz_types = { version = "0.6.0", features = ["arbitrary"] }
 tokio = "1.39.2"
 tracing = "0.1.40"

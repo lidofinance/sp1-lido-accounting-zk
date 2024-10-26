@@ -1,7 +1,7 @@
 use crate::validator_delta::ValidatorDeltaCompute;
 use alloy_sol_types::SolType;
 
-use sp1_core_machine::io::SP1PublicValues; // TODO: remove when Sp1PublicValues are exported from sp1_sdk
+use sp1_sdk::SP1PublicValues;
 
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
@@ -108,7 +108,6 @@ pub fn prepare_program_input(
     let program_input = ProgramInput {
         slot: bs.slot,
         beacon_block_hash,
-        // beacon_block_hash: h!("0000000000000000000000000000000000000000000000000000000000000000"),
         beacon_block_header: bh.into(),
         beacon_state: bs.into(),
         validators_and_balances: ValsAndBals {
