@@ -14,7 +14,7 @@ use core::fmt;
 use eyre::Result;
 use k256;
 
-use sp1_lido_accounting_zk_shared::io::eth_io::{LidoValidatorStateRust, ReportMetadataRust, ReportRust};
+use sp1_lido_accounting_zk_shared::io::eth_io::{LidoValidatorStateRust, ReportRust};
 use sp1_lido_accounting_zk_shared::io::serde_utils::serde_hex_as_string;
 use thiserror::Error;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
@@ -67,19 +67,6 @@ impl From<LidoValidatorStateRust> for Sp1LidoAccountingReportContract::LidoValid
         Sp1LidoAccountingReportContract::LidoValidatorState {
             slot: U256::from(value.slot),
             merkle_root: value.merkle_root.into(),
-        }
-    }
-}
-
-impl From<ReportMetadataRust> for Sp1LidoAccountingReportContract::ReportMetadata {
-    fn from(value: ReportMetadataRust) -> Self {
-        Sp1LidoAccountingReportContract::ReportMetadata {
-            slot: U256::from(value.slot),
-            epoch: U256::from(value.epoch),
-            lido_withdrawal_credentials: value.lido_withdrawal_credentials.into(),
-            beacon_block_hash: value.beacon_block_hash.into(),
-            old_state: value.state_for_previous_report.into(),
-            new_state: value.new_state.into(),
         }
     }
 }
@@ -151,22 +138,10 @@ where
 
     pub async fn submit_report_data(
         &self,
-        slot: u64,
-        report: ReportRust,
-        metadata: ReportMetadataRust,
         proof: Vec<u8>,
         public_values: Vec<u8>,
     ) -> Result<alloy_primitives::TxHash, Error> {
-        let report_solidity: Sp1LidoAccountingReportContract::Report = report.into();
-        let metadata_solidity: Sp1LidoAccountingReportContract::ReportMetadata = metadata.into();
-
-        let tx_builder = self.contract.submitReportData(
-            U256::from(slot),
-            report_solidity,
-            metadata_solidity,
-            proof.into(),
-            public_values.into(),
-        );
+        let tx_builder = self.contract.submitReportData(proof.into(), public_values.into());
 
         let tx = tx_builder
             .send()

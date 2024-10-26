@@ -129,7 +129,7 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         Ok(contract)
     }
 
-    async fn run_test(&self, tamper_public_values_bytes: bool) -> TestExecutorResult {
+    async fn run_test(&self) -> TestExecutorResult {
         sp1_sdk::utils::setup_logger();
         let lido_withdrawal_credentials: Hash256 = NETWORK.get_config().lido_withdrawal_credentials.into();
         let stored_proof = self.get_stored_proof()?;
@@ -155,22 +155,12 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
 
         let tampered_public_values = (self.tamper_public_values)(public_values);
 
-        let public_values_bytes: Vec<u8> = if tamper_public_values_bytes {
-            let pub_vals_solidity: PublicValuesSolidity = tampered_public_values.clone().into();
-            PublicValuesSolidity::abi_encode(&pub_vals_solidity)
-        } else {
-            stored_proof.public_values
-        };
+        let pub_vals_solidity: PublicValuesSolidity = tampered_public_values.into();
+        let public_values_bytes: Vec<u8> = PublicValuesSolidity::abi_encode(&pub_vals_solidity);
 
         log::info!("Sending report");
         let result = contract
-            .submit_report_data(
-                target_bs.slot,
-                tampered_public_values.report,
-                tampered_public_values.metadata,
-                stored_proof.proof,
-                public_values_bytes,
-            )
+            .submit_report_data(stored_proof.proof, public_values_bytes)
             .await?;
 
         Ok(result)
@@ -246,7 +236,7 @@ fn check_vkey_matches() -> Result<()> {
 async fn report_tampering_sanity_check_should_pass() -> Result<()> {
     let executor = TestExecutor::new(id);
 
-    let result = executor.run_test(false).await;
+    let result = executor.run_test().await;
     match result {
         Ok(_txhash) => {
             log::info!("Sanity check succeeded - submitting valid report with no tampering succeeds");
@@ -264,8 +254,7 @@ async fn report_tampering_report_slot() -> Result<()> {
         new_report
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -276,8 +265,7 @@ async fn report_tampering_report_cl_balance() -> Result<()> {
         new_report
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -288,8 +276,7 @@ async fn report_tampering_report_deposited_count() -> Result<()> {
         new_report
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -300,8 +287,7 @@ async fn report_tampering_report_exited_count() -> Result<()> {
         new_report
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -312,8 +298,7 @@ async fn report_tampering_metadata_slot() -> Result<()> {
         new_metadata
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -324,8 +309,7 @@ async fn report_tampering_metadata_epoch() -> Result<()> {
         new_metadata
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -337,8 +321,7 @@ async fn report_tampering_metadata_withdrawal_credentials() -> Result<()> {
         new_metadata
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -349,8 +332,7 @@ async fn report_tampering_metadata_beacon_block_hash() -> Result<()> {
         new_metadata
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -361,8 +343,7 @@ async fn report_tampering_metadata_old_state_slot() -> Result<()> {
         new_metadata
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -374,8 +355,7 @@ async fn report_tampering_metadata_old_state_merkle_root() -> Result<()> {
         new_metadata
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -386,8 +366,7 @@ async fn report_tampering_metadata_new_state_slot() -> Result<()> {
         new_metadata
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -398,6 +377,5 @@ async fn report_tampering_metadata_new_state_merkle_root() -> Result<()> {
         new_metadata
     }));
 
-    assert_rejects(executor.run_test(true).await)?;
-    assert_rejects(executor.run_test(false).await)
+    assert_rejects(executor.run_test().await)
 }
