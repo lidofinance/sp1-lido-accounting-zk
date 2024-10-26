@@ -84,7 +84,6 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
         let beacon_state_path = self.file_store.get_beacon_state_path(&permanent_state);
         log::info!("Reading BeaconState from file {:?}", beacon_state_path);
         let data = read_binary(beacon_state_path)?;
-        // TODO: better mapping ssz::DecodeError to std::error::Error/anyhow::Error
         BeaconState::from_ssz_bytes(&data)
             .map_err(|decode_err| anyhow::anyhow!("Couldn't decode ssz {:#?}", decode_err))
     }
@@ -103,7 +102,6 @@ pub struct FileBeaconStateWriter {
 }
 
 impl FileBeaconStateWriter {
-    // TODO: refactor so reader and writer can use the same store not two identical copies
     pub fn new(store_location: &Path) -> Self {
         Self {
             file_store: FileBasedBeaconChainStore::new(store_location),

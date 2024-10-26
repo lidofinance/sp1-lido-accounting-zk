@@ -43,7 +43,6 @@ pub struct GenerationSpec {
 }
 
 impl SyntheticBeaconStateCreator {
-    // TODO: derive?
     pub fn new(ssz_store_location: &Path, with_check: bool, suppress_generator_output: bool) -> Self {
         Self {
             file_store: FileBasedBeaconChainStore::new(ssz_store_location),

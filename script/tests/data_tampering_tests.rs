@@ -10,14 +10,10 @@ use sp1_lido_accounting_scripts::{
 
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, BlsPublicKey, Hash256, Validator};
 use std::env;
-use test_utils::{TamperableBeaconStateReader, TestFiles};
+use test_utils::{eyre_to_anyhow, TamperableBeaconStateReader, TestFiles};
 mod test_utils;
 
 type BeaconStateMutator = fn(BeaconState) -> BeaconState;
-
-fn eyre_to_anyhow(err: eyre::Error) -> anyhow::Error {
-    anyhow!("Eyre error: {:#?}", err)
-}
 
 struct TestExecutor<'a> {
     main_bs_reader: &'a BeaconStateReaderEnum,
@@ -48,14 +44,13 @@ impl<'a> TestExecutor<'a> {
         self
     }
 
-    async fn get_target_slot(&self) -> u64 {
+    async fn get_target_slot(&self) -> Result<u64> {
         let finalized_block_header = self
             .main_bs_reader
             // .read_beacon_block_header(&StateId::Finalized)
             .read_beacon_block_header(&StateId::Slot(6138176))
-            .await
-            .expect("Failed to read finalized block"); // todo: this should be just ?, but anyhow and eyre seems not to get along for some reason
-        finalized_block_header.slot
+            .await?;
+        Ok(finalized_block_header.slot)
     }
 
     async fn start_anvil(&self, target_slot: u64) -> Result<AnvilInstance> {
@@ -100,7 +95,7 @@ impl<'a> TestExecutor<'a> {
         sp1_sdk::utils::setup_logger();
         let lido_withdrawal_credentials: Hash256 = test_utils::NETWORK.get_config().lido_withdrawal_credentials.into();
 
-        let target_slot = self.get_target_slot().await;
+        let target_slot = self.get_target_slot().await?;
         // // Anvil needs to be here in scope for the duration of the test, otherwise it terminates
         // // Hence creating it here (i.e. owner is this function) and passing down to deploy conract
         let anvil = self.start_anvil(target_slot).await?;
@@ -234,7 +229,7 @@ const MODIFY_BEACON_BLOCK_HASH: bool = true;
 async fn tampering_add_active_lido_validator() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let balance: u64 = 32_000_000_000;
         let new_validator = Validator {
@@ -263,7 +258,7 @@ async fn tampering_add_pending_lido_validator() -> Result<()> {
 
     let bs_reader = BeaconStateReaderEnum::new_from_env(network);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let balance: u64 = 1_000_000_000;
         let new_validator = Validator {
@@ -292,7 +287,7 @@ async fn tampering_add_exited_lido_validator() -> Result<()> {
 
     let bs_reader = BeaconStateReaderEnum::new_from_env(network);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let balance: u64 = 1_000_000_000;
         let new_validator = Validator {
@@ -319,7 +314,7 @@ async fn tampering_add_exited_lido_validator() -> Result<()> {
 async fn tampering_add_active_non_lido_validator() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let balance: u64 = 32_000_000_000;
         let new_validator = Validator {
@@ -346,7 +341,7 @@ async fn tampering_add_active_non_lido_validator() -> Result<()> {
 async fn tampering_remove_lido_validator() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
@@ -368,7 +363,7 @@ async fn tampering_remove_lido_validator() -> Result<()> {
 async fn tampering_remove_multi_lido_validator() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
@@ -414,7 +409,7 @@ async fn tampering_remove_multi_lido_validator() -> Result<()> {
 async fn tampering_change_lido_to_non_lido_validator() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
@@ -431,7 +426,7 @@ async fn tampering_change_lido_to_non_lido_validator() -> Result<()> {
 async fn tampering_change_non_lido_to_lido_validator() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
@@ -448,7 +443,7 @@ async fn tampering_change_non_lido_to_lido_validator() -> Result<()> {
 async fn tampering_change_lido_make_exited() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
@@ -465,7 +460,7 @@ async fn tampering_change_lido_make_exited() -> Result<()> {
 async fn tampering_omit_added_in_deposited_state_lido_validator() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
         // old state https://sepolia.beaconcha.in/slot/5832096 had only 1 validator - all others are now "added"
@@ -488,7 +483,7 @@ async fn tampering_omit_added_in_deposited_state_lido_validator() -> Result<()> 
 async fn tampering_omit_exited_lido_validator() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
         // old state https://sepolia.beaconcha.in/slot/5832096 had only 1 validator - all others are now "added"
@@ -519,7 +514,7 @@ async fn tampering_omit_activated_lido_validator() -> Result<()> {
 async fn tampering_balance_change_lido_validator_balance() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
@@ -536,7 +531,7 @@ async fn tampering_balance_change_lido_validator_balance() -> Result<()> {
 async fn tampering_balance_change_multi_lido_validator_balance() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
@@ -555,7 +550,7 @@ async fn tampering_balance_change_multi_lido_validator_balance() -> Result<()> {
 async fn tampering_balance_change_lido_validator_balance_cancel_out() -> Result<()> {
     let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
     let mut executor = TestExecutor::new(&bs_reader);
-    let target_slot = executor.get_target_slot().await;
+    let target_slot = executor.get_target_slot().await?;
     executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 

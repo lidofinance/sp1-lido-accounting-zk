@@ -223,7 +223,6 @@ where
             } else if let Some(verifier_error) = error_payload.as_decoded_error::<ISP1VerifierGatewayErrors>(true) {
                 Error::VerifierRejection(verifier_error)
             } else if error_payload.message.contains("execution reverted") {
-                // todo - might be good to preserve the data, but ErrorPayload is a generic
                 Error::CustomRejection(error_payload.message.clone())
             } else {
                 Error::AlloyError(error)

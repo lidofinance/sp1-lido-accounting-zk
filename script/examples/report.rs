@@ -76,7 +76,6 @@ async fn main() {
     let new_non_lido_validators_a_month = 15_000;
     // At the time of writing, lido operated ~400K validators out of 1M => 10K/mo
     let new_lido_validators_a_month = 10_000;
-    // TODO: exited should modify old ones - at the moment it just adds a bunch of new validators that already exited
     let new_exited_lido_validators = 500;
     let created_but_not_deposited = 300;
 

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::{env, path::PathBuf};
 
+use anyhow::anyhow;
 use eyre::{eyre, Result, WrapErr};
 use lazy_static::lazy_static;
 use sp1_lido_accounting_scripts::beacon_state_reader::file::FileBasedBeaconStateReader;
@@ -181,4 +182,8 @@ where
         };
         Ok((result_bh, result_bs))
     }
+}
+
+pub fn eyre_to_anyhow(err: eyre::Error) -> anyhow::Error {
+    anyhow!("Eyre error: {:#?}", err)
 }

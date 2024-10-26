@@ -36,7 +36,6 @@ pub fn initialize_provider() -> DefaultProvider {
     ProviderFactory::create_provider_decode_key(private_key, endpoint)
 }
 
-// TODO: simplify return type
 pub fn initialize_contract() -> Contract {
     let address: Address = env::var("CONTRACT_ADDRESS")
         .expect("Failed to read CONTRACT_ADDRESS env var")

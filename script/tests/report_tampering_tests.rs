@@ -36,9 +36,6 @@ enum ExecutorError {
     Contract(eth_client::Error),
     #[error("Failed o launch anvil: {0:#?}")]
     AnvilLaunch(anvil::AnvilError),
-    // TODO: eyre is a fork of anvil, and neither are good for inspecting error causes and handling
-    // them - but standardizing on one of them and/or replacing existing call sites with
-    // "structured" error handling is not worth it right now.
     #[error("Eyre error: {0:#?}")]
     Eyre(eyre::Error),
     #[error("Anyhow error: {0:#?}")]
@@ -48,7 +45,6 @@ enum ExecutorError {
 type Result<T> = std::result::Result<T, ExecutorError>;
 type TestExecutorResult = Result<alloy_primitives::TxHash>;
 
-// TODO: derive these
 impl From<eth_client::Error> for ExecutorError {
     fn from(value: eth_client::Error) -> Self {
         ExecutorError::Contract(value)

@@ -1,6 +1,6 @@
 use alloy::node_bindings::Anvil;
 use alloy::transports::http::reqwest::Url;
-use eyre::Result;
+use anyhow::Result;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
     consts,
@@ -11,7 +11,7 @@ use sp1_lido_accounting_scripts::{
 use sp1_lido_accounting_zk_shared::{eth_consensus_layer::BeaconState, eth_spec};
 use sp1_sdk::ProverClient;
 use std::env;
-use test_utils::TestFiles;
+use test_utils::{eyre_to_anyhow, TestFiles};
 use typenum::Unsigned;
 mod test_utils;
 
@@ -19,14 +19,18 @@ mod test_utils;
 async fn deploy() -> Result<()> {
     let test_files = TestFiles::new_from_manifest_dir();
     let deploy_slot = test_utils::DEPLOY_SLOT;
-    let deploy_params = test_files.read_deploy(&test_utils::NETWORK, deploy_slot)?;
+    let deploy_params = test_files
+        .read_deploy(&test_utils::NETWORK, deploy_slot)
+        .map_err(eyre_to_anyhow)?;
 
     let anvil = Anvil::new().block_time(1).try_spawn()?;
     let endpoint: Url = anvil.endpoint().parse()?;
     let key = anvil.keys()[0].clone();
     let provider = ProviderFactory::create_provider(key, endpoint);
 
-    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params).await?;
+    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params)
+        .await
+        .map_err(eyre_to_anyhow)?;
     log::info!("Deployed contract at {}", contract.address());
 
     let latest_report_slot_response = contract.get_latest_report_slot().await?;
@@ -46,15 +50,17 @@ async fn submission_success() -> Result<()> {
 
     let test_files = TestFiles::new_from_manifest_dir();
     let deploy_slot = test_utils::DEPLOY_SLOT;
-    let deploy_bs: BeaconState = test_files.read_beacon_state(&StateId::Slot(deploy_slot)).await?;
+    let deploy_bs: BeaconState = test_files
+        .read_beacon_state(&StateId::Slot(deploy_slot))
+        .await
+        .map_err(eyre_to_anyhow)?;
     let deploy_params = scripts::deploy::prepare_deploy_params(client.vk_bytes(), &deploy_bs, network);
 
-    let finalized_block_header = bs_reader
-        .read_beacon_block_header(&StateId::Finalized)
-        .await
-        .expect("Failed to read finalized block"); // todo: this should be just ?, but anyhow and eyre seems not to get along for some reason
+    let finalized_block_header = bs_reader.read_beacon_block_header(&StateId::Finalized).await?;
     let target_slot = finalized_block_header.slot;
-    let finalized_bs = test_utils::read_latest_bs_at_or_before(&bs_reader, target_slot, test_utils::RETRIES).await?;
+    let finalized_bs = test_utils::read_latest_bs_at_or_before(&bs_reader, target_slot, test_utils::RETRIES)
+        .await
+        .map_err(eyre_to_anyhow)?;
     let fork_url = env::var("FORK_URL").expect("FORK_URL env var must be specified");
     let anvil = Anvil::new()
         .fork(fork_url)
@@ -63,7 +69,9 @@ async fn submission_success() -> Result<()> {
     let provider = ProviderFactory::create_provider(anvil.keys()[0].clone(), anvil.endpoint().parse()?);
 
     log::info!("Deploying contract with parameters {:?}", deploy_params);
-    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params).await?;
+    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params)
+        .await
+        .map_err(eyre_to_anyhow)?;
     log::info!("Deployed contract at {}", contract.address());
 
     scripts::submit::run(
@@ -95,15 +103,17 @@ async fn two_submission_success() -> Result<()> {
 
     let test_files = TestFiles::new_from_manifest_dir();
     let deploy_slot = test_utils::DEPLOY_SLOT;
-    let deploy_bs: BeaconState = test_files.read_beacon_state(&StateId::Slot(deploy_slot)).await?;
+    let deploy_bs: BeaconState = test_files
+        .read_beacon_state(&StateId::Slot(deploy_slot))
+        .await
+        .map_err(eyre_to_anyhow)?;
     let deploy_params = scripts::deploy::prepare_deploy_params(client.vk_bytes(), &deploy_bs, network);
 
-    let finalized_block_header = bs_reader
-        .read_beacon_block_header(&StateId::Finalized)
-        .await
-        .expect("Failed to read finalized block"); // todo: this should be just ?, but anyhow and eyre seems not to get along for some reason
+    let finalized_block_header = bs_reader.read_beacon_block_header(&StateId::Finalized).await?;
     let finalized_bs =
-        test_utils::read_latest_bs_at_or_before(&bs_reader, finalized_block_header.slot, test_utils::RETRIES).await?;
+        test_utils::read_latest_bs_at_or_before(&bs_reader, finalized_block_header.slot, test_utils::RETRIES)
+            .await
+            .map_err(eyre_to_anyhow)?;
     let fork_url = env::var("FORK_URL").expect("FORK_URL env var must be specified");
     let anvil = Anvil::new()
         .fork(fork_url)
@@ -112,7 +122,9 @@ async fn two_submission_success() -> Result<()> {
     let provider = ProviderFactory::create_provider(anvil.keys()[0].clone(), anvil.endpoint().parse()?);
 
     log::info!("Deploying contract with parameters {:?}", deploy_params);
-    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params).await?;
+    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params)
+        .await
+        .map_err(eyre_to_anyhow)?;
     log::info!("Deployed contract at {}", contract.address());
 
     let first_run_slot = finalized_block_header.slot - eth_spec::SlotsPerEpoch::to_u64();
@@ -144,7 +156,6 @@ async fn two_submission_success() -> Result<()> {
             store: true,
         },
     )
-    .await
-    .expect("Failed to execute script");
+    .await?;
     Ok(())
 }
