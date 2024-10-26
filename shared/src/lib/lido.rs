@@ -232,3 +232,56 @@ impl ValidatorDelta {
         self.lido_changed.iter().map(|v: &ValidatorWithIndex| &v.index)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Epoch, ValidatorOps, ValidatorStatus};
+    use crate::eth_consensus_layer::test_utils::proptest_utils as eth_proptest;
+    use proptest::prelude::*;
+    use proptest_arbitrary_interop::arb;
+
+    proptest! {
+        #[test]
+        fn test_pending_validator_status_future_deposit(
+            (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::pending_validator(epoch)))
+        ) {
+            assert_eq!(validator.status(epoch), ValidatorStatus::FutureDeposit)
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_deposited_validator_status_deposited(
+            (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::deposited_validator(epoch)))
+        ) {
+            assert_eq!(validator.status(epoch), ValidatorStatus::Deposited)
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_activate_validator_status_deposited(
+            (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::activated_validator(epoch)))
+        ) {
+            assert_eq!(validator.status(epoch), ValidatorStatus::Deposited)
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_withdrawable_validator_status_deposited(
+            (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::withdrawable_validator(epoch)))
+        ) {
+            assert_eq!(validator.status(epoch), ValidatorStatus::Deposited)
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_exited_validator_status_exited(
+            (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::exited_validator(epoch)))
+        ) {
+            assert_eq!(validator.status(epoch), ValidatorStatus::Exited)
+        }
+    }
+}

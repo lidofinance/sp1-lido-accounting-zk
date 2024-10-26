@@ -280,7 +280,12 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
 
 #[cfg(test)]
 mod test {
-    use crate::eth_consensus_layer::Validators;
+    use std::collections::HashSet;
+
+    use crate::eth_consensus_layer::test_utils::proptest_utils as eth_proptest;
+    use crate::eth_consensus_layer::{Epoch, Validators};
+    use proptest as prop;
+    use proptest::prelude::*;
 
     use super::{
         usize_to_u64, FieldProof, Hash256, InputVerifier, NoopCycleTracker, TreeHash, Validator, ValidatorWithIndex,
@@ -298,6 +303,29 @@ mod test {
             activation_epoch: 12,
             exit_epoch: u64::MAX,
             withdrawable_epoch: 50,
+        }
+    }
+
+    const TEST_EPOCH: Epoch = 123456; // any would do
+
+    // larger values still pass, but take a lot of time
+    const MAX_VALIDATORS: usize = 256;
+    const MAX_VALIDATORS_FOR_PROOF: usize = 16;
+
+    proptest! {
+        #[test]
+        fn test_validator_sparse_proof(
+            validators in prop::collection::vec(eth_proptest::gen_validator(TEST_EPOCH), 1..MAX_VALIDATORS),
+            indices in prop::collection::vec(any::<prop::sample::Index>(), 1..MAX_VALIDATORS_FOR_PROOF)
+        ) {
+            let vals_size = validators.len();
+            let target_indices: Vec<usize> = indices
+                .into_iter()
+                .map(|idx| idx.index(vals_size))
+                .collect::<HashSet<_>>()
+                .iter().cloned().collect::<Vec<_>>();
+
+            test_validator_multiproof(validators, target_indices);
         }
     }
 
@@ -326,6 +354,7 @@ mod test {
         );
     }
 
+    // Some special cases - to ensure they pass too
     #[test]
     fn test_validator_sparse_proof_sequential_increasing_indices() {
         let validators: Vec<Validator> = (0u8..20).map(create_validator).collect();

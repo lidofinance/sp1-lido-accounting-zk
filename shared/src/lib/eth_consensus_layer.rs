@@ -1,3 +1,6 @@
+use core::fmt;
+
+use derivative::Derivative;
 use ethereum_types::{H160, H256, U256};
 use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
@@ -26,6 +29,13 @@ pub type SlotsPerEpoch = eth_spec::SlotsPerEpoch;
 
 pub fn epoch(slot: Slot) -> Option<Epoch> {
     slot.checked_div(eth_spec::SlotsPerEpoch::to_u64())
+}
+
+mod derivatives {
+    use super::*;
+    pub fn fixed_vector_as_hex<N: typenum::Unsigned>(val: &FixedVector<u8, N>, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "0x{}", hex::encode(val.to_vec()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
@@ -58,8 +68,10 @@ pub struct Eth1Data {
     block_hash: Hash256,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Derivative, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derivative(Debug)]
 pub struct Validator {
+    #[derivative(Debug(format_with = "derivatives::fixed_vector_as_hex"))]
     pub pubkey: BlsPublicKey,
     pub withdrawal_credentials: Hash256,
     // #[serde(with = "serde_utils::quoted_u64")]
@@ -331,5 +343,135 @@ impl From<BeaconBlockHeader> for BeaconBlockHeaderPrecomputedHashes {
     fn from(value: BeaconBlockHeader) -> Self {
         let borrowed: &BeaconBlockHeader = &value;
         borrowed.into()
+    }
+}
+
+#[cfg(test)]
+pub mod test_utils {
+    use arbitrary::Arbitrary;
+
+    use super::*;
+
+    fn saturated_add(a: u64, b: u64) -> u64 {
+        match a.checked_add(b) {
+            Some(val) => val,
+            None => u64::MAX,
+        }
+    }
+
+    fn arb_saturated_add(a: u64, try_b: arbitrary::Result<u64>) -> arbitrary::Result<u64> {
+        let b = try_b?;
+        Ok(saturated_add(a, b))
+    }
+
+    impl<'a> Arbitrary<'a> for Validator {
+        fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+            let pubkey = BlsPublicKey::arbitrary(u)?;
+            let withdrawal_credentials = Hash256::arbitrary(u)?;
+            let effective_balance = u64::arbitrary(u)?;
+            let slashed = bool::arbitrary(u)?;
+            let activation_eligibility_epoch: u64 = u64::arbitrary(u)?;
+            let activation_epoch: u64 = arb_saturated_add(activation_eligibility_epoch, u64::arbitrary(u))?;
+            let exit_epoch: u64 = arb_saturated_add(activation_epoch, u64::arbitrary(u))?;
+            let withdrawable_epoch: u64 = arb_saturated_add(activation_epoch, u64::arbitrary(u))?;
+            let validator = Validator {
+                pubkey,
+                withdrawal_credentials,
+                effective_balance,
+                slashed,
+                activation_eligibility_epoch,
+                activation_epoch,
+                exit_epoch,
+                withdrawable_epoch,
+            };
+            Ok(validator)
+        }
+    }
+
+    pub mod proptest_utils {
+        use proptest::prelude::*;
+        use proptest_arbitrary_interop::arb;
+
+        use super::{Epoch, Validator};
+
+        prop_compose! {
+            fn arbitrary_validator()(val in arb::<Validator>()) -> Validator {
+                val
+            }
+        }
+
+        prop_compose! {
+            pub fn pending_validator(current_epoch: Epoch)(val in arbitrary_validator(), eligibility in current_epoch..u64::MAX) -> Validator {
+                let mut newval = val.clone();
+                newval.activation_eligibility_epoch = eligibility;
+                newval.activation_epoch = u64::MAX;
+                newval.withdrawable_epoch = u64::MAX;
+                newval.exit_epoch = u64::MAX;
+                newval
+            }
+        }
+
+        prop_compose! {
+            pub fn deposited_validator(current_epoch: Epoch)(
+                val in arbitrary_validator(),
+                eligibility in 0..current_epoch,
+                activation in current_epoch..u64::MAX
+            ) -> Validator {
+                let mut newval = val.clone();
+                newval.activation_eligibility_epoch = eligibility;
+                newval.activation_epoch = activation;
+                newval.withdrawable_epoch = u64::MAX;
+                newval.exit_epoch = u64::MAX;
+                newval
+            }
+        }
+
+        prop_compose! {
+            pub fn activated_validator(current_epoch: Epoch)
+                (val in deposited_validator(current_epoch))
+                (activation in val.activation_eligibility_epoch..current_epoch, val in Just(val))
+                 -> Validator {
+                let mut newval = val.clone();
+                newval.activation_epoch = activation;
+                newval.withdrawable_epoch = activation;
+                newval
+            }
+        }
+
+        prop_compose! {
+            pub fn withdrawable_validator(current_epoch: Epoch)
+                (val in activated_validator(current_epoch))
+                (withdrawable in val.activation_epoch..current_epoch, val in Just(val)) -> Validator {
+                let mut newval = val.clone();
+                newval.withdrawable_epoch = withdrawable;
+                newval
+            }
+        }
+
+        prop_compose! {
+            pub fn exited_validator(current_epoch: Epoch)(
+                val in activated_validator(current_epoch)
+            )(
+                exited in val.activation_epoch..current_epoch, val in Just(val)
+            ) -> Validator {
+                let mut newval = val.clone();
+                newval.exit_epoch = exited;
+                newval
+            }
+        }
+
+        pub fn gen_validator(current_epoch: Epoch) -> impl Strategy<Value = Validator> {
+            prop_oneof![
+                pending_validator(current_epoch),
+                deposited_validator(current_epoch),
+                activated_validator(current_epoch),
+                withdrawable_validator(current_epoch),
+                exited_validator(current_epoch)
+            ]
+        }
+
+        pub fn gen_epoch_and_validator() -> impl Strategy<Value = (Epoch, Validator)> {
+            (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), gen_validator(epoch)))
+        }
     }
 }
