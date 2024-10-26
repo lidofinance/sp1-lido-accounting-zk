@@ -225,10 +225,6 @@ fn assert_rejects(result: TestExecutorResult) -> Result<()> {
             log::info!("As expected, contract rejected {:#?}", err);
             Ok(())
         }
-        Err(ExecutorError::Contract(eth_client::Error::VerifierRejection(err))) => {
-            log::info!("As expected, verifier rejected {:#?}", err);
-            Ok(())
-        }
         Err(ExecutorError::Contract(eth_client::Error::CustomRejection(err))) => {
             log::info!("As expected, verifier rejected {:#?}", err);
             Ok(())

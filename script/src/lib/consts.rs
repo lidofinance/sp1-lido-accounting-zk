@@ -1,8 +1,10 @@
 use hex_literal::hex;
 
 pub const ELF: &[u8] = include_bytes!("../../../elf/riscv32im-succinct-zkvm-elf");
-// https://docs.succinct.xyz/onchain-verification/contract-addresses.html
-const SP1_GATEWAY: [u8; 20] = hex!("3B6041173B80E77f038f3F2C0f9744f04837185e");
+// https://github.com/succinctlabs/sp1-contracts/tree/main/contracts/deployments
+// The contract address matches between mainnet, sepolia and holesky
+const SP1_GROTH_VERIFIER: [u8; 20] = hex!("6A87EFd4e6B2Db1ed73129A8b9c51aaA583d49e3");
+// const SP1_PLONK_VERIFIER: [u8; 20] = hex!("d2832Cf1fC8bA210FfABF62Db9A8781153131d16");
 
 pub struct NetworkConfig {
     pub chain_id: u64,
@@ -38,19 +40,19 @@ impl NetworkInfo for Network {
             Self::Mainnet => NetworkConfig {
                 chain_id: 1,
                 genesis_block_timestamp: 1606824023,
-                verifier: SP1_GATEWAY,
+                verifier: SP1_GROTH_VERIFIER,
                 lido_withdrawal_credentials: lido_credentials::MAINNET,
             },
             Self::Sepolia => NetworkConfig {
                 chain_id: 11155111,
                 genesis_block_timestamp: 1655733600,
-                verifier: SP1_GATEWAY,
+                verifier: SP1_GROTH_VERIFIER,
                 lido_withdrawal_credentials: lido_credentials::SEPOLIA,
             },
             Self::Holesky => NetworkConfig {
                 chain_id: 17000,
                 genesis_block_timestamp: 1695902400,
-                verifier: SP1_GATEWAY,
+                verifier: SP1_GROTH_VERIFIER,
                 lido_withdrawal_credentials: lido_credentials::HOLESKY,
             },
         }
@@ -127,19 +129,19 @@ impl Network {
             Self::Mainnet => NetworkConfig {
                 chain_id: 1,
                 genesis_block_timestamp: 1606824023,
-                verifier: SP1_GATEWAY,
+                verifier: SP1_GROTH_VERIFIER,
                 lido_withdrawal_credentials: lido_credentials::MAINNET,
             },
             Self::Sepolia => NetworkConfig {
                 chain_id: 11155111,
                 genesis_block_timestamp: 1655733600,
-                verifier: SP1_GATEWAY,
+                verifier: SP1_GROTH_VERIFIER,
                 lido_withdrawal_credentials: lido_credentials::SEPOLIA,
             },
             Self::Holesky => NetworkConfig {
                 chain_id: 17000,
                 genesis_block_timestamp: 1695902400,
-                verifier: SP1_GATEWAY,
+                verifier: SP1_GROTH_VERIFIER,
                 lido_withdrawal_credentials: lido_credentials::HOLESKY,
             },
         }

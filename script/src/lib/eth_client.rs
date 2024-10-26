@@ -13,7 +13,6 @@ use core::clone::Clone;
 use core::fmt;
 use eyre::Result;
 use k256;
-use ISP1VerifierGateway::ISP1VerifierGatewayErrors;
 
 use sp1_lido_accounting_zk_shared::io::eth_io::{LidoValidatorStateRust, ReportMetadataRust, ReportRust};
 use sp1_lido_accounting_zk_shared::io::serde_utils::serde_hex_as_string;
@@ -33,17 +32,14 @@ sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
     #[derive(Debug)]
-    ISP1VerifierGateway,
-    "../contracts/out/ISP1VerifierGateway.sol/ISP1VerifierGateway.json",
+    ISP1Verifier,
+    "../contracts/out/ISP1Verifier.sol/ISP1Verifier.json",
 );
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Contract rejected: {0:#?}")]
     Rejection(Sp1LidoAccountingReportContractErrors),
-
-    #[error("Sp1 verifier gateway rejected: {0:#?}")]
-    VerifierRejection(ISP1VerifierGatewayErrors),
 
     #[error("Custom rejection: {0:#?}")]
     CustomRejection(String),
@@ -220,8 +216,6 @@ where
             if let Some(contract_error) = error_payload.as_decoded_error::<Sp1LidoAccountingReportContractErrors>(true)
             {
                 Error::Rejection(contract_error)
-            } else if let Some(verifier_error) = error_payload.as_decoded_error::<ISP1VerifierGatewayErrors>(true) {
-                Error::VerifierRejection(verifier_error)
             } else if error_payload.message.contains("execution reverted") {
                 Error::CustomRejection(error_payload.message.clone())
             } else {

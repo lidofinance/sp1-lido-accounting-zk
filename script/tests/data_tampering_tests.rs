@@ -144,10 +144,6 @@ impl<'a> TestExecutor<'a> {
                         log::info!("As expected, contract rejected {:#?}", err);
                         Ok(())
                     }
-                    Err(eth_client::Error::VerifierRejection(err)) => {
-                        log::info!("As expected, verifier rejected {:#?}", err);
-                        Ok(())
-                    }
                     Err(other_err) => Err(anyhow!(
                         "Submission failed due to technical reasons - inconclusive outcome {:#?}",
                         other_err
