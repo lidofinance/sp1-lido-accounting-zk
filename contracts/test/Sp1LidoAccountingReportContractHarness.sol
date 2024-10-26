@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.27;
 
 import {Sp1LidoAccountingReportContract, LidoValidatorState, Report, ReportMetadata} from "../src/Sp1LidoAccountingReportContract.sol";
 
-contract Sp1LidoAccountingReportContractControllable is
+contract Sp1LidoAccountingReportContractHarness is
     Sp1LidoAccountingReportContract
 {
     mapping(uint256 => bytes32) private _beaconBlockHashes;

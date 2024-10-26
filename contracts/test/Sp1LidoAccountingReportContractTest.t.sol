@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.27;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
-import {Sp1LidoAccountingReportContractControllable} from "./Sp1LidoAccountingReportContractControllable.sol";
+import {Sp1LidoAccountingReportContractHarness} from "./Sp1LidoAccountingReportContractHarness.sol";
 import {LidoValidatorState, Report, ReportMetadata} from "../src/Sp1LidoAccountingReportContract.sol";
 import {SP1VerifierGateway} from "@sp1-contracts/SP1VerifierGateway.sol";
 
 contract Sp1LidoAccountingReportContractTest is Test {
     using stdJson for string;
 
-    address verifier;
-    Sp1LidoAccountingReportContractControllable public _contract;
+    address private verifier;
+    Sp1LidoAccountingReportContractHarness private _contract;
 
-    uint256 public immutable GENESIS_BLOCK_TIMESTAMP = 1606824023;
-    uint256 public immutable SECONDS_PER_SLOT = 12;
+    uint256 private  immutable GENESIS_BLOCK_TIMESTAMP = 1606824023;
+    uint256 private  immutable SECONDS_PER_SLOT = 12;
 
 
     struct SP1ProofFixtureJson {
@@ -69,7 +69,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         verifier = address(new SP1VerifierGateway(address(1)));
-        _contract = new Sp1LidoAccountingReportContractControllable(
+        _contract = new Sp1LidoAccountingReportContractHarness(
             verifier,
             fixture.vkey,
             fixture.metadata.lido_withdrawal_credentials,

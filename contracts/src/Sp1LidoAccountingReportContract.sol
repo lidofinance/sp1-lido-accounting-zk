@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.27;
 
 import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
@@ -30,24 +30,6 @@ struct PublicValues {
 }
 
 contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
-    event ReportAccepted(Report report);
-    // This should later become an error
-    event ReportRejected(string reason);
-    event LidoValidatorStateHashRecorded(uint256 slot, bytes32 merkle_root);
-
-    mapping(uint256 => Report) private _reports;
-    mapping(uint256 => bytes32) private _states;
-    address public immutable VERIFIER;
-    bytes32 public immutable VKEY;
-    bytes32 public immutable WITHDRAWAL_CREDENTIALS;
-
-    uint256 _latestValidatorStateSlot;
-
-    /// @notice Seconds per slot
-    uint256 public immutable SECONDS_PER_SLOT = 12;
-
-    /// @notice The genesis block timestamp.
-    uint256 public immutable GENESIS_BLOCK_TIMESTAMP;
 
     /// @notice The address of the beacon roots precompile.
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
@@ -57,21 +39,38 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     /// @notice The length of the beacon roots ring buffer.
     uint256 internal constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;
 
+    address public immutable VERIFIER;
+    /// @notice The verification key for the SP1 program.
+    /// See https://docs.succinct.xyz/onchain-verification/solidity-sdk.html
+    /// Essentially, vkey pins the code of ZK program to a particular state
+    /// and changes with any code modification
+    bytes32 public immutable VKEY;
+    bytes32 public immutable WITHDRAWAL_CREDENTIALS;
+
+    /// @notice Seconds per slot
+    uint256 public immutable SECONDS_PER_SLOT = 12;
+
+    /// @notice The genesis block timestamp.
+    uint256 public immutable GENESIS_BLOCK_TIMESTAMP;
+
+    mapping(uint256 => Report) private _reports;
+    mapping(uint256 => bytes32) private _states;
+    uint256 private _latestValidatorStateSlot;
+
+    event ReportAccepted(Report report);
+    event LidoValidatorStateHashRecorded(uint256 slot, bytes32 merkle_root);  
+
     /// @dev Timestamp out of range for the the beacon roots precompile.
-    error TimestampOutOfRange(TimestampOutOfRangeData);
-    struct TimestampOutOfRangeData {
-        uint256 target_slot;
-        uint256 target_timestamp;
-        uint256 earliest_available_timestamp;
-    }
-
+    error TimestampOutOfRange(
+        uint256 target_slot,
+        uint256 target_timestamp,
+        uint256 earliest_available_timestamp
+    );
     /// @dev No block root is found using the beacon roots precompile.
-    error NoBlockRootFound(NoBlockRootFoundData);
-    struct NoBlockRootFoundData {
-        uint256 target_slot;
-    }
+    error NoBlockRootFound(uint256 target_slot);
 
-    error VerificationError(string);
+    /// @dev Verification failed
+    error VerificationError(string error_message);
 
     constructor(
         address _verifier,
@@ -88,7 +87,49 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
             _initial_state.slot,
             _initial_state.merkle_root
         );
-        
+    }
+
+    function getReport(
+        uint256 refSlot
+    )
+        external
+        view
+        override
+        returns (
+            bool success,
+            uint256 clBalanceGwei,
+            uint256 withdrawalVaultBalanceWei,
+            uint256 totalDepositedValidators,
+            uint256 totalExitedValidators
+        )
+    {
+        Report storage report = _reports[refSlot];
+        // This check handles two conditions:
+        // 1. Report is not found for a given slot - report.slot will be 0
+        // 2. Something messed up with the reporting storare, and report for a different
+        //    slot is stored there. Technically this is not necessary since it is ensured by
+        //    the write-side invariants (in _verify),
+        //    but this adds read-side check at no additional cost, so why not.
+        success = report.slot == refSlot;
+
+        clBalanceGwei = report.lido_cl_balance;
+        withdrawalVaultBalanceWei = 0; // withdrawal vault is not reported yet
+        totalDepositedValidators = report.deposited_lido_validators;
+        totalExitedValidators = report.exited_lido_validators;
+    }
+
+    function getLatestLidoValidatorStateSlot() public view returns (uint256) {
+        return (_latestValidatorStateSlot);
+    }
+
+    function getLidoValidatorStateHash(
+        uint256 slot
+    ) public view returns (bytes32 result) {
+        return (_states[slot]);
+    }
+
+    function getBeaconBlockHash(uint256 slot) public view returns (bytes32) {
+        return _getBeaconBlockHash(slot);
     }
 
     /// @notice Main entrypoint for the contract - accepts proof and public values, verifies them,
@@ -124,37 +165,40 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     ) internal view {
         // Check the report was not previously set
         Report storage report_at_slot = _reports[slot];
-        _require(
+        require(
             report_at_slot.slot == 0,
-            "Report was already accepted for a given slot"
+            VerificationError("Report was already accepted for a given slot")
         );
 
         // Check the report is for the target slot
-        _require(report.slot == slot, "Slot mismatch: report");
-        _require(metadata.new_state.slot == slot, "Slot mismatch: new state");
+        require(report.slot == slot, "Slot mismatch: report");
+        require(metadata.new_state.slot == slot, "Slot mismatch: new state");
 
         // Check that passed beacon_block_hash matches the one observed on the blockchain for
         // the target slot
-        _require(
+        require(
             metadata.beacon_block_hash == _getBeaconBlockHash(slot),
-            "BeaconBlockHash mismatch"
+            VerificationError("BeaconBlockHash mismatch")
         );
 
         // Check that correct withdrawal credentials were used
-        _require(
+        require(
             metadata.lido_withdrawal_credentials ==
                 _getExpectedWithdrawalCredentials(),
-            "Withdrawal credentials mismatch"
+            VerificationError("Withdrawal credentials mismatch")
         );
 
         // Check that the old report hash matches the one recorded in contract
         bytes32 old_state_hash = getLidoValidatorStateHash(
             metadata.old_state.slot
         );
-        _require(old_state_hash != 0, "Old state merkle_root not found");
-        _require(
+        require(
+            old_state_hash != 0,
+            VerificationError("Old state merkle_root not found")
+        );
+        require(
             metadata.old_state.merkle_root == old_state_hash,
-            "Old state merkle_root mismatch"
+            VerificationError("Old state merkle_root mismatch")
         );
 
         // Check that report and metadata match public values committed in the ZK-program
@@ -173,120 +217,88 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         ReportMetadata memory metadata,
         PublicValues memory publicValues
     ) internal pure {
-        _require(
+        require(
             report.slot == publicValues.report.slot,
-            "Report.slot doesn't match public values"
+            VerificationError("Report.slot doesn't match public values")
         );
-        _require(
+        require(
             report.deposited_lido_validators ==
                 publicValues.report.deposited_lido_validators,
-            "Report.deposited_lido_validators doesn't match public values"
+            VerificationError(
+                "Report.deposited_lido_validators doesn't match public values"
+            )
         );
-        _require(
+        require(
             report.exited_lido_validators ==
                 publicValues.report.exited_lido_validators,
-            "Report.exited_lido_validators doesn't match public values"
+            VerificationError(
+                "Report.exited_lido_validators doesn't match public values"
+            )
         );
-        _require(
+        require(
             report.lido_cl_balance == publicValues.report.lido_cl_balance,
-            "Report.lido_cl_balance doesn't match public values"
+            VerificationError(
+                "Report.lido_cl_balance doesn't match public values"
+            )
         );
 
-        _require(
+        require(
             metadata.slot == publicValues.metadata.slot,
-            "Metadata.slot doesn't match public values"
+            VerificationError("Metadata.slot doesn't match public values")
         );
-        _require(
+        require(
             metadata.epoch == publicValues.metadata.epoch,
-            "Metadata.epoch doesn't match public values"
+            VerificationError("Metadata.epoch doesn't match public values")
         );
-        _require(
+        require(
             metadata.lido_withdrawal_credentials ==
                 publicValues.metadata.lido_withdrawal_credentials,
-            "Metadata.lido_withdrawal_credentials doesn't match public values"
+            VerificationError(
+                "Metadata.lido_withdrawal_credentials doesn't match public values"
+            )
         );
-        _require(
+        require(
             metadata.beacon_block_hash ==
                 publicValues.metadata.beacon_block_hash,
-            "Metadata.beacon_block_hash doesn't match public values"
+            VerificationError(
+                "Metadata.beacon_block_hash doesn't match public values"
+            )
         );
 
-        _require(
+        require(
             metadata.old_state.slot == publicValues.metadata.old_state.slot,
-            "Metadata.old_state.slot doesn't match public values"
+            VerificationError(
+                "Metadata.old_state.slot doesn't match public values"
+            )
         );
-        _require(
+        require(
             metadata.old_state.merkle_root ==
                 publicValues.metadata.old_state.merkle_root,
-            "Metadata.old_state.merkle_root doesn't match public values"
+            VerificationError(
+                "Metadata.old_state.merkle_root doesn't match public values"
+            )
         );
 
-        _require(
+        require(
             metadata.new_state.slot == publicValues.metadata.new_state.slot,
-            "Metadata.new_state.slot doesn't match public values"
+            VerificationError(
+                "Metadata.new_state.slot doesn't match public values"
+            )
         );
-        _require(
+        require(
             metadata.new_state.merkle_root ==
                 publicValues.metadata.new_state.merkle_root,
-            "Metadata.new_state.merkle_root doesn't match public values"
+            VerificationError(
+                "Metadata.new_state.merkle_root doesn't match public values"
+            )
         );
     }
-
-    function getReport(uint256 refSlot) external view returns ( 
-		bool success, 
-		uint256 clBalanceGwei, 
-		uint256 withdrawalVaultBalanceWei, 
-		uint256 totalDepositedValidators, 
-		uint256 totalExitedValidators 
-	) {
-        Report storage report = _reports[refSlot];
-        // This check handles two conditions:
-        // 1. Report is not found for a given slot - report.slot will be 0
-        // 2. Something messed up with the reporting storare, and report for a different
-        //    slot is stored there. Technically this is not necessary since it is ensured by
-        //    the write-side invariants (in _verify), 
-        //    but this adds read-side check at no additional cost, so why not.
-        success = report.slot == refSlot;
-
-        clBalanceGwei = report.lido_cl_balance;
-        withdrawalVaultBalanceWei = 0; // withdrawal vault is not reported yet
-        totalDepositedValidators = report.deposited_lido_validators;
-        totalExitedValidators = report.exited_lido_validators;
-    }
-
-    function _recordReport(uint256 slot, Report memory report) internal {
-        _reports[slot] = report;
-        emit ReportAccepted(report);
-    }
-
-    function getLidoValidatorStateHash(
-        uint256 slot
-    ) public view returns (bytes32 result) {
-        return (_states[slot]);
-    }
-
-    function getLatestLidoValidatorStateSlot() public view returns (uint256) {
-        return (_latestValidatorStateSlot);
-    }
-
-    function _recordLidoValidatorStateHash(
-        uint256 slot,
-        bytes32 state_merkle_root
-    ) internal {
-        _states[slot] = state_merkle_root;
-        if (slot > _latestValidatorStateSlot) {
-            _latestValidatorStateSlot = slot;
-        }
-        emit LidoValidatorStateHashRecorded(slot, state_merkle_root);
-    }
-
-    function _require(bool condition, string memory reason) internal pure {
-        if (!condition) {
-            revert VerificationError(reason);
-        }
-    }
-
-    function _getExpectedWithdrawalCredentials() internal view virtual returns (bytes32)
+    
+    function _getExpectedWithdrawalCredentials()
+        internal
+        view
+        virtual
+        returns (bytes32)
     {
         return (WITHDRAWAL_CREDENTIALS);
     }
@@ -304,30 +316,44 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
             ((slot + 1) * SECONDS_PER_SLOT);
 
         uint256 earliestBlockTimestamp = block.timestamp -
-            (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SECONDS_PER_SLOT);            
+            (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SECONDS_PER_SLOT);
         if (currBlockTimestamp <= earliestBlockTimestamp) {
-            revert TimestampOutOfRange(TimestampOutOfRangeData({
-                target_slot: slot,
-                earliest_available_timestamp: earliestBlockTimestamp, 
-                target_timestamp: currBlockTimestamp
-            }));
+            revert TimestampOutOfRange(
+                slot,
+                earliestBlockTimestamp,
+                currBlockTimestamp
+            );
         }
 
         while (currBlockTimestamp <= block.timestamp) {
-            (bool success, bytes memory result) = BEACON_ROOTS.staticcall(abi.encode(currBlockTimestamp));
-            
+            (bool success, bytes memory result) = BEACON_ROOTS.staticcall(
+                abi.encode(currBlockTimestamp)
+            );
+
             if (success && result.length > 0) {
                 return abi.decode(result, (bytes32));
             }
 
             unchecked {
-                currBlockTimestamp += 12;
+                currBlockTimestamp += SECONDS_PER_SLOT;
             }
         }
-        revert NoBlockRootFound(NoBlockRootFoundData({target_slot: slot}));
+        revert NoBlockRootFound(slot);
     }
 
-    function getBeaconBlockHash(uint256 slot) public view returns (bytes32) {
-        return _getBeaconBlockHash(slot);
+    function _recordReport(uint256 slot, Report memory report) internal {
+        _reports[slot] = report;
+        emit ReportAccepted(report);
+    }
+
+    function _recordLidoValidatorStateHash(
+        uint256 slot,
+        bytes32 state_merkle_root
+    ) internal {
+        _states[slot] = state_merkle_root;
+        if (slot > _latestValidatorStateSlot) {
+            _latestValidatorStateSlot = slot;
+        }
+        emit LidoValidatorStateHashRecorded(slot, state_merkle_root);
     }
 }

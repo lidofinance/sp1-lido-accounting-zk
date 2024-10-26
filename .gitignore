@@ -19,9 +19,10 @@ pgo-data.profdata
 .env
 .env.network.*
 
-# IDE
+# IDE and dev
 .vscode
 .idea
+node_modules
 
 # Python
 __pycache__
