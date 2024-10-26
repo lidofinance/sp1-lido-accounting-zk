@@ -429,7 +429,6 @@ mod test {
             GuineaPig::new(5, 50, Hash256::random()),
         ];
 
-        // TODO: parameterized/data-driven/property-based test
         test_list::<typenum::U4>(&guinea_pigs, &[0, 2]);
         test_list::<typenum::U4>(&guinea_pigs, &[2, 0]);
         test_list::<typenum::U9>(&guinea_pigs, &[0, 1]);
@@ -479,7 +478,6 @@ mod test {
             GuineaPig::new(6, 60, Hash256::random()),
         ];
 
-        // TODO: parameterized/data-driven/property-based test
         test_list_against_hash::<typenum::U8>(&guinea_pigs, &[0, 2]);
         test_list_against_hash::<typenum::U8>(&guinea_pigs, &[2, 0]);
         test_list_against_hash::<typenum::U9>(&guinea_pigs, &[0, 1]);
