@@ -4,33 +4,7 @@ pragma solidity 0.8.27;
 import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
 
-struct Report {
-    uint256 slot;
-    uint256 deposited_lido_validators;
-    uint256 exited_lido_validators;
-    uint256 lido_cl_balance;
-}
-struct ReportMetadata {
-    uint256 slot;
-    uint256 epoch;
-    bytes32 lido_withdrawal_credentials;
-    bytes32 beacon_block_hash;
-    LidoValidatorState old_state;
-    LidoValidatorState new_state;
-}
-
-struct LidoValidatorState {
-    uint256 slot;
-    bytes32 merkle_root;
-}
-
-struct PublicValues {
-    Report report;
-    ReportMetadata metadata;
-}
-
 contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
-
     /// @notice The address of the beacon roots precompile.
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
     address public constant BEACON_ROOTS =
@@ -57,8 +31,33 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     mapping(uint256 => bytes32) private _states;
     uint256 private _latestValidatorStateSlot;
 
+    struct Report {
+        uint256 slot;
+        uint256 deposited_lido_validators;
+        uint256 exited_lido_validators;
+        uint256 lido_cl_balance;
+    }
+    struct ReportMetadata {
+        uint256 slot;
+        uint256 epoch;
+        bytes32 lido_withdrawal_credentials;
+        bytes32 beacon_block_hash;
+        LidoValidatorState old_state;
+        LidoValidatorState new_state;
+    }
+
+    struct LidoValidatorState {
+        uint256 slot;
+        bytes32 merkle_root;
+    }
+
+    struct PublicValues {
+        Report report;
+        ReportMetadata metadata;
+    }
+
     event ReportAccepted(Report report);
-    event LidoValidatorStateHashRecorded(uint256 slot, bytes32 merkle_root);  
+    event LidoValidatorStateHashRecorded(uint256 slot, bytes32 merkle_root);
 
     /// @dev Timestamp out of range for the the beacon roots precompile.
     error TimestampOutOfRange(
@@ -134,19 +133,37 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
 
     /// @notice Main entrypoint for the contract - accepts proof and public values, verifies them,
     ///         and stores the report if verification passes
-    /// @param slot slot for report
-    /// @param report Report struct
-    /// @param metadata Metadata struct
     /// @param proof proof from succinct, in binary format
     /// @param publicValues public values from prover, in binary format
     function submitReportData(
-        uint256 slot,
-        Report calldata report,
-        ReportMetadata calldata metadata,
         bytes calldata proof,
         bytes calldata publicValues
     ) public {
-        _verify(slot, report, metadata, proof, publicValues);
+        PublicValues memory public_values = abi.decode(
+            publicValues,
+            (PublicValues)
+        );
+        Report memory report = public_values.report;
+        ReportMetadata memory metadata = public_values.metadata;
+        require(
+            report.slot == metadata.slot,
+            VerificationError("Report and metadata slot do not match")
+        );
+
+        uint256 slot = report.slot;
+
+        // Check the report was not previously set
+        Report storage report_at_slot = _reports[slot];
+        require(
+            report_at_slot.slot == 0,
+            VerificationError("Report was already accepted for a given slot")
+        );
+
+        // Check that public values from ZK program match expected blockchain state
+        _verify_public_values(slot, public_values);
+
+        // Verify ZK-program and public values
+        ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof);
 
         // If all checks pass - record report and state
         _recordReport(slot, report);
@@ -156,28 +173,16 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         );
     }
 
-    function _verify(
+    function _verify_public_values(
         uint256 slot,
-        Report calldata report,
-        ReportMetadata calldata metadata,
-        bytes calldata proof,
-        bytes calldata publicValues
+        PublicValues memory publicValues
     ) internal view {
-        // Check the report was not previously set
-        Report storage report_at_slot = _reports[slot];
-        require(
-            report_at_slot.slot == 0,
-            VerificationError("Report was already accepted for a given slot")
-        );
-
-        // Check the report is for the target slot
-        require(report.slot == slot, "Slot mismatch: report");
-        require(metadata.new_state.slot == slot, "Slot mismatch: new state");
-
+        ReportMetadata memory metadata = publicValues.metadata;
         // Check that passed beacon_block_hash matches the one observed on the blockchain for
         // the target slot
+        bytes32 expected_block_hash = _getBeaconBlockHash(slot);
         require(
-            metadata.beacon_block_hash == _getBeaconBlockHash(slot),
+            metadata.beacon_block_hash == expected_block_hash,
             VerificationError("BeaconBlockHash mismatch")
         );
 
@@ -200,100 +205,8 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
             metadata.old_state.merkle_root == old_state_hash,
             VerificationError("Old state merkle_root mismatch")
         );
-
-        // Check that report and metadata match public values committed in the ZK-program
-        PublicValues memory public_values = abi.decode(
-            publicValues,
-            (PublicValues)
-        );
-        _verify_public_values(report, metadata, public_values);
-
-        // Verify ZK-program and public values
-        ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof);
     }
 
-    function _verify_public_values(
-        Report memory report,
-        ReportMetadata memory metadata,
-        PublicValues memory publicValues
-    ) internal pure {
-        require(
-            report.slot == publicValues.report.slot,
-            VerificationError("Report.slot doesn't match public values")
-        );
-        require(
-            report.deposited_lido_validators ==
-                publicValues.report.deposited_lido_validators,
-            VerificationError(
-                "Report.deposited_lido_validators doesn't match public values"
-            )
-        );
-        require(
-            report.exited_lido_validators ==
-                publicValues.report.exited_lido_validators,
-            VerificationError(
-                "Report.exited_lido_validators doesn't match public values"
-            )
-        );
-        require(
-            report.lido_cl_balance == publicValues.report.lido_cl_balance,
-            VerificationError(
-                "Report.lido_cl_balance doesn't match public values"
-            )
-        );
-
-        require(
-            metadata.slot == publicValues.metadata.slot,
-            VerificationError("Metadata.slot doesn't match public values")
-        );
-        require(
-            metadata.epoch == publicValues.metadata.epoch,
-            VerificationError("Metadata.epoch doesn't match public values")
-        );
-        require(
-            metadata.lido_withdrawal_credentials ==
-                publicValues.metadata.lido_withdrawal_credentials,
-            VerificationError(
-                "Metadata.lido_withdrawal_credentials doesn't match public values"
-            )
-        );
-        require(
-            metadata.beacon_block_hash ==
-                publicValues.metadata.beacon_block_hash,
-            VerificationError(
-                "Metadata.beacon_block_hash doesn't match public values"
-            )
-        );
-
-        require(
-            metadata.old_state.slot == publicValues.metadata.old_state.slot,
-            VerificationError(
-                "Metadata.old_state.slot doesn't match public values"
-            )
-        );
-        require(
-            metadata.old_state.merkle_root ==
-                publicValues.metadata.old_state.merkle_root,
-            VerificationError(
-                "Metadata.old_state.merkle_root doesn't match public values"
-            )
-        );
-
-        require(
-            metadata.new_state.slot == publicValues.metadata.new_state.slot,
-            VerificationError(
-                "Metadata.new_state.slot doesn't match public values"
-            )
-        );
-        require(
-            metadata.new_state.merkle_root ==
-                publicValues.metadata.new_state.merkle_root,
-            VerificationError(
-                "Metadata.new_state.merkle_root doesn't match public values"
-            )
-        );
-    }
-    
     function _getExpectedWithdrawalCredentials()
         internal
         view

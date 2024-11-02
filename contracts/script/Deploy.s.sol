@@ -4,7 +4,7 @@ pragma solidity 0.8.27;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import {stdJson} from "forge-std/StdJson.sol";
-import {Sp1LidoAccountingReportContract, LidoValidatorState} from "../src/Sp1LidoAccountingReportContract.sol";
+import {Sp1LidoAccountingReportContract} from "../src/Sp1LidoAccountingReportContract.sol";
 
 // forge script --chain $EVM_CHAIN script/Deploy.s.sol:Deploy --rpc-url $EXECUTION_LAYER_RPC --broadcast --verify
 contract Deploy is Script {
@@ -16,7 +16,7 @@ contract Deploy is Script {
         bytes32 vkey;
         bytes32 withdrawal_credentials;
         uint256 genesis_timestamp;
-        LidoValidatorState initial_lido_validator_state;
+        Sp1LidoAccountingReportContract.LidoValidatorState initial_lido_validator_state;
     }
 
     function stringsEqual(string memory _a, string memory _b) public pure returns(bool) {
@@ -38,7 +38,7 @@ contract Deploy is Script {
                 json.readBytes32(".vkey"),
                 json.readBytes32(".withdrawal_credentials"),
                 json.readUint(".genesis_timestamp"),
-                LidoValidatorState(
+                Sp1LidoAccountingReportContract.LidoValidatorState(
                     json.readUint(".initial_validator_state.slot"),
                     json.readBytes32(".initial_validator_state.merkle_root")
                 )

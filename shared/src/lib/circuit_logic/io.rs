@@ -49,8 +49,8 @@ mod tests {
         let (slot, epoch) = (123, 10);
         let credentials = hex!("010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f");
         let report_data = ReportData {
-            slot: slot,
-            epoch: epoch,
+            slot,
+            epoch,
             deposited_lido_validators: 1,
             exited_lido_validators: 2,
             lido_cl_balance: 3,
@@ -66,8 +66,8 @@ mod tests {
                 lido_cl_balance: report_data.lido_cl_balance,
             },
             metadata: ReportMetadataRust {
-                slot: slot,
-                epoch: epoch,
+                slot,
+                epoch,
                 lido_withdrawal_credentials: credentials,
                 beacon_block_hash: bh_hash,
                 state_for_previous_report: LidoValidatorStateRust {
@@ -75,7 +75,7 @@ mod tests {
                     merkle_root: old_state_hash,
                 },
                 new_state: LidoValidatorStateRust {
-                    slot: slot,
+                    slot,
                     merkle_root: new_state_hash,
                 },
             },

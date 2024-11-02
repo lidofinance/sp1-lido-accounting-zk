@@ -31,13 +31,7 @@ async fn main() {
 
     log::info!("Sending report");
     let tx_hash = contract
-        .submit_report_data(
-            args.target_slot,
-            stored_proof.report,
-            stored_proof.metadata,
-            stored_proof.proof,
-            stored_proof.public_values.to_vec(),
-        )
+        .submit_report_data(stored_proof.proof, stored_proof.public_values.to_vec())
         .await
         .expect("Failed to submit report");
     log::info!("Report transaction complete {}", hex::encode(tx_hash));

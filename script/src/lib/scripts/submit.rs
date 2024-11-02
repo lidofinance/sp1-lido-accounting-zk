@@ -67,13 +67,7 @@ pub async fn run(
 
     log::info!("Sending report");
     let tx_hash = contract
-        .submit_report_data(
-            target_bs.slot,
-            public_values.report,
-            public_values.metadata,
-            proof.bytes(),
-            proof.public_values.to_vec(),
-        )
+        .submit_report_data(proof.bytes(), proof.public_values.to_vec())
         .await
         .context("Failed to submit report")?;
     Ok(tx_hash)

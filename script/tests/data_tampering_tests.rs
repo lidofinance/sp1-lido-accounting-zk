@@ -116,7 +116,7 @@ impl<'a> TestExecutor<'a> {
             .read_beacon_state(&StateId::Slot(previous_slot))
             .await?;
         log::info!("Preparing program input");
-        let (program_input, public_values) =
+        let (program_input, _public_values) =
             shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials, false);
         log::info!("Requesting proof");
         let try_proof = self.client.prove(program_input);
@@ -130,13 +130,7 @@ impl<'a> TestExecutor<'a> {
 
                 log::info!("Sending report");
                 let result = contract
-                    .submit_report_data(
-                        target_bs.slot,
-                        public_values.report,
-                        public_values.metadata,
-                        proof.bytes(),
-                        proof.public_values.to_vec(),
-                    )
+                    .submit_report_data(proof.bytes(), proof.public_values.to_vec())
                     .await;
 
                 match result {
