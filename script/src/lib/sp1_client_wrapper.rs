@@ -9,6 +9,8 @@ use anyhow::Result;
 use log;
 use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
 
+use crate::consts::{self, sp1_verifier::VerificationMode};
+
 pub trait SP1ClientWrapper {
     fn vk(&self) -> &'_ SP1VerifyingKey;
     fn vk_bytes(&self) -> [u8; 32];
@@ -59,7 +61,12 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
 
     fn prove(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues> {
         let sp1_stdin = self.write_sp1_stdin(&input);
-        self.client.prove(&self.pk, sp1_stdin).groth16().run()
+        let prove_spec = self.client.prove(&self.pk, sp1_stdin);
+        let prove_mode = match consts::sp1_verifier::VERIFICATION_MODE {
+            VerificationMode::Groth16 => prove_spec.groth16(),
+            VerificationMode::Plonk => prove_spec.plonk(),
+        };
+        prove_mode.run()
     }
 
     fn verify_proof(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
