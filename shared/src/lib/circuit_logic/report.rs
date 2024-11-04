@@ -1,5 +1,6 @@
 use crate::{
     eth_consensus_layer::{Balances, Hash256, Validators},
+    io::eth_io::ReferenceSlot,
     lido::LidoValidatorState,
     util::{u64_to_usize, usize_to_u64},
 };
@@ -7,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct ReportData {
-    pub slot: u64,
+    pub slot: ReferenceSlot,
     pub epoch: u64,
     pub lido_withdrawal_credentials: Hash256,
     pub deposited_lido_validators: u64,
@@ -18,7 +19,7 @@ pub struct ReportData {
 // Merge into ReportRust?
 impl ReportData {
     pub fn compute(
-        slot: u64,
+        slot: ReferenceSlot,
         epoch: u64,
         validators: &Validators,
         balances: &Balances,
@@ -55,6 +56,7 @@ impl ReportData {
     }
 
     pub fn compute_from_state(
+        reference_slot: ReferenceSlot,
         lido_validators_state: &LidoValidatorState,
         balances: &Balances,
         lido_withdrawal_credentials: &Hash256,
@@ -68,7 +70,7 @@ impl ReportData {
         }
 
         Self {
-            slot: lido_validators_state.slot,
+            slot: reference_slot,
             epoch: lido_validators_state.epoch,
             lido_withdrawal_credentials: *lido_withdrawal_credentials,
             deposited_lido_validators: usize_to_u64(deposited_indices.len()),

@@ -8,11 +8,13 @@ use alloy::transports::http::reqwest::Url;
 use alloy::transports::Transport;
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
+use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 
 use core::clone::Clone;
 use core::fmt;
 use eyre::Result;
 use k256;
+use std::fmt::Debug;
 
 use sp1_lido_accounting_zk_shared::io::eth_io::{LidoValidatorStateRust, ReportRust};
 use sp1_lido_accounting_zk_shared::io::serde_utils::serde_hex_as_string;
@@ -45,7 +47,7 @@ pub enum Error {
     CustomRejection(String),
 
     #[error("Report for slot {0} not found")]
-    ReportNotFound(u64),
+    ReportNotFound(ReferenceSlot),
 
     #[error("Other alloy error {0:#?}")]
     AlloyError(alloy::contract::Error),
@@ -54,7 +56,7 @@ pub enum Error {
 impl From<ReportRust> for Sp1LidoAccountingReportContract::Report {
     fn from(value: ReportRust) -> Self {
         Sp1LidoAccountingReportContract::Report {
-            slot: U256::from(value.slot),
+            reference_slot: value.reference_slot.into(),
             deposited_lido_validators: U256::from(value.deposited_lido_validators),
             exited_lido_validators: U256::from(value.exited_lido_validators),
             lido_cl_balance: U256::from(value.lido_cl_balance),
@@ -65,13 +67,13 @@ impl From<ReportRust> for Sp1LidoAccountingReportContract::Report {
 impl From<LidoValidatorStateRust> for Sp1LidoAccountingReportContract::LidoValidatorState {
     fn from(value: LidoValidatorStateRust) -> Self {
         Sp1LidoAccountingReportContract::LidoValidatorState {
-            slot: U256::from(value.slot),
+            slot: value.slot.into(),
             merkle_root: value.merkle_root.into(),
         }
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ContractDeployParametersRust {
     pub network: String,
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<20>")]
@@ -97,6 +99,12 @@ impl fmt::Display for ContractDeployParametersRust {
     }
 }
 
+impl Debug for ContractDeployParametersRust {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self) // just use display
+    }
+}
+
 pub struct Sp1LidoAccountingReportContractWrapper<P, T: Transport + Clone>
 where
     P: alloy::providers::Provider<T, Ethereum>,
@@ -117,7 +125,7 @@ where
         // Deploy the `Counter` contract.
         let validator_state_solidity: Sp1LidoAccountingReportContract::LidoValidatorState =
             Sp1LidoAccountingReportContract::LidoValidatorState {
-                slot: U256::from(constructor_args.initial_validator_state.slot),
+                slot: constructor_args.initial_validator_state.slot.into(),
                 merkle_root: constructor_args.initial_validator_state.merkle_root.into(),
             };
         let contract = Sp1LidoAccountingReportContract::deploy(
@@ -153,7 +161,7 @@ where
         Ok(tx_result)
     }
 
-    pub async fn get_latest_report_slot(&self) -> Result<u64, Error> {
+    pub async fn get_latest_validator_state_slot(&self) -> Result<BeaconChainSlot, Error> {
         let latest_report_response = self
             .contract
             .getLatestLidoValidatorStateSlot()
@@ -161,13 +169,13 @@ where
             .await
             .map_err(|e: alloy::contract::Error| self.map_alloy_error(e))?;
         let latest_report_slot = latest_report_response._0;
-        Ok(latest_report_slot.to::<u64>())
+        Ok(BeaconChainSlot(latest_report_slot.to::<u64>()))
     }
 
-    pub async fn get_report(&self, slot: u64) -> Result<ReportRust, Error> {
+    pub async fn get_report(&self, slot: ReferenceSlot) -> Result<ReportRust, Error> {
         let report_response = self
             .contract
-            .getReport(U256::from(slot))
+            .getReport(slot.into())
             .call()
             .await
             .map_err(|e: alloy::contract::Error| self.map_alloy_error(e))?;
@@ -177,7 +185,7 @@ where
         }
 
         let report: ReportRust = ReportRust {
-            slot,
+            reference_slot: slot,
             deposited_lido_validators: report_response.totalDepositedValidators.to(),
             exited_lido_validators: report_response.totalExitedValidators.to(),
             lido_cl_balance: report_response.clBalanceGwei.to(),
@@ -267,6 +275,7 @@ mod tests {
 
     use super::*;
     use hex_literal::hex;
+    use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
 
     fn default_params() -> ContractDeployParametersRust {
         ContractDeployParametersRust {
@@ -276,7 +285,7 @@ mod tests {
             withdrawal_credentials: hex!("010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76"),
             genesis_timestamp: 1655733600,
             initial_validator_state: LidoValidatorStateRust {
-                slot: 5832096,
+                slot: BeaconChainSlot(5832096),
                 merkle_root: hex!("918070ce0cb66881d6839965371f79a600bc26b50a363a17ac00a1b295f89113"),
             },
         }

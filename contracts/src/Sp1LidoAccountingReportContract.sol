@@ -32,13 +32,13 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     uint256 private _latestValidatorStateSlot;
 
     struct Report {
-        uint256 slot;
+        uint256 reference_slot;
         uint256 deposited_lido_validators;
         uint256 exited_lido_validators;
         uint256 lido_cl_balance;
     }
     struct ReportMetadata {
-        uint256 slot;
+        uint256 bc_slot;
         uint256 epoch;
         bytes32 lido_withdrawal_credentials;
         bytes32 beacon_block_hash;
@@ -70,6 +70,12 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
 
     /// @dev Verification failed
     error VerificationError(string error_message);
+
+    error IllegalActualSlotError(
+        uint256 bc_slot,
+        uint256 reference_slot,
+        string error_message
+    );
 
     constructor(
         address _verifier,
@@ -109,7 +115,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         //    slot is stored there. Technically this is not necessary since it is ensured by
         //    the write-side invariants (in _verify),
         //    but this adds read-side check at no additional cost, so why not.
-        success = report.slot == refSlot;
+        success = report.reference_slot == refSlot;
 
         clBalanceGwei = report.lido_cl_balance;
         withdrawalVaultBalanceWei = 0; // withdrawal vault is not reported yet
@@ -128,7 +134,10 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     }
 
     function getBeaconBlockHash(uint256 slot) public view returns (bytes32) {
-        return _getBeaconBlockHash(slot);
+        (bool _success, bytes32 result) = _getBeaconBlockHashForTimestamp(
+            _slotToTimestamp(slot)
+        );
+        return (result);
     }
 
     /// @notice Main entrypoint for the contract - accepts proof and public values, verifies them,
@@ -145,42 +154,80 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         );
         Report memory report = public_values.report;
         ReportMetadata memory metadata = public_values.metadata;
-        require(
-            report.slot == metadata.slot,
-            VerificationError("Report and metadata slot do not match")
+        _verify_reference_and_bc_slot(
+            report.reference_slot,
+            metadata.bc_slot
         );
 
-        uint256 slot = report.slot;
-
         // Check the report was not previously set
-        Report storage report_at_slot = _reports[slot];
+        Report storage report_at_slot = _reports[report.reference_slot];
         require(
-            report_at_slot.slot == 0,
+            report_at_slot.reference_slot == 0,
             VerificationError("Report was already accepted for a given slot")
         );
 
         // Check that public values from ZK program match expected blockchain state
-        _verify_public_values(slot, public_values);
+        _verify_public_values(public_values);
 
         // Verify ZK-program and public values
         ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof);
 
         // If all checks pass - record report and state
-        _recordReport(slot, report);
+        _recordReport(report);
         _recordLidoValidatorStateHash(
             metadata.new_state.slot,
             metadata.new_state.merkle_root
         );
     }
 
+    /// @notice Verifies that reference slot and actual slot are correct:
+    /// * If reference slot had a block, actual slot must be equal to reference slot
+    /// * If reference slot did not have a block, actual slot must be the first preceding slot that had a block
+    function _verify_reference_and_bc_slot(
+        uint256 reference_slot,
+        uint256 bc_slot
+    ) internal view {
+        require(
+            _blockExists(bc_slot), 
+            IllegalActualSlotError(bc_slot, reference_slot, "Actual slot is empty")
+        );
+
+        // If actual slot has block and ref_slot == actual slot - no need to check further
+        if (reference_slot == bc_slot) {
+            return;
+        }
+
+        require(
+            !_blockExists(reference_slot),
+            IllegalActualSlotError(
+                bc_slot,
+                reference_slot,
+                "Reference slot has a block, but actual slot != reference slot"
+            )
+        );
+
+        for (uint slot_to_check = reference_slot - 1; slot_to_check > bc_slot; slot_to_check--) {
+            require(
+                !_blockExists(slot_to_check),
+                IllegalActualSlotError(
+                    bc_slot,
+                    reference_slot,
+                    "Actual slot should be the first preceding non-empty slot before reference"
+                )
+            );
+        }
+        
+    }
+
     function _verify_public_values(
-        uint256 slot,
         PublicValues memory publicValues
     ) internal view {
         ReportMetadata memory metadata = publicValues.metadata;
         // Check that passed beacon_block_hash matches the one observed on the blockchain for
         // the target slot
-        bytes32 expected_block_hash = _getBeaconBlockHash(slot);
+        bytes32 expected_block_hash = _findBeaconBlockHash(
+            metadata.bc_slot
+        );
         require(
             metadata.beacon_block_hash == expected_block_hash,
             VerificationError("BeaconBlockHash mismatch")
@@ -205,6 +252,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
             metadata.old_state.merkle_root == old_state_hash,
             VerificationError("Old state merkle_root mismatch")
         );
+
+        require(
+            metadata.bc_slot == metadata.new_state.slot,
+            VerificationError("New state slot must match actual slot")
+        );
     }
 
     function _getExpectedWithdrawalCredentials()
@@ -219,43 +271,74 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     /// @notice Attempts to find the block root for the given slot.
     /// @param slot The slot to get the block root for.
     /// @return blockRoot The beacon block root of the given slot.
-    /// @dev BEACON_ROOTS returns a block root for a given parent block's timestamp. To get the block root for slot
-    ///      N, you use the timestamp of slot N+1. If N+1 is not avaliable, you use the timestamp of slot N+2, and
-    //       so on.
-    function _getBeaconBlockHash(
+    /// @dev BEACON_ROOTS returns a ParentRoot field for the block at the specified slot's timestamp. 
+    ///      To get the block root for slot N, pass to the BEACON_ROOTS the timestamp of a 
+    ///      first non-empty slot after N (i.e. N+1 if it has a block, N+2 if N+1 is empty, ...).
+    function _findBeaconBlockHash(
         uint256 slot
     ) internal view virtual returns (bytes32) {
-        uint256 currBlockTimestamp = GENESIS_BLOCK_TIMESTAMP +
-            ((slot + 1) * SECONDS_PER_SLOT);
+        // See comment above re: why adding 1
+        uint256 targetBlockTimestamp = _slotToTimestamp(slot + 1);
 
         uint256 earliestBlockTimestamp = block.timestamp -
             (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SECONDS_PER_SLOT);
-        if (currBlockTimestamp <= earliestBlockTimestamp) {
+        if (targetBlockTimestamp <= earliestBlockTimestamp) {
             revert TimestampOutOfRange(
                 slot,
                 earliestBlockTimestamp,
-                currBlockTimestamp
+                targetBlockTimestamp
             );
         }
 
-        while (currBlockTimestamp <= block.timestamp) {
-            (bool success, bytes memory result) = BEACON_ROOTS.staticcall(
-                abi.encode(currBlockTimestamp)
+        uint256 timestampToCheck = targetBlockTimestamp;
+        // This loop does the following:
+        // * Tries getting a ParentRoot field for a given timestamp
+        // * If not empty - returns
+        // * If unsuccessful - slot at `timestampToCheck` was empty, so it moves to the next slot timestamp
+        // * Stops if we reached current block timestamp - no further blocks are available
+        while (timestampToCheck <= block.timestamp) {
+            (bool success, bytes32 result) = _getBeaconBlockHashForTimestamp(
+                timestampToCheck
             );
 
-            if (success && result.length > 0) {
-                return abi.decode(result, (bytes32));
+            if (success) {
+                return result;
             }
 
             unchecked {
-                currBlockTimestamp += SECONDS_PER_SLOT;
+                timestampToCheck += SECONDS_PER_SLOT;
             }
         }
         revert NoBlockRootFound(slot);
     }
 
-    function _recordReport(uint256 slot, Report memory report) internal {
-        _reports[slot] = report;
+    function _blockExists(uint256 slot) internal view returns (bool) {
+        // See comment above _findBeaconBlockHash re: why adding 1
+        uint256 slot_timestamp = _slotToTimestamp(slot);
+        (bool read_success, bytes32 slot_hash) = _getBeaconBlockHashForTimestamp(slot_timestamp);
+        return read_success && slot_hash != 0;
+    }
+
+    function _getBeaconBlockHashForTimestamp(
+        uint256 timestamp
+    ) internal view virtual returns (bool success, bytes32 result) {
+        (bool read_success, bytes memory raw_result) = BEACON_ROOTS.staticcall(
+            abi.encode(timestamp)
+        );
+        success = read_success;
+        if (success && raw_result.length > 0) {
+            result = abi.decode(raw_result, (bytes32));
+        } else {
+            result = 0;
+        }
+    }
+
+    function _slotToTimestamp(uint256 slot) internal view returns (uint256) {
+        return GENESIS_BLOCK_TIMESTAMP + slot * SECONDS_PER_SLOT;
+    }
+
+    function _recordReport(Report memory report) internal {
+        _reports[report.reference_slot] = report;
         emit ReportAccepted(report);
     }
 

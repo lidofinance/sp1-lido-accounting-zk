@@ -8,6 +8,7 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
     BeaconStateReader,
 };
+use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
@@ -22,7 +23,7 @@ fn hex_str_to_h256(hex_str: &str) -> Hash256 {
 }
 
 fn verify_report(report: &ReportData, manifesto: &Value) {
-    assert_eq!(report.slot, manifesto["report"]["slot"].as_u64().unwrap());
+    assert_eq!(report.slot.0, manifesto["report"]["slot"].as_u64().unwrap());
     assert_eq!(report.epoch, manifesto["report"]["epoch"].as_u64().unwrap());
     assert_eq!(
         report.lido_withdrawal_credentials,
@@ -50,7 +51,7 @@ async fn main() {
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true);
     let reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&ssz_folder);
 
-    let old_slot = 9760032;
+    let old_slot = BeaconChainSlot(9760032);
     let new_slot = old_slot + 216000; // (30 * 24 * 60 * 60 / 12) slots per month
 
     let old_beacon_state = reader
@@ -63,7 +64,7 @@ async fn main() {
         old_beacon_state.validators.to_vec().len(),
     );
     let old_report = ReportData::compute(
-        old_beacon_state.slot,
+        ReferenceSlot(old_slot.0),
         epoch(old_beacon_state.slot).unwrap(),
         &old_beacon_state.validators,
         &old_beacon_state.balances,
@@ -80,14 +81,14 @@ async fn main() {
     let created_but_not_deposited = 300;
 
     let generation_spec = GenerationSpec {
-        slot: new_slot,
+        slot: new_slot.0,
         non_lido_validators: new_non_lido_validators_a_month,
         deposited_lido_validators: new_lido_validators_a_month - created_but_not_deposited - new_exited_lido_validators,
         exited_lido_validators: new_exited_lido_validators,
         pending_deposit_lido_validators: created_but_not_deposited,
         balances_generation_mode: BalanceGenerationMode::FIXED,
         shuffle: false,
-        base_slot: Some(old_slot),
+        base_slot: Some(old_slot.0),
         overwrite: false,
     };
 
@@ -108,13 +109,13 @@ async fn main() {
 
     // Step 2: read manifesto
     let manifesto = creator
-        .read_manifesto(new_slot)
+        .read_manifesto(new_slot.0)
         .await
         .expect("Failed to read manifesto json");
 
     // Step 3: Compute report
     let new_report = ReportData::compute(
-        new_beacon_state.slot,
+        ReferenceSlot(new_beacon_state.slot),
         epoch(new_beacon_state.slot).unwrap(),
         &new_beacon_state.validators,
         &new_beacon_state.balances,

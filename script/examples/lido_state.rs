@@ -7,7 +7,7 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     BeaconStateReader, StateId,
 };
 use sp1_lido_accounting_scripts::consts::lido_credentials;
-use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
+use sp1_lido_accounting_zk_shared::{io::eth_io::BeaconChainSlot, lido::LidoValidatorState};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
@@ -24,7 +24,7 @@ fn hex_str_to_h256(hex_str: &str) -> Hash256 {
 }
 
 fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifesto: &Value) {
-    assert_eq!(state.slot, manifesto["report"]["slot"].as_u64().unwrap());
+    assert_eq!(state.slot.0, manifesto["report"]["slot"].as_u64().unwrap());
     assert_eq!(state.epoch, manifesto["report"]["epoch"].as_u64().unwrap());
     assert_eq!(
         usize_to_u64(state.deposited_lido_validator_indices.len()),
@@ -82,7 +82,7 @@ async fn main() {
     // Step 1. obtain SSZ-serialized beacon state
     let slot = 123456;
     let generation_spec = GenerationSpec {
-        slot: slot,
+        slot,
         non_lido_validators: 2_u64.pow(7),
         deposited_lido_validators: 2_u64.pow(6),
         exited_lido_validators: 4,
@@ -97,7 +97,7 @@ async fn main() {
         .await
         .expect("Failed to create beacon state");
     let beacon_state = reader
-        .read_beacon_state(&StateId::Slot(slot))
+        .read_beacon_state(&StateId::Slot(BeaconChainSlot(slot)))
         .await
         .expect("Failed to read beacon state");
     log::info!(

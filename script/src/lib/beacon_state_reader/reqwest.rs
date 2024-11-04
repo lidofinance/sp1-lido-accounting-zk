@@ -5,7 +5,10 @@ use log;
 use reqwest::{header::ACCEPT, Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Root};
+use sp1_lido_accounting_zk_shared::{
+    eth_consensus_layer::{BeaconBlockHeader, BeaconState, Root},
+    io::eth_io::{BeaconChainSlot, HaveSlotWithBlock},
+};
 
 use super::{
     file::{FileBasedBeaconStateReader, FileBeaconStateWriter},
@@ -85,7 +88,7 @@ impl TryFrom<BeaconHeaderResponseDataHeaderMessage> for BeaconBlockHeader {
 
 pub trait BeaconChainRPC {
     #[allow(async_fn_in_trait)]
-    async fn get_finalized_slot(&self) -> anyhow::Result<u64>;
+    async fn get_finalized_slot(&self) -> anyhow::Result<BeaconChainSlot>;
 }
 
 pub struct ReqwestBeaconStateReader {
@@ -198,10 +201,10 @@ impl BeaconStateReader for ReqwestBeaconStateReader {
 }
 
 impl BeaconChainRPC for ReqwestBeaconStateReader {
-    async fn get_finalized_slot(&self) -> anyhow::Result<u64> {
+    async fn get_finalized_slot(&self) -> anyhow::Result<BeaconChainSlot> {
         self.read_beacon_header(&StateId::Finalized)
             .await
-            .map(|header| header.slot)
+            .map(|header| header.bc_slot())
     }
 }
 
@@ -252,7 +255,7 @@ impl BeaconStateReader for CachedReqwestBeaconStateReader {
 }
 
 impl BeaconChainRPC for CachedReqwestBeaconStateReader {
-    async fn get_finalized_slot(&self) -> anyhow::Result<u64> {
+    async fn get_finalized_slot(&self) -> anyhow::Result<BeaconChainSlot> {
         self.rpc_reader.get_finalized_slot().await
     }
 }

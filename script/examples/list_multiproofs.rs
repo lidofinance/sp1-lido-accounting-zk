@@ -1,4 +1,4 @@
-use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
+use sp1_lido_accounting_zk_shared::{io::eth_io::BeaconChainSlot, lido::LidoValidatorState};
 
 use std::path::PathBuf;
 use tree_hash::TreeHash;
@@ -49,21 +49,21 @@ async fn main() {
     creator
         .create_beacon_state(base_state_spec)
         .await
-        .expect(&format!("Failed to create beacon state for slot {}", old_slot));
+        .unwrap_or_else(|_| panic!("Failed to create beacon state for slot {}", old_slot));
 
     creator
         .create_beacon_state(update_state_spec)
         .await
-        .expect(&format!("Failed to create beacon state for slot {}", new_slot));
+        .unwrap_or_else(|_| panic!("Failed to create beacon state for slot {}", new_slot));
 
     let beacon_state1 = reader
-        .read_beacon_state(&StateId::Slot(old_slot))
+        .read_beacon_state(&StateId::Slot(BeaconChainSlot(old_slot)))
         .await
         .expect("Failed to read beacon state");
     let lido_state1 = LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
 
     let beacon_state2 = reader
-        .read_beacon_state(&StateId::Slot(new_slot))
+        .read_beacon_state(&StateId::Slot(BeaconChainSlot(new_slot)))
         .await
         .expect("Failed to read beacon state");
     let lido_state2 = LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
@@ -74,11 +74,11 @@ async fn main() {
         .expect("Failed to convert max_validator_index to usize");
     let highest_validator_index2 = beacon_state2.validators.len() - 1;
     let new_validator_indices = Vec::from_iter(highest_validator_index1..highest_validator_index2);
-    let all_lido_validator_indices: Vec<usize> = lido_state2
-        .deposited_lido_validator_indices
-        .iter()
-        .map(|v| usize::try_from(*v).unwrap())
-        .collect();
+    // let all_lido_validator_indices: Vec<usize> = lido_state2
+    //     .deposited_lido_validator_indices
+    //     .iter()
+    //     .map(|v| usize::try_from(*v).unwrap())
+    //     .collect();
 
     let new_validators_multiproof = beacon_state2
         .validators

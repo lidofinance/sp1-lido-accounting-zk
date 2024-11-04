@@ -8,8 +8,11 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
     BeaconStateReader, StateId,
 };
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves, RsMerkleHash};
+use sp1_lido_accounting_zk_shared::{
+    eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256},
+    io::eth_io::BeaconChainSlot,
+};
 
 use simple_logger::SimpleLogger;
 
@@ -207,9 +210,9 @@ async fn main() {
         overwrite: false,
     };
 
-    let slot = 1000000;
+    let slot = BeaconChainSlot(1000000);
 
-    creator.evict_cache(slot).expect("Failed to evict cached data");
+    creator.evict_cache(slot.0).expect("Failed to evict cached data");
     creator
         .create_beacon_state(generation_spec)
         .await
@@ -240,7 +243,7 @@ async fn main() {
 
     // Step 2.1: compare against expected ones
     let manifesto = creator
-        .read_manifesto(slot)
+        .read_manifesto(slot.0)
         .await
         .expect("Failed to read manifesto json");
     let manifesto_bs_merkle: Hash256 = hex_str_to_h256(manifesto["beacon_state"]["hash"].as_str().unwrap());

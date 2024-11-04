@@ -21,7 +21,7 @@ async fn main() {
 
     let bs_reader = CachedReqwestBeaconStateReader::new(&consensus_layer_rpc_url, &bs_endpoint, &file_store);
 
-    let finalized_slot: u64 = bs_reader
+    let finalized_slot = bs_reader
         .get_finalized_slot()
         .await
         .expect("Failed to read finalized slot");

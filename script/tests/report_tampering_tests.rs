@@ -13,7 +13,7 @@ use sp1_lido_accounting_scripts::{
 use lazy_static::lazy_static;
 use sp1_lido_accounting_zk_shared::{
     eth_consensus_layer::{BeaconState, Hash256},
-    io::eth_io::{PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust},
+    io::eth_io::{BeaconChainSlot, PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust},
 };
 use sp1_sdk::{HashableKey, ProverClient};
 use std::env;
@@ -92,7 +92,7 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         Ok(proof)
     }
 
-    async fn start_anvil(&self, target_slot: u64) -> Result<AnvilInstance> {
+    async fn start_anvil(&self, target_slot: BeaconChainSlot) -> Result<AnvilInstance> {
         let finalized_bs =
             test_utils::read_latest_bs_at_or_before(&self.bs_reader, target_slot, test_utils::RETRIES).await?;
         let fork_url =
@@ -134,23 +134,28 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         let lido_withdrawal_credentials: Hash256 = NETWORK.get_config().lido_withdrawal_credentials.into();
         let stored_proof = self.get_stored_proof()?;
 
-        let target_slot = stored_proof.report.slot;
+        let reference_slot = stored_proof.report.reference_slot;
+        let bc_slot = stored_proof.metadata.bc_slot;
+
         // // Anvil needs to be here in scope for the duration of the test, otherwise it terminates
         // // Hence creating it here (i.e. owner is this function) and passing down to deploy conract
-        let anvil = self.start_anvil(target_slot).await?;
+        let anvil = self.start_anvil(bc_slot).await?;
         let contract = self.deploy_contract(NETWORK, &anvil).await?;
-        let previous_slot = contract.get_latest_report_slot().await?;
+        let previous_slot = contract.get_latest_validator_state_slot().await?;
 
-        let target_bh = self
-            .bs_reader
-            .read_beacon_block_header(&StateId::Slot(target_slot))
-            .await?;
-        let target_bs = self.bs_reader.read_beacon_state(&StateId::Slot(target_slot)).await?;
+        let target_bh = self.bs_reader.read_beacon_block_header(&StateId::Slot(bc_slot)).await?;
+        let target_bs = self.bs_reader.read_beacon_state(&StateId::Slot(bc_slot)).await?;
         // Should read old state from untampered reader, so the old state compute will match
         let old_bs = self.bs_reader.read_beacon_state(&StateId::Slot(previous_slot)).await?;
         log::info!("Preparing program input");
-        let (_program_input, public_values) =
-            shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials, false);
+        let (_program_input, public_values) = shared_logic::prepare_program_input(
+            reference_slot,
+            &target_bs,
+            &target_bh,
+            &old_bs,
+            &lido_withdrawal_credentials,
+            false,
+        );
         log::info!("Reading proof");
 
         let tampered_public_values = (self.tamper_public_values)(public_values);
@@ -250,7 +255,18 @@ async fn report_tampering_sanity_check_should_pass() -> Result<()> {
 async fn report_tampering_report_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_report_mapper(|report| {
         let mut new_report = report.clone();
-        new_report.slot = 1234567890;
+        new_report.reference_slot = new_report.reference_slot - 1;
+        new_report
+    }));
+
+    assert_rejects(executor.run_test().await)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn report_tampering_report_slot2() -> Result<()> {
+    let executor = TestExecutor::new(wrap_report_mapper(|report| {
+        let mut new_report = report.clone();
+        new_report.reference_slot = new_report.reference_slot + 10;
         new_report
     }));
 
@@ -294,7 +310,18 @@ async fn report_tampering_report_exited_count() -> Result<()> {
 async fn report_tampering_metadata_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.slot = 1234567890;
+        new_metadata.bc_slot = new_metadata.bc_slot - 10;
+        new_metadata
+    }));
+
+    assert_rejects(executor.run_test().await)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn report_tampering_metadata_slot2() -> Result<()> {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
+        let mut new_metadata = metadata.clone();
+        new_metadata.bc_slot = new_metadata.bc_slot + 10;
         new_metadata
     }));
 
@@ -339,7 +366,7 @@ async fn report_tampering_metadata_beacon_block_hash() -> Result<()> {
 async fn report_tampering_metadata_old_state_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.state_for_previous_report.slot = 1234567890;
+        new_metadata.state_for_previous_report.slot = new_metadata.state_for_previous_report.slot - 10;
         new_metadata
     }));
 
@@ -362,7 +389,7 @@ async fn report_tampering_metadata_old_state_merkle_root() -> Result<()> {
 async fn report_tampering_metadata_new_state_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.new_state.slot = 1234567890;
+        new_metadata.new_state.slot = new_metadata.new_state.slot + 10;
         new_metadata
     }));
 

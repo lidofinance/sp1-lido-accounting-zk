@@ -2,17 +2,18 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts};
+use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
 
 /*
 Run variants:
 * Prepare and save deploy manifesto, but don't deploy:
-cargo run --bin deploy --release -- --target-slot 5887808 --store "../temp/deploy/${EVM_CHAIN}-deploy.json" --dry-run
+cargo run --bin deploy --release -- --target-slot 5887808 --store "../data/deploy/${EVM_CHAIN}-deploy.json" --dry-run
 
 * Read from manifesto and deploy
-cargo run --bin deploy --release -- --target-slot 5887808 --source "../temp/deploy/${EVM_CHAIN}-deploy.json"
+cargo run --bin deploy --release -- --target-slot 5887808 --source "../data/deploy/${EVM_CHAIN}-deploy.json"
 
 * Read from manifesto, deploy and verify
-cargo run --bin deploy --release -- --target-slot 5887808 --source "../temp/deploy/${EVM_CHAIN}-deploy.json" --verify
+cargo run --bin deploy --release -- --target-slot 5887808 --source "../data/deploy/${EVM_CHAIN}-deploy.json" --verify
 
 * Read from network and deploy, don't save manifest
 cargo run --bin deploy --release -- --target-slot 5887808
@@ -53,7 +54,9 @@ async fn main() {
             path: PathBuf::from(path),
         }
     } else {
-        scripts::deploy::Source::Network { slot: args.target_slot }
+        scripts::deploy::Source::Network {
+            slot: BeaconChainSlot(args.target_slot),
+        }
     };
 
     let network_config = network.get_config();

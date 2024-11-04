@@ -1,5 +1,6 @@
 use clap::Parser;
 use sp1_lido_accounting_scripts::scripts;
+use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
 // cargo run --bin submit --release -- --target-slot 5982336 --store --local-verify
 
@@ -7,9 +8,9 @@ use sp1_lido_accounting_scripts::scripts;
 #[clap(author, version, about, long_about = None)]
 struct ProveArgs {
     #[clap(long, default_value = "5800000")]
-    target_slot: u64,
+    target_ref_slot: u64,
     #[clap(long, required = false)]
-    previous_slot: Option<u64>,
+    previous_ref_slot: Option<u64>,
     #[clap(long, required = false)]
     store: bool,
     #[clap(long, required = false)]
@@ -29,8 +30,8 @@ async fn main() -> anyhow::Result<()> {
         &client,
         &bs_reader,
         &contract,
-        args.target_slot,
-        args.previous_slot,
+        ReferenceSlot(args.target_ref_slot),
+        args.previous_ref_slot.map(ReferenceSlot),
         network,
         scripts::submit::Flags {
             verify: args.local_verify,

@@ -2,12 +2,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     eth_consensus_layer::{Balances, BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Hash256},
+    io::eth_io::{BeaconChainSlot, ReferenceSlot},
     lido::{LidoValidatorState, ValidatorDelta},
 };
 
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub struct ProgramInput {
-    pub slot: u64,
+    pub reference_slot: ReferenceSlot,
+    pub bc_slot: BeaconChainSlot,
     pub beacon_block_hash: Hash256,
     pub beacon_block_header: BeaconBlockHeaderPrecomputedHashes,
     pub beacon_state: BeaconStatePrecomputedHashes,

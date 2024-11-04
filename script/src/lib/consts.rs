@@ -2,6 +2,10 @@ pub const ELF: &[u8] = include_bytes!("../../../elf/riscv32im-succinct-zkvm-elf"
 
 pub mod sp1_verifier {
     use hex_literal::hex;
+    // https://docs.succinct.xyz/onchain-verification/contract-addresses.html
+    // const SP1_GROTH_GATEWAY: [u8; 20] = hex!("397A5f7f3dBd538f23DE225B51f532c34448dA9B");
+    // const SP1_PLONK_GATEWAY: [u8; 20] = hex!("3B6041173B80E77f038f3F2C0f9744f04837185e");
+
     // https://github.com/succinctlabs/sp1-contracts/tree/main/contracts/deployments
     // The contract addresses matches between mainnet, sepolia and holesky
     const SP1_GROTH_VERIFIER: [u8; 20] = hex!("E780809121774D06aD9B0EEeC620fF4B3913Ced1");

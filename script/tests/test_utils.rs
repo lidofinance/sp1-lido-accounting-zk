@@ -13,12 +13,13 @@ use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapperImpl;
 use sp1_lido_accounting_scripts::{proof_storage, utils};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::eth_spec;
+use sp1_lido_accounting_zk_shared::io::eth_io::{ReferenceSlot, BeaconChainSlot};
 use sp1_sdk::ProverClient;
 use tree_hash::TreeHash;
 use typenum::Unsigned;
 
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);
-pub const DEPLOY_SLOT: u64 = 5832096;
+pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(5832096);
 pub const RETRIES: usize = 3;
 
 // TODO: Enable local prover if/when it becomes feasible.
@@ -63,10 +64,10 @@ impl TestFiles {
         self.base.join("beacon_states")
     }
 
-    pub fn read_deploy(&self, network: &impl NetworkInfo, slot: u64) -> Result<ContractDeployParametersRust> {
+    pub fn read_deploy(&self, network: &impl NetworkInfo, slot: BeaconChainSlot) -> Result<ContractDeployParametersRust> {
         let deploy_args_file = self
             .deploys()
-            .join(format!("{}-{}-deploy.json", network.as_str(), slot));
+            .join(format!("{}-{}-deploy.json", network.as_str(), slot.0));
         utils::read_json(deploy_args_file.as_path())
             .wrap_err(format!("Failed to read deploy args from file {:#?}", deploy_args_file))
     }
@@ -88,7 +89,7 @@ impl TestFiles {
 
 pub async fn read_latest_bs_at_or_before(
     bs_reader: &impl BeaconStateReader,
-    slot: u64,
+    slot: BeaconChainSlot,
     retries: usize,
 ) -> Result<BeaconState> {
     let step = eth_spec::SlotsPerEpoch::to_u64();
@@ -104,7 +105,7 @@ pub async fn read_latest_bs_at_or_before(
             break try_bs;
         } else {
             attempt += 1;
-            current_slot -= step;
+            current_slot = BeaconChainSlot(current_slot.0 - step);
         }
     };
     result.map_err(|e| eyre!("Failed to read beacon state {:#?}", e))
@@ -186,4 +187,13 @@ where
 
 pub fn eyre_to_anyhow(err: eyre::Error) -> anyhow::Error {
     anyhow!("Eyre error: {:#?}", err)
+}
+
+// This function not OK to use it outside tests. Don't copy-paste.
+// In short:
+// * Only a few slots will be reference slots (one a day)
+// * Not all reference slots will actually have block in them
+#[cfg(test)]
+pub fn mark_as_refslot(slot: BeaconChainSlot) -> ReferenceSlot {
+    ReferenceSlot(slot.0)
 }
