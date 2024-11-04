@@ -7,8 +7,7 @@ import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
 contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     /// @notice The address of the beacon roots precompile.
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
-    address public constant BEACON_ROOTS =
-        0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
+    address public constant BEACON_ROOTS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
 
     /// @notice The length of the beacon roots ring buffer.
     uint256 internal constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;
@@ -37,6 +36,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         uint256 exited_lido_validators;
         uint256 lido_cl_balance;
     }
+
     struct ReportMetadata {
         uint256 bc_slot;
         uint256 epoch;
@@ -60,22 +60,14 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     event LidoValidatorStateHashRecorded(uint256 slot, bytes32 merkle_root);
 
     /// @dev Timestamp out of range for the the beacon roots precompile.
-    error TimestampOutOfRange(
-        uint256 target_slot,
-        uint256 target_timestamp,
-        uint256 earliest_available_timestamp
-    );
+    error TimestampOutOfRange(uint256 target_slot, uint256 target_timestamp, uint256 earliest_available_timestamp);
     /// @dev No block root is found using the beacon roots precompile.
     error NoBlockRootFound(uint256 target_slot);
 
     /// @dev Verification failed
     error VerificationError(string error_message);
 
-    error IllegalActualSlotError(
-        uint256 bc_slot,
-        uint256 reference_slot,
-        string error_message
-    );
+    error IllegalActualSlotError(uint256 bc_slot, uint256 reference_slot, string error_message);
 
     constructor(
         address _verifier,
@@ -88,15 +80,10 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         VKEY = _vkey;
         WITHDRAWAL_CREDENTIALS = _lido_withdrawal_credentials;
         GENESIS_BLOCK_TIMESTAMP = _genesis_timestamp;
-        _recordLidoValidatorStateHash(
-            _initial_state.slot,
-            _initial_state.merkle_root
-        );
+        _recordLidoValidatorStateHash(_initial_state.slot, _initial_state.merkle_root);
     }
 
-    function getReport(
-        uint256 refSlot
-    )
+    function getReport(uint256 refSlot)
         external
         view
         override
@@ -127,16 +114,12 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         return (_latestValidatorStateSlot);
     }
 
-    function getLidoValidatorStateHash(
-        uint256 slot
-    ) public view returns (bytes32 result) {
+    function getLidoValidatorStateHash(uint256 slot) public view returns (bytes32 result) {
         return (_states[slot]);
     }
 
     function getBeaconBlockHash(uint256 slot) public view returns (bytes32) {
-        (bool _success, bytes32 result) = _getBeaconBlockHashForTimestamp(
-            _slotToTimestamp(slot)
-        );
+        (bool _success, bytes32 result) = _getBeaconBlockHashForTimestamp(_slotToTimestamp(slot));
         return (result);
     }
 
@@ -144,27 +127,15 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     ///         and stores the report if verification passes
     /// @param proof proof from succinct, in binary format
     /// @param publicValues public values from prover, in binary format
-    function submitReportData(
-        bytes calldata proof,
-        bytes calldata publicValues
-    ) public {
-        PublicValues memory public_values = abi.decode(
-            publicValues,
-            (PublicValues)
-        );
+    function submitReportData(bytes calldata proof, bytes calldata publicValues) public {
+        PublicValues memory public_values = abi.decode(publicValues, (PublicValues));
         Report memory report = public_values.report;
         ReportMetadata memory metadata = public_values.metadata;
-        _verify_reference_and_bc_slot(
-            report.reference_slot,
-            metadata.bc_slot
-        );
+        _verify_reference_and_bc_slot(report.reference_slot, metadata.bc_slot);
 
         // Check the report was not previously set
         Report storage report_at_slot = _reports[report.reference_slot];
-        require(
-            report_at_slot.reference_slot == 0,
-            VerificationError("Report was already accepted for a given slot")
-        );
+        require(report_at_slot.reference_slot == 0, VerificationError("Report was already accepted for a given slot"));
 
         // Check that public values from ZK program match expected blockchain state
         _verify_public_values(public_values);
@@ -174,23 +145,14 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
 
         // If all checks pass - record report and state
         _recordReport(report);
-        _recordLidoValidatorStateHash(
-            metadata.new_state.slot,
-            metadata.new_state.merkle_root
-        );
+        _recordLidoValidatorStateHash(metadata.new_state.slot, metadata.new_state.merkle_root);
     }
 
     /// @notice Verifies that reference slot and actual slot are correct:
     /// * If reference slot had a block, actual slot must be equal to reference slot
     /// * If reference slot did not have a block, actual slot must be the first preceding slot that had a block
-    function _verify_reference_and_bc_slot(
-        uint256 reference_slot,
-        uint256 bc_slot
-    ) internal view {
-        require(
-            _blockExists(bc_slot), 
-            IllegalActualSlotError(bc_slot, reference_slot, "Actual slot is empty")
-        );
+    function _verify_reference_and_bc_slot(uint256 reference_slot, uint256 bc_slot) internal view {
+        require(_blockExists(bc_slot), IllegalActualSlotError(bc_slot, reference_slot, "Actual slot is empty"));
 
         // If actual slot has block and ref_slot == actual slot - no need to check further
         if (reference_slot == bc_slot) {
@@ -200,94 +162,58 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         require(
             !_blockExists(reference_slot),
             IllegalActualSlotError(
-                bc_slot,
-                reference_slot,
-                "Reference slot has a block, but actual slot != reference slot"
+                bc_slot, reference_slot, "Reference slot has a block, but actual slot != reference slot"
             )
         );
 
-        for (uint slot_to_check = reference_slot - 1; slot_to_check > bc_slot; slot_to_check--) {
+        for (uint256 slot_to_check = reference_slot - 1; slot_to_check > bc_slot; slot_to_check--) {
             require(
                 !_blockExists(slot_to_check),
                 IllegalActualSlotError(
-                    bc_slot,
-                    reference_slot,
-                    "Actual slot should be the first preceding non-empty slot before reference"
+                    bc_slot, reference_slot, "Actual slot should be the first preceding non-empty slot before reference"
                 )
             );
         }
-        
     }
 
-    function _verify_public_values(
-        PublicValues memory publicValues
-    ) internal view {
+    function _verify_public_values(PublicValues memory publicValues) internal view {
         ReportMetadata memory metadata = publicValues.metadata;
         // Check that passed beacon_block_hash matches the one observed on the blockchain for
         // the target slot
-        bytes32 expected_block_hash = _findBeaconBlockHash(
-            metadata.bc_slot
-        );
-        require(
-            metadata.beacon_block_hash == expected_block_hash,
-            VerificationError("BeaconBlockHash mismatch")
-        );
+        bytes32 expected_block_hash = _findBeaconBlockHash(metadata.bc_slot);
+        require(metadata.beacon_block_hash == expected_block_hash, VerificationError("BeaconBlockHash mismatch"));
 
         // Check that correct withdrawal credentials were used
         require(
-            metadata.lido_withdrawal_credentials ==
-                _getExpectedWithdrawalCredentials(),
+            metadata.lido_withdrawal_credentials == _getExpectedWithdrawalCredentials(),
             VerificationError("Withdrawal credentials mismatch")
         );
 
         // Check that the old report hash matches the one recorded in contract
-        bytes32 old_state_hash = getLidoValidatorStateHash(
-            metadata.old_state.slot
-        );
-        require(
-            old_state_hash != 0,
-            VerificationError("Old state merkle_root not found")
-        );
-        require(
-            metadata.old_state.merkle_root == old_state_hash,
-            VerificationError("Old state merkle_root mismatch")
-        );
+        bytes32 old_state_hash = getLidoValidatorStateHash(metadata.old_state.slot);
+        require(old_state_hash != 0, VerificationError("Old state merkle_root not found"));
+        require(metadata.old_state.merkle_root == old_state_hash, VerificationError("Old state merkle_root mismatch"));
 
-        require(
-            metadata.bc_slot == metadata.new_state.slot,
-            VerificationError("New state slot must match actual slot")
-        );
+        require(metadata.bc_slot == metadata.new_state.slot, VerificationError("New state slot must match actual slot"));
     }
 
-    function _getExpectedWithdrawalCredentials()
-        internal
-        view
-        virtual
-        returns (bytes32)
-    {
+    function _getExpectedWithdrawalCredentials() internal view virtual returns (bytes32) {
         return (WITHDRAWAL_CREDENTIALS);
     }
 
     /// @notice Attempts to find the block root for the given slot.
     /// @param slot The slot to get the block root for.
     /// @return blockRoot The beacon block root of the given slot.
-    /// @dev BEACON_ROOTS returns a ParentRoot field for the block at the specified slot's timestamp. 
-    ///      To get the block root for slot N, pass to the BEACON_ROOTS the timestamp of a 
+    /// @dev BEACON_ROOTS returns a ParentRoot field for the block at the specified slot's timestamp.
+    ///      To get the block root for slot N, pass to the BEACON_ROOTS the timestamp of a
     ///      first non-empty slot after N (i.e. N+1 if it has a block, N+2 if N+1 is empty, ...).
-    function _findBeaconBlockHash(
-        uint256 slot
-    ) internal view virtual returns (bytes32) {
+    function _findBeaconBlockHash(uint256 slot) internal view virtual returns (bytes32) {
         // See comment above re: why adding 1
         uint256 targetBlockTimestamp = _slotToTimestamp(slot + 1);
 
-        uint256 earliestBlockTimestamp = block.timestamp -
-            (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SECONDS_PER_SLOT);
+        uint256 earliestBlockTimestamp = block.timestamp - (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SECONDS_PER_SLOT);
         if (targetBlockTimestamp <= earliestBlockTimestamp) {
-            revert TimestampOutOfRange(
-                slot,
-                earliestBlockTimestamp,
-                targetBlockTimestamp
-            );
+            revert TimestampOutOfRange(slot, earliestBlockTimestamp, targetBlockTimestamp);
         }
 
         uint256 timestampToCheck = targetBlockTimestamp;
@@ -297,9 +223,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         // * If unsuccessful - slot at `timestampToCheck` was empty, so it moves to the next slot timestamp
         // * Stops if we reached current block timestamp - no further blocks are available
         while (timestampToCheck <= block.timestamp) {
-            (bool success, bytes32 result) = _getBeaconBlockHashForTimestamp(
-                timestampToCheck
-            );
+            (bool success, bytes32 result) = _getBeaconBlockHashForTimestamp(timestampToCheck);
 
             if (success) {
                 return result;
@@ -319,12 +243,13 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         return read_success && slot_hash != 0;
     }
 
-    function _getBeaconBlockHashForTimestamp(
-        uint256 timestamp
-    ) internal view virtual returns (bool success, bytes32 result) {
-        (bool read_success, bytes memory raw_result) = BEACON_ROOTS.staticcall(
-            abi.encode(timestamp)
-        );
+    function _getBeaconBlockHashForTimestamp(uint256 timestamp)
+        internal
+        view
+        virtual
+        returns (bool success, bytes32 result)
+    {
+        (bool read_success, bytes memory raw_result) = BEACON_ROOTS.staticcall(abi.encode(timestamp));
         success = read_success;
         if (success && raw_result.length > 0) {
             result = abi.decode(raw_result, (bytes32));
@@ -342,10 +267,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         emit ReportAccepted(report);
     }
 
-    function _recordLidoValidatorStateHash(
-        uint256 slot,
-        bytes32 state_merkle_root
-    ) internal {
+    function _recordLidoValidatorStateHash(uint256 slot, bytes32 state_merkle_root) internal {
         _states[slot] = state_merkle_root;
         if (slot > _latestValidatorStateSlot) {
             _latestValidatorStateSlot = slot;
