@@ -41,7 +41,7 @@ pub fn main() {
     let delta = input.validators_and_balances.validators_delta;
 
     cycle_tracker.start_span("main.compute_new_state.merge_delta");
-    let new_state: LidoValidatorState = old_state.merge_validator_delta(input.slot, &delta, &withdrawal_creds);
+    let new_state: LidoValidatorState = old_state.merge_validator_delta(input.bc_slot, &delta, &withdrawal_creds);
     cycle_tracker.end_span("main.compute_new_state.merge_delta");
     cycle_tracker.end_span("main.compute_new_state");
 
@@ -55,12 +55,18 @@ pub fn main() {
     cycle_tracker.end_span("main.compute_old_state.hash_root");
 
     cycle_tracker.start_span("main.compute_report");
-    let report = ReportData::compute_from_state(&new_state, &input.validators_and_balances.balances, &withdrawal_creds);
+    let report = ReportData::compute_from_state(
+        input.reference_slot,
+        &new_state,
+        &input.validators_and_balances.balances,
+        &withdrawal_creds,
+    );
     cycle_tracker.end_span("main.compute_report");
 
     cycle_tracker.start_span("main.commit_public_values");
     let public_values = create_public_values(
         &report,
+        input.bc_slot,
         &input.beacon_block_hash,
         old_state.slot,
         &old_state_hash_root,

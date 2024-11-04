@@ -1,7 +1,26 @@
-use alloy_sol_types::sol;
-use serde::{Deserialize, Serialize};
+use std::{
+    fmt,
+    ops::{Add, Sub},
+};
 
-use crate::io::serde_utils::serde_hex_as_string;
+use alloy_sol_types::sol;
+use derivative::Derivative;
+use serde::{Deserialize, Serialize};
+use tree_hash::TreeHash;
+use typenum::Unsigned;
+
+use crate::{
+    eth_consensus_layer::{BeaconBlockHeader, BeaconState, Epoch, Hash256, Slot},
+    eth_spec,
+    io::serde_utils::serde_hex_as_string,
+};
+
+mod derivatives {
+    use super::*;
+    pub fn slice_as_hash(val: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "0x{}", hex::encode(val))
+    }
+}
 
 pub mod conversions {
     pub fn u64_to_uint256(value: u64) -> alloy_primitives::U256 {
@@ -19,16 +38,160 @@ pub mod conversions {
 
 sol! {
     struct ReportSolidity {
-        uint256 slot;
+        uint256 reference_slot;
         uint256 deposited_lido_validators;
         uint256 exited_lido_validators;
         uint256 lido_cl_valance;
     }
 }
 
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct ReferenceSlot(pub Slot);
+
+impl Add<u64> for ReferenceSlot {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Sub<u64> for ReferenceSlot {
+    type Output = Self;
+
+    fn sub(self, rhs: u64) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl fmt::Display for ReferenceSlot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<ReferenceSlot> for alloy_primitives::U256 {
+    fn from(value: ReferenceSlot) -> Self {
+        conversions::u64_to_uint256(value.0)
+    }
+}
+
+impl TreeHash for ReferenceSlot {
+    fn tree_hash_type() -> tree_hash::TreeHashType {
+        tree_hash::TreeHashType::Basic
+    }
+
+    fn tree_hash_packed_encoding(&self) -> tree_hash::PackedEncoding {
+        self.0.tree_hash_packed_encoding()
+    }
+
+    fn tree_hash_packing_factor() -> usize {
+        tree_hash::HASHSIZE / 8
+    }
+
+    #[allow(clippy::cast_lossless)] // Lint does not apply to all uses of this macro.
+    fn tree_hash_root(&self) -> Hash256 {
+        self.0.tree_hash_root()
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug, Serialize, Deserialize)]
+pub struct BeaconChainSlot(pub Slot);
+
+impl Add<u64> for BeaconChainSlot {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Sub<u64> for BeaconChainSlot {
+    type Output = Self;
+
+    fn sub(self, rhs: u64) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl fmt::Display for BeaconChainSlot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<BeaconChainSlot> for alloy_primitives::U256 {
+    fn from(value: BeaconChainSlot) -> Self {
+        conversions::u64_to_uint256(value.0)
+    }
+}
+
+impl TreeHash for BeaconChainSlot {
+    fn tree_hash_type() -> tree_hash::TreeHashType {
+        tree_hash::TreeHashType::Basic
+    }
+
+    fn tree_hash_packed_encoding(&self) -> tree_hash::PackedEncoding {
+        self.0.tree_hash_packed_encoding()
+    }
+
+    fn tree_hash_packing_factor() -> usize {
+        tree_hash::HASHSIZE / 8
+    }
+
+    #[allow(clippy::cast_lossless)] // Lint does not apply to all uses of this macro.
+    fn tree_hash_root(&self) -> Hash256 {
+        self.0.tree_hash_root()
+    }
+}
+
+pub trait HaveSlotWithBlock {
+    fn bc_slot(&self) -> BeaconChainSlot;
+}
+
+impl HaveSlotWithBlock for BeaconState {
+    fn bc_slot(&self) -> BeaconChainSlot {
+        BeaconChainSlot(self.slot)
+    }
+}
+
+impl HaveSlotWithBlock for BeaconBlockHeader {
+    fn bc_slot(&self) -> BeaconChainSlot {
+        BeaconChainSlot(self.slot)
+    }
+}
+
+pub trait HaveEpoch {
+    fn epoch(&self) -> Epoch;
+}
+
+impl HaveEpoch for BeaconChainSlot {
+    fn epoch(&self) -> Epoch {
+        self.0 / eth_spec::SlotsPerEpoch::to_u64()
+    }
+}
+
+impl HaveEpoch for ReferenceSlot {
+    fn epoch(&self) -> Epoch {
+        self.0 / eth_spec::SlotsPerEpoch::to_u64()
+    }
+}
+
+impl HaveEpoch for BeaconState {
+    fn epoch(&self) -> Epoch {
+        self.slot / eth_spec::SlotsPerEpoch::to_u64()
+    }
+}
+
+impl HaveEpoch for BeaconBlockHeader {
+    fn epoch(&self) -> Epoch {
+        self.slot / eth_spec::SlotsPerEpoch::to_u64()
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct ReportRust {
-    pub slot: u64,
+    pub reference_slot: ReferenceSlot,
     pub deposited_lido_validators: u64,
     pub exited_lido_validators: u64,
     pub lido_cl_balance: u64,
@@ -37,7 +200,7 @@ pub struct ReportRust {
 impl From<ReportSolidity> for ReportRust {
     fn from(value: ReportSolidity) -> Self {
         Self {
-            slot: conversions::uint256_to_u64(value.slot),
+            reference_slot: ReferenceSlot(conversions::uint256_to_u64(value.reference_slot)),
             deposited_lido_validators: conversions::uint256_to_u64(value.deposited_lido_validators),
             exited_lido_validators: conversions::uint256_to_u64(value.exited_lido_validators),
             lido_cl_balance: conversions::uint256_to_u64(value.lido_cl_valance),
@@ -48,7 +211,7 @@ impl From<ReportSolidity> for ReportRust {
 impl From<ReportRust> for ReportSolidity {
     fn from(value: ReportRust) -> Self {
         Self {
-            slot: conversions::u64_to_uint256(value.slot),
+            reference_slot: conversions::u64_to_uint256(value.reference_slot.0),
             deposited_lido_validators: conversions::u64_to_uint256(value.deposited_lido_validators),
             exited_lido_validators: conversions::u64_to_uint256(value.exited_lido_validators),
             lido_cl_valance: conversions::u64_to_uint256(value.lido_cl_balance),
@@ -66,7 +229,7 @@ sol! {
 impl From<LidoValidatorStateSolidity> for LidoValidatorStateRust {
     fn from(value: LidoValidatorStateSolidity) -> Self {
         Self {
-            slot: value.slot.try_into().expect("Failed to convert uint256 to u64"),
+            slot: BeaconChainSlot(conversions::uint256_to_u64(value.slot)),
             merkle_root: value.merkle_root.into(),
         }
     }
@@ -75,22 +238,24 @@ impl From<LidoValidatorStateSolidity> for LidoValidatorStateRust {
 impl From<LidoValidatorStateRust> for LidoValidatorStateSolidity {
     fn from(value: LidoValidatorStateRust) -> Self {
         Self {
-            slot: value.slot.try_into().expect("Failed to convert u64 to uint256"),
+            slot: value.slot.into(),
             merkle_root: value.merkle_root.into(),
         }
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+#[derive(Derivative, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derivative(Debug)]
 pub struct LidoValidatorStateRust {
-    pub slot: u64,
+    pub slot: BeaconChainSlot,
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
+    #[derivative(Debug(format_with = "derivatives::slice_as_hash"))]
     pub merkle_root: [u8; 32],
 }
 
 sol! {
     struct ReportMetadataSolidity {
-        uint256 slot;
+        uint256 bc_slot;
         uint256 epoch;
         bytes32 lido_withdrawal_credentials;
         bytes32 beacon_block_hash;
@@ -99,13 +264,16 @@ sol! {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+#[derive(Derivative, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derivative(Debug)]
 pub struct ReportMetadataRust {
-    pub slot: u64,
+    pub bc_slot: BeaconChainSlot,
     pub epoch: u64,
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
+    #[derivative(Debug(format_with = "derivatives::slice_as_hash"))]
     pub lido_withdrawal_credentials: [u8; 32],
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
+    #[derivative(Debug(format_with = "derivatives::slice_as_hash"))]
     pub beacon_block_hash: [u8; 32],
     pub state_for_previous_report: LidoValidatorStateRust,
     pub new_state: LidoValidatorStateRust,
@@ -114,7 +282,7 @@ pub struct ReportMetadataRust {
 impl From<ReportMetadataSolidity> for ReportMetadataRust {
     fn from(value: ReportMetadataSolidity) -> Self {
         Self {
-            slot: conversions::uint256_to_u64(value.slot),
+            bc_slot: BeaconChainSlot(conversions::uint256_to_u64(value.bc_slot)),
             epoch: conversions::uint256_to_u64(value.epoch),
             lido_withdrawal_credentials: value.lido_withdrawal_credentials.into(),
             beacon_block_hash: value.beacon_block_hash.into(),
@@ -127,7 +295,7 @@ impl From<ReportMetadataSolidity> for ReportMetadataRust {
 impl From<ReportMetadataRust> for ReportMetadataSolidity {
     fn from(value: ReportMetadataRust) -> Self {
         Self {
-            slot: conversions::u64_to_uint256(value.slot),
+            bc_slot: conversions::u64_to_uint256(value.bc_slot.0),
             epoch: conversions::u64_to_uint256(value.epoch),
             lido_withdrawal_credentials: value.lido_withdrawal_credentials.into(),
             beacon_block_hash: value.beacon_block_hash.into(),

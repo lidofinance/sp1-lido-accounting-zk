@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use log;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Epoch, ValidatorIndex};
+use sp1_lido_accounting_zk_shared::io::eth_io::HaveEpoch;
 use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex};
 use sp1_lido_accounting_zk_shared::util::u64_to_usize;
 

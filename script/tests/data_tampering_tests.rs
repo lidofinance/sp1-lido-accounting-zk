@@ -8,9 +8,12 @@ use sp1_lido_accounting_scripts::{
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, BlsPublicKey, Hash256, Validator};
+use sp1_lido_accounting_zk_shared::{
+    eth_consensus_layer::{BeaconState, BlsPublicKey, Hash256, Validator},
+    io::eth_io::{BeaconChainSlot, HaveEpoch, HaveSlotWithBlock, ReferenceSlot},
+};
 use std::env;
-use test_utils::{eyre_to_anyhow, TamperableBeaconStateReader, TestFiles};
+use test_utils::{eyre_to_anyhow, mark_as_refslot, TamperableBeaconStateReader, TestFiles};
 mod test_utils;
 
 type BeaconStateMutator = fn(BeaconState) -> BeaconState;
@@ -44,16 +47,15 @@ impl<'a> TestExecutor<'a> {
         self
     }
 
-    async fn get_target_slot(&self) -> Result<u64> {
+    async fn get_target_slot(&self) -> Result<BeaconChainSlot> {
         let finalized_block_header = self
             .main_bs_reader
-            // .read_beacon_block_header(&StateId::Finalized)
-            .read_beacon_block_header(&StateId::Slot(6138176))
+            .read_beacon_block_header(&StateId::Finalized)
             .await?;
-        Ok(finalized_block_header.slot)
+        Ok(finalized_block_header.bc_slot())
     }
 
-    async fn start_anvil(&self, target_slot: u64) -> Result<AnvilInstance> {
+    async fn start_anvil(&self, target_slot: BeaconChainSlot) -> Result<AnvilInstance> {
         let finalized_bs =
             test_utils::read_latest_bs_at_or_before(self.main_bs_reader, target_slot, test_utils::RETRIES)
                 .await
@@ -96,11 +98,12 @@ impl<'a> TestExecutor<'a> {
         let lido_withdrawal_credentials: Hash256 = test_utils::NETWORK.get_config().lido_withdrawal_credentials.into();
 
         let target_slot = self.get_target_slot().await?;
+        let reference_slot = mark_as_refslot(target_slot);
         // // Anvil needs to be here in scope for the duration of the test, otherwise it terminates
         // // Hence creating it here (i.e. owner is this function) and passing down to deploy conract
         let anvil = self.start_anvil(target_slot).await?;
         let contract = self.deploy_contract(&test_utils::NETWORK, &anvil).await?;
-        let previous_slot = contract.get_latest_report_slot().await?;
+        let previous_slot = contract.get_latest_validator_state_slot().await?;
 
         let target_bh = self
             .tampered_bs_reader
@@ -116,8 +119,14 @@ impl<'a> TestExecutor<'a> {
             .read_beacon_state(&StateId::Slot(previous_slot))
             .await?;
         log::info!("Preparing program input");
-        let (program_input, _public_values) =
-            shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials, false);
+        let (program_input, _public_values) = shared_logic::prepare_program_input(
+            reference_slot,
+            &target_bs,
+            &target_bh,
+            &old_bs,
+            &lido_withdrawal_credentials,
+            false,
+        );
         log::info!("Requesting proof");
         let try_proof = self.client.prove(program_input);
         match try_proof {

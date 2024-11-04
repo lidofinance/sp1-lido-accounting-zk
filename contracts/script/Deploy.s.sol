@@ -25,7 +25,7 @@ contract Deploy is Script {
 
     function readManifesto(string memory network) public view returns (DeployManifesto memory) {
         string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/../temp/deploy/", network, "-deploy.json");
+        string memory path = string.concat(root, "/../data/deploy/", network, "-deploy.json");
         console.logString(string.concat("Reading manifesto from file", path));
         string memory json = vm.readFile(path);
         // bytes memory jsonBytes = json.parseRaw(".");

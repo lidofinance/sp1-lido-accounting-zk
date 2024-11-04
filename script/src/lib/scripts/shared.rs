@@ -5,9 +5,10 @@ use sp1_sdk::SP1PublicValues;
 
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256, Slot};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::io::eth_io::{
-    LidoValidatorStateRust, PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust,
+    BeaconChainSlot, HaveEpoch, HaveSlotWithBlock, LidoValidatorStateRust, PublicValuesRust, PublicValuesSolidity,
+    ReferenceSlot, ReportMetadataRust, ReportRust,
 };
 use sp1_lido_accounting_zk_shared::io::program_io::{ProgramInput, ValsAndBals};
 use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
@@ -19,6 +20,7 @@ use anyhow::Result;
 use tree_hash::TreeHash;
 
 pub fn prepare_program_input(
+    reference_slot: ReferenceSlot,
     bs: &BeaconState,
     bh: &BeaconBlockHeader,
     old_bs: &BeaconState,
@@ -48,7 +50,7 @@ pub fn prepare_program_input(
     );
 
     let report = ReportData::compute(
-        bs.slot,
+        reference_slot,
         bs.epoch(),
         &bs.validators,
         &bs.balances,
@@ -57,18 +59,18 @@ pub fn prepare_program_input(
 
     let public_values: PublicValuesRust = PublicValuesRust {
         report: ReportRust {
-            slot: report.slot,
+            reference_slot: report.slot,
             deposited_lido_validators: report.deposited_lido_validators,
             exited_lido_validators: report.exited_lido_validators,
             lido_cl_balance: report.lido_cl_balance,
         },
         metadata: ReportMetadataRust {
-            slot: report.slot,
+            bc_slot: bs.bc_slot(),
             epoch: report.epoch,
             lido_withdrawal_credentials: lido_withdrawal_credentials.to_fixed_bytes(),
             beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
             state_for_previous_report: LidoValidatorStateRust {
-                slot: old_validator_state.slot,
+                slot: old_validator_state.bc_slot(),
                 merkle_root: old_validator_state.tree_hash_root().to_fixed_bytes(),
             },
             new_state: LidoValidatorStateRust {
@@ -106,7 +108,8 @@ pub fn prepare_program_input(
 
     log::info!("Creating program input");
     let program_input = ProgramInput {
-        slot: bs.slot,
+        reference_slot,
+        bc_slot: bs.bc_slot(),
         beacon_block_hash,
         beacon_block_header: bh.into(),
         beacon_state: bs.into(),
@@ -125,7 +128,7 @@ pub fn prepare_program_input(
 
     if verify {
         verify_input_correctness(
-            bs.slot,
+            bs.bc_slot(),
             &program_input,
             &old_validator_state,
             &new_validator_state,
@@ -138,7 +141,7 @@ pub fn prepare_program_input(
 }
 
 fn verify_input_correctness(
-    slot: Slot,
+    slot: BeaconChainSlot,
     program_input: &ProgramInput,
     old_state: &LidoValidatorState,
     new_state: &LidoValidatorState,
@@ -167,16 +170,15 @@ pub fn verify_public_values(public_values: &SP1PublicValues, expected_public_val
         PublicValuesSolidity::abi_decode(public_values.as_slice(), true).expect("Failed to parse public values");
     let public_values_rust: PublicValuesRust = public_values_solidity.into();
 
-    assert!(public_values_rust == *expected_public_values);
     log::debug!(
         "Expected hash: {}",
-        hex::encode(public_values_rust.metadata.beacon_block_hash)
+        hex::encode(expected_public_values.metadata.beacon_block_hash)
     );
     log::debug!(
         "Computed hash: {}",
         hex::encode(public_values_rust.metadata.beacon_block_hash)
     );
-
+    assert!(public_values_rust == *expected_public_values);
     log::info!("Public values match!");
 
     Ok(())

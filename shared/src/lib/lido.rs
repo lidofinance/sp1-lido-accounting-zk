@@ -6,15 +6,16 @@ use serde::{Deserialize, Serialize};
 use ssz_types::VariableList;
 use tree_hash_derive::TreeHash;
 
-use crate::eth_consensus_layer::{self, BeaconState, Epoch, Hash256, Slot, Validator, ValidatorIndex, Validators};
+use crate::eth_consensus_layer::{BeaconState, Epoch, Hash256, Validator, ValidatorIndex, Validators};
 use crate::eth_spec;
+use crate::io::eth_io::{BeaconChainSlot, HaveEpoch, HaveSlotWithBlock};
 use crate::util::usize_to_u64;
 
 type ValidatorIndexList = VariableList<ValidatorIndex, eth_spec::ReducedValidatorRegistryLimit>;
 
 #[derive(PartialEq, Clone, Debug, Serialize, Deserialize, TreeHash)]
 pub struct LidoValidatorState {
-    pub slot: Slot,
+    pub slot: BeaconChainSlot,
     pub epoch: Epoch,
     pub max_validator_index: ValidatorIndex,
     pub deposited_lido_validator_indices: ValidatorIndexList,
@@ -33,17 +34,23 @@ pub struct LidoValidatorState {
     pub exited_lido_validator_indices: ValidatorIndexList,
 }
 
+impl HaveSlotWithBlock for LidoValidatorState {
+    fn bc_slot(&self) -> BeaconChainSlot {
+        self.slot
+    }
+}
+
 impl LidoValidatorState {
     pub fn total_validators(&self) -> ValidatorIndex {
         self.max_validator_index + 1
     }
 
-    pub fn compute(slot: Slot, validators: &Validators, lido_withdrawal_credentials: &Hash256) -> Self {
+    pub fn compute(slot: BeaconChainSlot, validators: &Validators, lido_withdrawal_credentials: &Hash256) -> Self {
         let mut deposited: Vec<ValidatorIndex> = vec![];
         let mut pending_deposit: Vec<ValidatorIndex> = vec![];
         let mut exited: Vec<ValidatorIndex> = vec![];
 
-        let epoch = eth_consensus_layer::epoch(slot).unwrap();
+        let epoch = slot.epoch();
         let max_validator_index = usize_to_u64(validators.len()) - 1;
 
         for (idx, validator) in validators.iter().enumerate() {
@@ -86,12 +93,12 @@ impl LidoValidatorState {
     }
 
     pub fn compute_from_beacon_state(bs: &BeaconState, lido_withdrawal_credentials: &Hash256) -> Self {
-        Self::compute(bs.slot, &bs.validators, lido_withdrawal_credentials)
+        Self::compute(BeaconChainSlot(bs.slot), &bs.validators, lido_withdrawal_credentials)
     }
 
     pub fn merge_validator_delta(
         &self,
-        slot: Slot,
+        slot: BeaconChainSlot,
         validator_delta: &ValidatorDelta,
         lido_withdrawal_credentials: &Hash256,
     ) -> Self {
@@ -103,7 +110,7 @@ impl LidoValidatorState {
             self.pending_deposit_lido_validator_indices.iter().copied().collect();
         let mut new_exited = self.exited_lido_validator_indices.to_vec().clone();
 
-        let epoch = eth_consensus_layer::epoch(slot).unwrap();
+        let epoch = slot.epoch();
 
         if !validator_delta.all_added.is_empty() {
             assert!(validator_delta.all_added[0].index == self.index_of_first_new_validator());

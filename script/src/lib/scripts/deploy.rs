@@ -7,6 +7,7 @@ use crate::utils;
 use alloy::providers::WalletProvider;
 use alloy_primitives::Address;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
+use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
 
 use std::{
     path::{Path, PathBuf},
@@ -17,15 +18,15 @@ use tree_hash::TreeHash;
 use sp1_lido_accounting_zk_shared::{io::eth_io::LidoValidatorStateRust, lido::LidoValidatorState};
 
 pub enum Source {
-    Network { slot: u64 },
+    Network { slot: BeaconChainSlot },
     File { slot: u64, path: PathBuf },
 }
 
-async fn compute_form_network(
+async fn compute_from_network(
     client: impl SP1ClientWrapper,
     bs_reader: impl BeaconStateReader,
     network: impl NetworkInfo,
-    target_slot: u64,
+    target_slot: BeaconChainSlot,
 ) -> anyhow::Result<ContractDeployParametersRust> {
     let target_bs = bs_reader.read_beacon_state(&StateId::Slot(target_slot)).await?;
 
@@ -58,7 +59,7 @@ pub fn prepare_deploy_params(
 async fn read_from_file(slot: u64, file: &Path) -> anyhow::Result<ContractDeployParametersRust> {
     log::info!("Reading deploy parameters for {} from {:?}", slot, file.as_os_str());
     let deploy_params: ContractDeployParametersRust = utils::read_json(file)?;
-    if deploy_params.initial_validator_state.slot == slot {
+    if deploy_params.initial_validator_state.slot.0 == slot {
         Ok(deploy_params)
     } else {
         Err(anyhow::anyhow!("Slot from stored manifesto != target slot"))
@@ -108,7 +109,7 @@ pub async fn run(
         panic!("Verification is incomplete yet");
     }
     let deploy_params = match source {
-        Source::Network { slot } => compute_form_network(client, bs_reader, network, slot).await?,
+        Source::Network { slot } => compute_from_network(client, bs_reader, network, slot).await?,
         Source::File { slot, path } => read_from_file(slot, &path).await?,
     };
 

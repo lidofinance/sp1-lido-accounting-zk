@@ -8,10 +8,10 @@ use sp1_lido_accounting_scripts::{
     scripts,
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
-use sp1_lido_accounting_zk_shared::{eth_consensus_layer::BeaconState, eth_spec};
+use sp1_lido_accounting_zk_shared::{eth_consensus_layer::BeaconState, eth_spec, io::eth_io::HaveSlotWithBlock};
 use sp1_sdk::ProverClient;
 use std::env;
-use test_utils::{eyre_to_anyhow, TestFiles};
+use test_utils::{eyre_to_anyhow, mark_as_refslot, TestFiles};
 use typenum::Unsigned;
 mod test_utils;
 
@@ -33,7 +33,7 @@ async fn deploy() -> Result<()> {
         .map_err(eyre_to_anyhow)?;
     log::info!("Deployed contract at {}", contract.address());
 
-    let latest_report_slot_response = contract.get_latest_report_slot().await?;
+    let latest_report_slot_response = contract.get_latest_validator_state_slot().await?;
     assert_eq!(latest_report_slot_response, deploy_slot);
     Ok(())
 }
@@ -57,8 +57,9 @@ async fn submission_success() -> Result<()> {
     let deploy_params = scripts::deploy::prepare_deploy_params(client.vk_bytes(), &deploy_bs, network);
 
     let finalized_block_header = bs_reader.read_beacon_block_header(&StateId::Finalized).await?;
-    let target_slot = finalized_block_header.slot;
-    let finalized_bs = test_utils::read_latest_bs_at_or_before(&bs_reader, target_slot, test_utils::RETRIES)
+    let bc_slot = finalized_block_header.bc_slot();
+    let target_slot = mark_as_refslot(bc_slot);
+    let finalized_bs = test_utils::read_latest_bs_at_or_before(&bs_reader, bc_slot, test_utils::RETRIES)
         .await
         .map_err(eyre_to_anyhow)?;
     let fork_url = env::var("FORK_URL").expect("FORK_URL env var must be specified");
@@ -111,7 +112,7 @@ async fn two_submission_success() -> Result<()> {
 
     let finalized_block_header = bs_reader.read_beacon_block_header(&StateId::Finalized).await?;
     let finalized_bs =
-        test_utils::read_latest_bs_at_or_before(&bs_reader, finalized_block_header.slot, test_utils::RETRIES)
+        test_utils::read_latest_bs_at_or_before(&bs_reader, finalized_block_header.bc_slot(), test_utils::RETRIES)
             .await
             .map_err(eyre_to_anyhow)?;
     let fork_url = env::var("FORK_URL").expect("FORK_URL env var must be specified");
@@ -127,7 +128,7 @@ async fn two_submission_success() -> Result<()> {
         .map_err(eyre_to_anyhow)?;
     log::info!("Deployed contract at {}", contract.address());
 
-    let first_run_slot = finalized_block_header.slot - eth_spec::SlotsPerEpoch::to_u64();
+    let first_run_slot = mark_as_refslot(finalized_block_header.bc_slot() - eth_spec::SlotsPerEpoch::to_u64());
     scripts::submit::run(
         &client,
         &bs_reader,
@@ -143,7 +144,7 @@ async fn two_submission_success() -> Result<()> {
     .await
     .expect("Failed to execute script");
 
-    let second_run_slot = finalized_block_header.slot;
+    let second_run_slot = mark_as_refslot(finalized_block_header.bc_slot());
     scripts::submit::run(
         &client,
         &bs_reader,

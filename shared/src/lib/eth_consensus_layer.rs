@@ -27,10 +27,6 @@ pub type ValidatorIndex = u64;
 // Re-export
 pub type SlotsPerEpoch = eth_spec::SlotsPerEpoch;
 
-pub fn epoch(slot: Slot) -> Option<Epoch> {
-    slot.checked_div(eth_spec::SlotsPerEpoch::to_u64())
-}
-
 mod derivatives {
     use super::*;
     pub fn fixed_vector_as_hex<N: typenum::Unsigned>(val: &FixedVector<u8, N>, f: &mut fmt::Formatter) -> fmt::Result {
@@ -211,12 +207,6 @@ pub struct BeaconState {
     pub next_withdrawal_validator_index: u64,
     // Deep history valid from Capella onwards.
     pub historical_summaries: VariableList<HistoricalSummary, eth_spec::HistoricalRootsLimit>,
-}
-
-impl BeaconState {
-    pub fn epoch(&self) -> Epoch {
-        epoch(self.slot).unwrap()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]

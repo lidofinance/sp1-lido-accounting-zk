@@ -10,6 +10,7 @@ use crate::sp1_client_wrapper::SP1ClientWrapper;
 use alloy_primitives::TxHash;
 use anyhow::{self, Context};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
 pub struct Flags {
     pub verify: bool,
@@ -20,32 +21,44 @@ pub async fn run(
     client: &impl SP1ClientWrapper,
     bs_reader: &impl BeaconStateReader,
     contract: &Contract,
-    target_slot: u64,
-    prev_slot: Option<u64>,
+    target_slot: ReferenceSlot,
+    prev_slot: Option<ReferenceSlot>,
     network: impl NetworkInfo,
     flags: Flags,
 ) -> anyhow::Result<TxHash> {
-    let previous_slot = if let Some(prev) = prev_slot {
-        prev
+    let actual_previous_slot = if let Some(prev) = prev_slot {
+        bs_reader.find_bc_slot_for_refslot(prev).await?
     } else {
-        contract.get_latest_report_slot().await?
+        contract.get_latest_validator_state_slot().await?
     };
+    let actual_target_slot = bs_reader.find_bc_slot_for_refslot(target_slot).await?;
 
     log::info!(
-        "Submitting report for network {:?}, slot: {}, previous_slot: {}",
+        "Submitting report for network {:?}, target: (ref={:?}, actual={:?}), previous: (ref={:?}, actual={:?})",
         network.as_str(),
         target_slot,
-        previous_slot,
+        actual_target_slot,
+        prev_slot,
+        actual_previous_slot
     );
-
     let lido_withdrawal_credentials: Hash256 = network.get_config().lido_withdrawal_credentials.into();
 
-    let target_bh = bs_reader.read_beacon_block_header(&StateId::Slot(target_slot)).await?;
-    let target_bs = bs_reader.read_beacon_state(&StateId::Slot(target_slot)).await?;
-    let old_bs = bs_reader.read_beacon_state(&StateId::Slot(previous_slot)).await?;
+    let target_bh = bs_reader
+        .read_beacon_block_header(&StateId::Slot(actual_target_slot))
+        .await?;
+    let target_bs = bs_reader.read_beacon_state(&StateId::Slot(actual_target_slot)).await?;
+    let old_bs = bs_reader
+        .read_beacon_state(&StateId::Slot(actual_previous_slot))
+        .await?;
 
-    let (program_input, public_values) =
-        shared_logic::prepare_program_input(&target_bs, &target_bh, &old_bs, &lido_withdrawal_credentials, true);
+    let (program_input, public_values) = shared_logic::prepare_program_input(
+        target_slot,
+        &target_bs,
+        &target_bh,
+        &old_bs,
+        &lido_withdrawal_credentials,
+        true,
+    );
     let proof = client.prove(program_input).context("Failed to generate proof")?;
     log::info!("Generated proof");
 
