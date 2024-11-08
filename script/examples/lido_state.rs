@@ -7,12 +7,15 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     BeaconStateReader, StateId,
 };
 use sp1_lido_accounting_scripts::consts::lido_credentials;
-use sp1_lido_accounting_zk_shared::{io::eth_io::BeaconChainSlot, lido::LidoValidatorState};
+use sp1_lido_accounting_zk_shared::{
+    io::eth_io::{BeaconChainSlot, HaveEpoch},
+    lido::LidoValidatorState,
+};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, BeaconState, Hash256};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::util::usize_to_u64;
 
 use simple_logger::SimpleLogger;
@@ -43,7 +46,7 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
         manifesto["report"]["total_validators"].as_u64().unwrap() - 1
     );
 
-    let epoch = epoch(beacon_state.slot).unwrap();
+    let epoch = beacon_state.epoch();
     let withdrawal_creds: Hash256 = lido_credentials::MAINNET.into();
 
     let deposited_hash_set: HashSet<u64> = HashSet::from_iter(state.deposited_lido_validator_indices.clone());

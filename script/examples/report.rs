@@ -8,11 +8,11 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
     BeaconStateReader,
 };
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
+use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch, ReferenceSlot};
 use std::path::PathBuf;
 
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{epoch, Hash256};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 
 use simple_logger::SimpleLogger;
 
@@ -65,7 +65,7 @@ async fn main() {
     );
     let old_report = ReportData::compute(
         ReferenceSlot(old_slot.0),
-        epoch(old_beacon_state.slot).unwrap(),
+        old_beacon_state.epoch(),
         &old_beacon_state.validators,
         &old_beacon_state.balances,
         &withdrawal_creds,
@@ -116,7 +116,7 @@ async fn main() {
     // Step 3: Compute report
     let new_report = ReportData::compute(
         ReferenceSlot(new_beacon_state.slot),
-        epoch(new_beacon_state.slot).unwrap(),
+        new_beacon_state.epoch(),
         &new_beacon_state.validators,
         &new_beacon_state.balances,
         &withdrawal_creds,
