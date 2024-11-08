@@ -46,4 +46,32 @@ Examples:
 - [Foundry](https://book.getfoundry.sh/getting-started/installation)
 - [Docker](https://docs.docker.com/get-started/get-docker/) - optional, for verifying proofs locally
 
-TBD, but nothing unexpected: `cargo test` to run tests, `cargo run` to run binaries.
+### Running tests
+
+`cargo test` runs all unit (in `cfg(test)` blocks) and integration (in `tests` folders) tests, except:
+* integration tests that take very long time to run (minutes)
+* end-to-end tests that interact with the SP1 prover network (and hence incur real-life costs)
+
+To run those, use `cargo test -- --include-ignored` - note it will use Sepolia testnet and SP1 prover network. As such,
+env variables needed to access those (`CONSENSUS_LAYER_RPC`, `BEACON_STATE_RPC`, `SP1_PRIVATE_KEY`, etc.) need to be
+set for those tests to work.
+
+### Development scripts
+
+`script/src/dev` hosts a few scripts to support development and deployment workflows. 
+
+* `execute.rs` - prepares the input and runs ZK circuit simulation, outputting number of cycles and instructions used.
+Does **not** interact with the prover network, safe to run to quickly check changes and estimate cycle count.
+* `write_test_fixture.rs` - updates the test fixtures used in scripts integration tests and contract tests. Needs to 
+be run when `vkey` changes (basically, any code or dependency change in `program` and `shared`).
+* `deploy.rs` - have two orthogonal features: (1) write deploy manifesto (`--store`) and (2) deploy contract (`--dry-run`).
+**Note:** deployment works, but doesn't perform code verfication yet. Preferred deployment workflow is to run `deploy.rs`
+with `--dry-run --store "../data/deploy/${EVM_CHAIN}-deploy.json"` - and then run deployment script in `contracts/script/Deploy.s.sol`
+that automatically picks the deploy manifesto from that location.
+* `sumbit_cached.rs` - intended to be used with `submit.rs` script run with `--store` flag. Allows submitting a cached proof
+and report to the verification contract - skipping on the (most time-consuming) proof generation stage.
+
+`script/examples` folder contains a number of standalone scripts that exercise various parts of the solution -
+technically they are not examples, but ad-hoc tests used during early stages of development. They are provided "as is"
+(could be still useful in future + have some development workflows tied to some them - e.g. `gen_synthetic_bs_pair.rs`).
+**Note:** `cargo build` doesn't even compile the examples by default, so they might not always be operational.
