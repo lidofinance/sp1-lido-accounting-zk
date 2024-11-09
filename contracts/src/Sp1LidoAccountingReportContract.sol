@@ -124,9 +124,15 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     }
 
     /// @notice Main entrypoint for the contract - accepts proof and public values, verifies them,
-    ///         and stores the report if verification passes
+    ///         and stores the report if verification passes. 
     /// @param proof proof from succinct, in binary format
     /// @param publicValues public values from prover, in binary format
+    /// @dev `publicValues` is passed as bytes and deserialized - if using fuzzing/property-based testing, 
+    ///         directly using bytes generator will produce enormous amount of trivial rejections. Recommend 
+    ///         generating `PublicValues` struct and abi.encoding it.
+    ///         This function is INTENTIONALLY public and have no access modifiers - ANYONE
+    ///         should be allowed to call it, and bring the report+proof to the contract - it is the responsibility
+    ///         of this contract and SP1 verifier to reject invalid reports.
     function submitReportData(bytes calldata proof, bytes calldata publicValues) public {
         PublicValues memory public_values = abi.decode(publicValues, (PublicValues));
         Report memory report = public_values.report;
