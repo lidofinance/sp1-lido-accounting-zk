@@ -16,7 +16,7 @@ pub mod sp1_verifier {
         Plonk,
     }
 
-    pub const VERIFICATION_MODE: VerificationMode = VerificationMode::Groth16;
+    pub const VERIFICATION_MODE: VerificationMode = VerificationMode::Plonk;
     pub static VERIFIER_ADDRESS: [u8; 20] = match VERIFICATION_MODE {
         VerificationMode::Groth16 => SP1_GROTH_VERIFIER,
         VerificationMode::Plonk => SP1_PLONK_VERIFIER,
