@@ -5,6 +5,7 @@ use std::{
 
 use alloy_sol_types::sol;
 use derivative::Derivative;
+use ethereum_types::Address;
 use serde::{Deserialize, Serialize};
 use tree_hash::TreeHash;
 use typenum::Unsigned;
@@ -15,6 +16,8 @@ use crate::{
     io::serde_utils::serde_hex_as_string,
 };
 
+use super::program_io::WithdrawalVaultData;
+
 mod derivatives {
     use super::*;
     pub fn slice_as_hash(val: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
@@ -23,6 +26,8 @@ mod derivatives {
 }
 
 pub mod conversions {
+    use crate::eth_consensus_layer::Address;
+
     pub fn u64_to_uint256(value: u64) -> alloy_primitives::U256 {
         value
             .try_into()
@@ -34,14 +39,25 @@ pub mod conversions {
             .try_into()
             .unwrap_or_else(|_| panic!("Failed to convert {} to u64", value))
     }
+
+    pub fn alloy_address_to_h160(value: alloy_primitives::Address) -> Address {
+        let addr_bytes: [u8; 20] = value.into();
+        addr_bytes.into()
+    }
+
+    pub fn h160_to_alloy_address(value: Address) -> alloy_primitives::Address {
+        value.to_fixed_bytes().into()
+    }
 }
 
 sol! {
+    #[derive(Debug)]
     struct ReportSolidity {
         uint256 reference_slot;
         uint256 deposited_lido_validators;
         uint256 exited_lido_validators;
         uint256 lido_cl_valance;
+        uint256 lido_withdrawal_vault_balance;
     }
 }
 
@@ -195,6 +211,7 @@ pub struct ReportRust {
     pub deposited_lido_validators: u64,
     pub exited_lido_validators: u64,
     pub lido_cl_balance: u64,
+    pub lido_withdrawal_vault_balance: alloy_primitives::U256,
 }
 
 impl From<ReportSolidity> for ReportRust {
@@ -204,6 +221,7 @@ impl From<ReportSolidity> for ReportRust {
             deposited_lido_validators: conversions::uint256_to_u64(value.deposited_lido_validators),
             exited_lido_validators: conversions::uint256_to_u64(value.exited_lido_validators),
             lido_cl_balance: conversions::uint256_to_u64(value.lido_cl_valance),
+            lido_withdrawal_vault_balance: value.lido_withdrawal_vault_balance,
         }
     }
 }
@@ -215,11 +233,13 @@ impl From<ReportRust> for ReportSolidity {
             deposited_lido_validators: conversions::u64_to_uint256(value.deposited_lido_validators),
             exited_lido_validators: conversions::u64_to_uint256(value.exited_lido_validators),
             lido_cl_valance: conversions::u64_to_uint256(value.lido_cl_balance),
+            lido_withdrawal_vault_balance: value.lido_withdrawal_vault_balance,
         }
     }
 }
 
 sol! {
+    #[derive(Debug)]
     struct LidoValidatorStateSolidity {
         uint256 slot;
         bytes32 merkle_root;
@@ -254,6 +274,48 @@ pub struct LidoValidatorStateRust {
 }
 
 sol! {
+    #[derive(Debug)]
+    struct LidoWithdrawalVaultDataSolidity {
+        uint256 balance;
+        address vault_address;
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+pub struct LidoWithdrawalVaultDataRust {
+    pub vault_address: Address,
+    pub balance: alloy_primitives::U256,
+}
+
+impl From<LidoWithdrawalVaultDataSolidity> for LidoWithdrawalVaultDataRust {
+    fn from(value: LidoWithdrawalVaultDataSolidity) -> Self {
+        Self {
+            vault_address: conversions::alloy_address_to_h160(value.vault_address),
+            balance: value.balance,
+        }
+    }
+}
+
+impl From<LidoWithdrawalVaultDataRust> for LidoWithdrawalVaultDataSolidity {
+    fn from(value: LidoWithdrawalVaultDataRust) -> Self {
+        Self {
+            vault_address: conversions::h160_to_alloy_address(value.vault_address),
+            balance: value.balance,
+        }
+    }
+}
+
+impl From<WithdrawalVaultData> for LidoWithdrawalVaultDataRust {
+    fn from(value: WithdrawalVaultData) -> Self {
+        Self {
+            vault_address: value.vault_address,
+            balance: value.balance,
+        }
+    }
+}
+
+sol! {
+    #[derive(Debug)]
     struct ReportMetadataSolidity {
         uint256 bc_slot;
         uint256 epoch;
@@ -261,6 +323,7 @@ sol! {
         bytes32 beacon_block_hash;
         LidoValidatorStateSolidity state_for_previous_report;
         LidoValidatorStateSolidity new_state;
+        LidoWithdrawalVaultDataSolidity withdrawal_vault_data;
     }
 }
 
@@ -277,6 +340,7 @@ pub struct ReportMetadataRust {
     pub beacon_block_hash: [u8; 32],
     pub state_for_previous_report: LidoValidatorStateRust,
     pub new_state: LidoValidatorStateRust,
+    pub withdrawal_vault_data: LidoWithdrawalVaultDataRust,
 }
 
 impl From<ReportMetadataSolidity> for ReportMetadataRust {
@@ -288,6 +352,7 @@ impl From<ReportMetadataSolidity> for ReportMetadataRust {
             beacon_block_hash: value.beacon_block_hash.into(),
             state_for_previous_report: value.state_for_previous_report.into(),
             new_state: value.new_state.into(),
+            withdrawal_vault_data: value.withdrawal_vault_data.into(),
         }
     }
 }
@@ -301,11 +366,13 @@ impl From<ReportMetadataRust> for ReportMetadataSolidity {
             beacon_block_hash: value.beacon_block_hash.into(),
             state_for_previous_report: value.state_for_previous_report.into(),
             new_state: value.new_state.into(),
+            withdrawal_vault_data: value.withdrawal_vault_data.into(),
         }
     }
 }
 
 sol! {
+    #[derive(Debug)]
     struct PublicValuesSolidity {
         ReportSolidity report;
         ReportMetadataSolidity metadata;

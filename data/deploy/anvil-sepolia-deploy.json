@@ -1,8 +1,9 @@
 {
   "network": "anvil-sepolia",
-  "verifier": "0xe780809121774d06ad9b0eeec620ff4b3913ced1",
-  "vkey": "0x003f0b09d05b2a312da7660baa8cdca0bcc8a7c9d71a250bab2ca693d6bb436b",
+  "verifier": "0xd2832cf1fc8ba210ffabf62db9a8781153131d16",
+  "vkey": "0x00cd9342377cdc9cfc13ec5c1ac577c1fb8e81e584323d33f794f29dbfcdc88c",
   "withdrawal_credentials": "0x010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
+  "withdrawal_vault_address": "0xde7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
   "genesis_timestamp": 1655733600,
   "initial_validator_state": {
     "slot": 5887808,

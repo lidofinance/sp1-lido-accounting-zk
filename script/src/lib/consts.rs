@@ -28,6 +28,7 @@ pub struct NetworkConfig {
     pub genesis_block_timestamp: u64,
     pub verifier: [u8; 20],
     pub lido_withdrawal_credentials: [u8; 32],
+    pub lido_withdrwawal_vault_address: [u8; 20],
 }
 
 pub trait NetworkInfo {
@@ -44,12 +45,12 @@ pub enum Network {
 
 impl NetworkInfo for Network {
     fn as_str(&self) -> String {
-        let value = match self {
+        let val = match self {
             Self::Mainnet => "mainnet",
             Self::Sepolia => "sepolia",
             Self::Holesky => "holesky",
         };
-        value.to_owned()
+        val.to_owned()
     }
 
     fn get_config(&self) -> NetworkConfig {
@@ -59,18 +60,21 @@ impl NetworkInfo for Network {
                 genesis_block_timestamp: 1606824023,
                 verifier: sp1_verifier::VERIFIER_ADDRESS,
                 lido_withdrawal_credentials: lido_credentials::MAINNET,
+                lido_withdrwawal_vault_address: lido_withdrawal_vault::MAINNET,
             },
             Self::Sepolia => NetworkConfig {
                 chain_id: 11155111,
                 genesis_block_timestamp: 1655733600,
                 verifier: sp1_verifier::VERIFIER_ADDRESS,
                 lido_withdrawal_credentials: lido_credentials::SEPOLIA,
+                lido_withdrwawal_vault_address: lido_withdrawal_vault::SEPOLIA,
             },
             Self::Holesky => NetworkConfig {
                 chain_id: 17000,
                 genesis_block_timestamp: 1695902400,
                 verifier: sp1_verifier::VERIFIER_ADDRESS,
                 lido_withdrawal_credentials: lido_credentials::HOLESKY,
+                lido_withdrwawal_vault_address: lido_withdrawal_vault::HOLESKY,
             },
         }
     }
@@ -107,6 +111,13 @@ pub mod lido_credentials {
     pub const MAINNET: [u8; 32] = hex!("010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f");
     pub const SEPOLIA: [u8; 32] = hex!("010000000000000000000000De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76");
     pub const HOLESKY: [u8; 32] = hex!("010000000000000000000000F0179dEC45a37423EAD4FaD5fCb136197872EAd9");
+}
+
+pub mod lido_withdrawal_vault {
+    use hex_literal::hex;
+    pub const MAINNET: [u8; 20] = hex!("b9d7934878b5fb9610b3fe8a5e441e8fad7e293f");
+    pub const SEPOLIA: [u8; 20] = hex!("De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76");
+    pub const HOLESKY: [u8; 20] = hex!("F0179dEC45a37423EAD4FaD5fCb136197872EAd9");
 }
 
 pub fn read_network(val: &str) -> WrappedNetwork {

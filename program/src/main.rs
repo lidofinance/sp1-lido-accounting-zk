@@ -9,7 +9,7 @@ use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::io::eth_io::PublicValuesSolidity;
+use sp1_lido_accounting_zk_shared::io::eth_io::{LidoWithdrawalVaultDataRust, PublicValuesSolidity};
 use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
 
 struct Sp1CycleTracker {}
@@ -64,10 +64,12 @@ pub fn main() {
     cycle_tracker.end_span("main.compute_report");
 
     cycle_tracker.start_span("main.commit_public_values");
+    let withdrawal_vault_data: LidoWithdrawalVaultDataRust = input.withdrawal_vault_data.into();
     let public_values = create_public_values(
         &report,
         input.bc_slot,
         &input.beacon_block_hash,
+        withdrawal_vault_data,
         old_state.slot,
         &old_state_hash_root,
         new_state.slot,

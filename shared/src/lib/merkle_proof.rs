@@ -5,10 +5,8 @@ use std::any::type_name;
 use ssz_types::VariableList;
 use typenum::Unsigned;
 
-use crate::{
-    eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStatePrecomputedHashes, Hash256},
-    hashing,
-};
+use crate::hashing;
+use ethereum_types::H256 as Hash256;
 
 use itertools::Itertools;
 use tree_hash::TreeHash;
@@ -18,7 +16,6 @@ pub type RsMerkleHash = <Sha256 as rs_merkle::Hasher>::Hash;
 
 #[derive(Debug)]
 pub enum Error {
-    FieldDoesNotExist(String),
     ProofError(rs_merkle::Error),
     DeserializationError(rs_merkle::Error),
     HashesMistmatch(String, Hash256, Hash256),
@@ -28,16 +25,39 @@ const ZEROHASH: [u8; 32] = [0u8; 32];
 const ZEROHASH_H256: Hash256 = Hash256::zero();
 
 pub trait MerkleTreeFieldLeaves {
-    const TREE_FIELDS_LENGTH: usize;
-    fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error>;
-    fn get_leafs_indices<const N: usize>(&self, field_names: [&str; N]) -> Result<[LeafIndex; N], Error> {
+    const FIELD_COUNT: usize;
+    type TFields;
+
+    fn get_tree_leaf_count() -> usize {
+        Self::FIELD_COUNT.next_power_of_two()
+    }
+
+    fn get_leaf_index(field_name: &Self::TFields) -> LeafIndex;
+    fn get_leafs_indices<const N: usize>(field_names: [Self::TFields; N]) -> [LeafIndex; N] {
         let mut result: [LeafIndex; N] = [0; N];
         for (idx, name) in field_names.iter().enumerate() {
-            result[idx] = self.get_leaf_index(name)?;
+            result[idx] = Self::get_leaf_index(name);
         }
-        Ok(result)
+        result
     }
-    fn tree_field_leaves(&self) -> Vec<Hash256>;
+
+    // This requires const generic that blocks/breaks FieldProof blanket implementation
+    // fn get_fields(&self) -> [Hash256; FIELD_COUNT];
+    // so we do this instead
+    fn get_fields(&self) -> Vec<Hash256>;
+
+    fn tree_field_leaves(&self) -> Vec<Hash256> {
+        let field_leaves = self.get_fields();
+        let tree_leaf_count = Self::get_tree_leaf_count();
+        let padding = tree_leaf_count - Self::FIELD_COUNT;
+        let mut result = field_leaves.to_vec();
+        // Quirk: padding to the nearest power of 2 - rs_merkle doesn't seem to do it
+        result.extend(std::iter::repeat(ZEROHASH_H256).take(padding));
+
+        // Self-check
+        assert!(result.len() == tree_leaf_count);
+        result
+    }
 }
 
 pub mod serde {
@@ -105,12 +125,50 @@ pub fn verify_hashes(expected: &Hash256, actual: &Hash256) -> Result<(), Error> 
     Err(Error::HashesMistmatch(err_msg, *actual, *expected))
 }
 
+pub trait StaticFieldProof {
+    fn verify(
+        proof: &MerkleProof<Sha256>,
+        indices: &[LeafIndex],
+        leaves: &[RsMerkleHash],
+        expected_hash: &Hash256,
+    ) -> Result<(), Error>;
+}
+
+impl<T> StaticFieldProof for T
+where
+    T: MerkleTreeFieldLeaves,
+{
+    fn verify(
+        proof: &MerkleProof<Sha256>,
+        indices: &[LeafIndex],
+        leaves: &[RsMerkleHash],
+        expected_hash: &Hash256,
+    ) -> Result<(), Error> {
+        // Quirk: rs_merkle does not seem pad trees to the next power of two, resulting in hashes that don't match
+        // ones computed by ssz
+        assert!(
+            T::get_tree_leaf_count().is_power_of_two(),
+            "{}::TREE_FIELDS_LENGTH should be a power of two, got {}",
+            type_name::<T>(),
+            T::get_tree_leaf_count()
+        );
+        let root_from_proof = build_root_from_proof(proof, T::get_tree_leaf_count(), indices, leaves, None, None)?;
+
+        verify_hashes(expected_hash, &root_from_proof)
+    }
+}
+
 pub trait FieldProof {
-    fn get_field_multiproof(&self, indices: &[LeafIndex]) -> MerkleProof<Sha256>;
-    fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex], leafs: &[RsMerkleHash]) -> Result<(), Error>;
+    fn get_members_multiproof(&self, indices: &[LeafIndex]) -> MerkleProof<Sha256>;
+    fn verify_instance(
+        &self,
+        proof: &MerkleProof<Sha256>,
+        indices: &[LeafIndex],
+        leafs: &[RsMerkleHash],
+    ) -> Result<(), Error>;
 
     fn get_serialized_multiproof(&self, indices: &[LeafIndex]) -> Vec<u8> {
-        serde::serialize_proof(self.get_field_multiproof(indices))
+        serde::serialize_proof(self.get_members_multiproof(indices))
     }
 
     fn verify_serialized(
@@ -121,15 +179,15 @@ pub trait FieldProof {
     ) -> Result<(), Error> {
         let proof = serde::deserialize_proof(proof_bytes.as_slice())?;
 
-        self.verify(&proof, indices, leafs)
+        self.verify_instance(&proof, indices, leafs)
     }
 }
 
 impl<T> FieldProof for T
 where
-    T: MerkleTreeFieldLeaves + TreeHash,
+    T: MerkleTreeFieldLeaves + TreeHash + StaticFieldProof,
 {
-    fn get_field_multiproof(&self, indices: &[LeafIndex]) -> MerkleProof<Sha256> {
+    fn get_members_multiproof(&self, indices: &[LeafIndex]) -> MerkleProof<Sha256> {
         let leaves_as_h256 = self.tree_field_leaves();
         let leaves_vec: Vec<RsMerkleHash> = leaves_as_h256
             .iter()
@@ -141,145 +199,13 @@ where
         merkle_tree.proof(indices)
     }
 
-    fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex], leaves: &[RsMerkleHash]) -> Result<(), Error> {
-        // Quirk: rs_merkle does not seem pad trees to the next power of two, resulting in hashes that don't match
-        // ones computed by ssz
-        assert!(
-            T::TREE_FIELDS_LENGTH.is_power_of_two(),
-            "{}::TREE_FIELDS_LENGTH should be a power of two, got {}",
-            type_name::<T>(),
-            T::TREE_FIELDS_LENGTH
-        );
-        let root_from_proof = build_root_from_proof(proof, T::TREE_FIELDS_LENGTH, indices, leaves, None, None)?;
-
-        verify_hashes(&self.tree_hash_root(), &root_from_proof)
-    }
-}
-
-impl MerkleTreeFieldLeaves for BeaconState {
-    const TREE_FIELDS_LENGTH: usize = 32;
-    fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
-        let precomp: BeaconStatePrecomputedHashes = self.into();
-        precomp.get_leaf_index(field_name)
-    }
-
-    fn tree_field_leaves(&self) -> Vec<Hash256> {
-        let precomp: BeaconStatePrecomputedHashes = self.into();
-        let fields = precomp.tree_field_leaves();
-        // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
-        assert!(fields.len() == Self::TREE_FIELDS_LENGTH);
-        fields
-    }
-}
-
-impl MerkleTreeFieldLeaves for BeaconStatePrecomputedHashes {
-    const TREE_FIELDS_LENGTH: usize = 32;
-    fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
-        match field_name {
-            "genesis_time" => Ok(0),
-            "genesis_validators_root" => Ok(1),
-            "slot" => Ok(2),
-            "fork" => Ok(3),
-            "latest_block_header" => Ok(4),
-            "block_roots" => Ok(5),
-            "state_roots" => Ok(6),
-            "historical_roots" => Ok(7),
-            "eth1_data" => Ok(8),
-            "eth1_data_votes" => Ok(9),
-            "eth1_deposit_index" => Ok(10),
-            "validators" => Ok(11),
-            "balances" => Ok(12),
-            "randao_mixes" => Ok(13),
-            "slashings" => Ok(14),
-            "previous_epoch_participation" => Ok(15),
-            "current_epoch_participation" => Ok(16),
-            "justification_bits" => Ok(17),
-            "previous_justified_checkpoint" => Ok(18),
-            "current_justified_checkpoint" => Ok(19),
-            "finalized_checkpoint" => Ok(20),
-            "inactivity_scores" => Ok(21),
-            "current_sync_committee" => Ok(22),
-            "next_sync_committee" => Ok(23),
-            "latest_execution_payload_header" => Ok(24),
-            "next_withdrawal_index" => Ok(25),
-            "next_withdrawal_validator_index" => Ok(26),
-            "historical_summaries" => Ok(27),
-            _ => Err(Error::FieldDoesNotExist(format!("Field {} does not exist", field_name))),
-        }
-    }
-
-    fn tree_field_leaves(&self) -> Vec<Hash256> {
-        let result = vec![
-            self.genesis_time,
-            self.genesis_validators_root,
-            self.slot,
-            self.fork,
-            self.latest_block_header,
-            self.block_roots,
-            self.state_roots,
-            self.historical_roots,
-            self.eth1_data,
-            self.eth1_data_votes,
-            self.eth1_deposit_index,
-            self.validators,
-            self.balances,
-            self.randao_mixes,
-            self.slashings,
-            self.previous_epoch_participation,
-            self.current_epoch_participation,
-            self.justification_bits,
-            self.previous_justified_checkpoint,
-            self.current_justified_checkpoint,
-            self.finalized_checkpoint,
-            self.inactivity_scores,
-            self.current_sync_committee,
-            self.next_sync_committee,
-            self.latest_execution_payload_header,
-            self.next_withdrawal_index,
-            self.next_withdrawal_validator_index,
-            self.historical_summaries,
-            // Quirk: padding to the nearest power of 2 - rs_merkle doesn't seem to do it
-            ZEROHASH_H256,
-            ZEROHASH_H256,
-            ZEROHASH_H256,
-            ZEROHASH_H256,
-        ];
-        // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
-        assert!(result.len() == Self::TREE_FIELDS_LENGTH);
-        assert!(result.len().is_power_of_two());
-        result
-    }
-}
-
-impl MerkleTreeFieldLeaves for BeaconBlockHeader {
-    const TREE_FIELDS_LENGTH: usize = 8;
-    fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
-        match field_name {
-            "slot" => Ok(0),
-            "proposer_index" => Ok(1),
-            "parent_root" => Ok(2),
-            "state_root" => Ok(3),
-            "body_root" => Ok(4),
-            _ => Err(Error::FieldDoesNotExist(format!("Field {} does not exist", field_name))),
-        }
-    }
-
-    fn tree_field_leaves(&self) -> Vec<Hash256> {
-        let result: Vec<Hash256> = vec![
-            self.slot.tree_hash_root(),
-            self.proposer_index.tree_hash_root(),
-            self.parent_root,
-            self.state_root,
-            self.body_root,
-            // Quirk: padding to the nearest power of 2 - rs_merkle doesn't seem to do it
-            ZEROHASH_H256,
-            ZEROHASH_H256,
-            ZEROHASH_H256,
-        ];
-        // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
-        assert!(result.len() == Self::TREE_FIELDS_LENGTH);
-        assert!(result.len().is_power_of_two());
-        result
+    fn verify_instance(
+        &self,
+        proof: &MerkleProof<Sha256>,
+        indices: &[LeafIndex],
+        leaves: &[RsMerkleHash],
+    ) -> Result<(), Error> {
+        Self::verify(proof, indices, leaves, &self.tree_hash_root())
     }
 }
 
@@ -288,7 +214,7 @@ where
     T: TreeHash,
     N: Unsigned,
 {
-    fn get_field_multiproof(&self, indices: &[LeafIndex]) -> MerkleProof<Sha256> {
+    fn get_members_multiproof(&self, indices: &[LeafIndex]) -> MerkleProof<Sha256> {
         assert!(
             hashing::packing_factor::<T>() == 1,
             "Multiproof is not yet supported for type {} that involve packing",
@@ -314,7 +240,12 @@ where
         return merkle_tree.proof(sorted.as_slice());
     }
 
-    fn verify(&self, proof: &MerkleProof<Sha256>, indices: &[LeafIndex], leaves: &[RsMerkleHash]) -> Result<(), Error> {
+    fn verify_instance(
+        &self,
+        proof: &MerkleProof<Sha256>,
+        indices: &[LeafIndex],
+        leaves: &[RsMerkleHash],
+    ) -> Result<(), Error> {
         assert!(
             hashing::packing_factor::<T>() == 1,
             "multiproof is not yet supported for types that involve packing",
@@ -339,6 +270,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive::MerkleTreeFieldLeaves;
     use ssz_types::VariableList;
     use tree_hash::TreeHash;
     use tree_hash_derive::TreeHash;
@@ -346,41 +278,13 @@ mod test {
 
     use crate::{eth_consensus_layer::Hash256, hashing};
 
-    use super::{
-        build_root_from_proof, verify_hashes, Error, FieldProof, LeafIndex, MerkleTreeFieldLeaves, RsMerkleHash,
-        ZEROHASH_H256,
-    };
+    use super::{build_root_from_proof, verify_hashes, FieldProof, MerkleTreeFieldLeaves, RsMerkleHash};
 
-    #[derive(Debug, Clone, PartialEq, TreeHash)]
+    #[derive(Debug, Clone, PartialEq, TreeHash, MerkleTreeFieldLeaves)]
     pub struct GuineaPig {
         pub uint1: u64,
         pub uint2: u64,
         pub hash: Hash256,
-    }
-
-    impl MerkleTreeFieldLeaves for GuineaPig {
-        const TREE_FIELDS_LENGTH: usize = 4;
-
-        fn get_leaf_index(&self, field_name: &str) -> Result<LeafIndex, Error> {
-            match field_name {
-                "uint1" => Ok(0),
-                "uint2" => Ok(1),
-                "hash" => Ok(2),
-                _ => Err(Error::FieldDoesNotExist(format!("Field {} does not exist", field_name))),
-            }
-        }
-
-        fn tree_field_leaves(&self) -> Vec<Hash256> {
-            let result: Vec<Hash256> = vec![
-                self.uint1.tree_hash_root(),
-                self.uint2.tree_hash_root(),
-                self.hash,
-                ZEROHASH_H256,
-            ];
-            // This is just a self-check - if BeaconState grows beyond 32 fields, it should become 64
-            assert!(result.len() == Self::TREE_FIELDS_LENGTH);
-            result
-        }
     }
 
     impl GuineaPig {
@@ -393,17 +297,15 @@ mod test {
     fn struct_round_trip() {
         let guinea_pig = GuineaPig::new(1, 2, Hash256::zero());
 
-        let indices = guinea_pig
-            .get_leafs_indices(["uint1", "hash"])
-            .expect("Failed to get field indices");
+        let indices = GuineaPig::get_leafs_indices([GuineaPigFields::uint1, GuineaPigFields::hash]);
 
-        let proof = guinea_pig.get_field_multiproof(&indices);
+        let proof = guinea_pig.get_members_multiproof(&indices);
         let leafs = [
             guinea_pig.uint1.tree_hash_root().to_fixed_bytes(),
             guinea_pig.hash.tree_hash_root().to_fixed_bytes(),
         ];
         guinea_pig
-            .verify(&proof, &indices, leafs.as_slice())
+            .verify_instance(&proof, &indices, leafs.as_slice())
             .expect("Verification failed")
     }
 
@@ -414,8 +316,8 @@ mod test {
             .map(|index| input[*index].tree_hash_root().to_fixed_bytes())
             .collect();
 
-        let proof = list.get_field_multiproof(target_indices);
-        list.verify(&proof, target_indices, target_hashes.as_slice())
+        let proof = list.get_members_multiproof(target_indices);
+        list.verify_instance(&proof, target_indices, target_hashes.as_slice())
             .expect("Verification failed")
     }
 
@@ -453,7 +355,7 @@ mod test {
             .map(|index| input[*index].tree_hash_root().to_fixed_bytes())
             .collect();
 
-        let proof = list.get_field_multiproof(target_indices);
+        let proof = list.get_members_multiproof(target_indices);
         let actiual_hash = build_root_from_proof(
             &proof,
             total_leaves_count,

@@ -4,13 +4,13 @@ use anyhow::Result;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
     consts,
-    eth_client::{ProviderFactory, Sp1LidoAccountingReportContractWrapper},
+    eth_client::{EthELClient, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
     scripts,
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 use sp1_lido_accounting_zk_shared::{eth_consensus_layer::BeaconState, eth_spec, io::eth_io::HaveSlotWithBlock};
 use sp1_sdk::ProverClient;
-use std::env;
+use std::{env, sync::Arc};
 use test_utils::{eyre_to_anyhow, mark_as_refslot, TestFiles};
 use typenum::Unsigned;
 mod test_utils;
@@ -28,7 +28,7 @@ async fn deploy() -> Result<()> {
     let key = anvil.keys()[0].clone();
     let provider = ProviderFactory::create_provider(key, endpoint);
 
-    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params)
+    let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::new(provider), &deploy_params)
         .await
         .map_err(eyre_to_anyhow)?;
     log::info!("Deployed contract at {}", contract.address());
@@ -68,17 +68,20 @@ async fn submission_success() -> Result<()> {
         .fork_block_number(finalized_bs.latest_execution_payload_header.block_number + 2)
         .try_spawn()?;
     let provider = ProviderFactory::create_provider(anvil.keys()[0].clone(), anvil.endpoint().parse()?);
+    let prov = Arc::new(provider);
 
     log::info!("Deploying contract with parameters {:?}", deploy_params);
-    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params)
+    let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&prov), &deploy_params)
         .await
         .map_err(eyre_to_anyhow)?;
+    let eth_client = EthELClient::new(Arc::clone(&prov));
     log::info!("Deployed contract at {}", contract.address());
 
     scripts::submit::run(
         &client,
         &bs_reader,
         &contract,
+        &eth_client,
         target_slot,
         None, // alternatively Some(deploy_slot) should do the same
         network.clone(),
@@ -121,11 +124,13 @@ async fn two_submission_success() -> Result<()> {
         .fork_block_number(finalized_bs.latest_execution_payload_header.block_number + 2)
         .try_spawn()?;
     let provider = ProviderFactory::create_provider(anvil.keys()[0].clone(), anvil.endpoint().parse()?);
+    let prov = Arc::new(provider);
 
     log::info!("Deploying contract with parameters {:?}", deploy_params);
-    let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider.clone(), &deploy_params)
+    let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&prov), &deploy_params)
         .await
         .map_err(eyre_to_anyhow)?;
+    let eth_client = EthELClient::new(Arc::clone(&prov));
     log::info!("Deployed contract at {}", contract.address());
 
     let first_run_slot = mark_as_refslot(finalized_block_header.bc_slot() - eth_spec::SlotsPerEpoch::to_u64());
@@ -133,6 +138,7 @@ async fn two_submission_success() -> Result<()> {
         &client,
         &bs_reader,
         &contract,
+        &eth_client,
         first_run_slot,
         None, // alternatively Some(deploy_slot) should do the same
         network.clone(),
@@ -149,6 +155,7 @@ async fn two_submission_success() -> Result<()> {
         &client,
         &bs_reader,
         &contract,
+        &eth_client,
         second_run_slot,
         None, // alternatively Some(first_run_slot) should do the same
         network.clone(),

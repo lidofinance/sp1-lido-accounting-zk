@@ -4,7 +4,7 @@ use anyhow::Context;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
     consts::{self, NetworkInfo, WrappedNetwork},
-    eth_client::{self, Contract, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
+    eth_client::{self, Contract, EthELClient, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
     proof_storage::StoredProof,
     scripts::{self, shared as shared_logic},
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
@@ -13,10 +13,13 @@ use sp1_lido_accounting_scripts::{
 use lazy_static::lazy_static;
 use sp1_lido_accounting_zk_shared::{
     eth_consensus_layer::{BeaconState, Hash256},
-    io::eth_io::{BeaconChainSlot, PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust},
+    io::{
+        eth_io::{BeaconChainSlot, PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust},
+        program_io::WithdrawalVaultData,
+    },
 };
 use sp1_sdk::{HashableKey, ProverClient};
-use std::env;
+use std::{env, sync::Arc};
 use test_utils::TestFiles;
 use thiserror::Error;
 mod test_utils;
@@ -110,12 +113,17 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         Ok(anvil)
     }
 
-    async fn deploy_contract(&self, network: &impl NetworkInfo, anvil: &AnvilInstance) -> Result<Contract> {
+    async fn deploy_contract(
+        &self,
+        network: &impl NetworkInfo,
+        anvil: &AnvilInstance,
+    ) -> Result<(EthELClient, Contract)> {
         let endpoint = anvil
             .endpoint()
             .parse()
             .context("Failed to parse anvil endpoint as url")?;
         let provider = ProviderFactory::create_provider(anvil.keys()[0].clone(), endpoint);
+        let prov = Arc::new(provider);
 
         let deploy_bs: BeaconState = self
             .test_files
@@ -124,9 +132,10 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         let deploy_params = scripts::deploy::prepare_deploy_params(self.client.vk_bytes(), &deploy_bs, network);
 
         log::info!("Deploying contract with parameters {:?}", deploy_params);
-        let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider, &deploy_params).await?;
+        let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&prov), &deploy_params).await?;
+        let eth_client = EthELClient::new(Arc::clone(&prov));
         log::info!("Deployed contract at {}", contract.address());
-        Ok(contract)
+        Ok((eth_client, contract))
     }
 
     async fn run_test(&self) -> TestExecutorResult {
@@ -140,7 +149,7 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         // // Anvil needs to be here in scope for the duration of the test, otherwise it terminates
         // // Hence creating it here (i.e. owner is this function) and passing down to deploy conract
         let anvil = self.start_anvil(bc_slot).await?;
-        let contract = self.deploy_contract(NETWORK, &anvil).await?;
+        let (_eth_client, contract) = self.deploy_contract(NETWORK, &anvil).await?;
         let previous_slot = contract.get_latest_validator_state_slot().await?;
 
         let target_bh = self.bs_reader.read_beacon_block_header(&StateId::Slot(bc_slot)).await?;
@@ -148,12 +157,20 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         // Should read old state from untampered reader, so the old state compute will match
         let old_bs = self.bs_reader.read_beacon_state(&StateId::Slot(previous_slot)).await?;
         log::info!("Preparing program input");
+
+        let withdrawal_vault_data = WithdrawalVaultData {
+            balance: stored_proof.metadata.withdrawal_vault_data.balance,
+            vault_address: stored_proof.metadata.withdrawal_vault_data.vault_address,
+            account_proof: vec![vec![0u8, 1u8, 2u8, 3u8]], // proof is unused in this scenario
+        };
+
         let (_program_input, public_values) = shared_logic::prepare_program_input(
             reference_slot,
             &target_bs,
             &target_bh,
             &old_bs,
             &lido_withdrawal_credentials,
+            withdrawal_vault_data,
             false,
         );
         log::info!("Reading proof");
@@ -190,6 +207,10 @@ Metatada:
 * Different old state - hash
 * Different new state - slot
 * Different new state - hash
+
+Withdrawal credentials:
+* Different address
+* Actual proof, tampered balance
 */
 
 fn id<T>(val: T) -> T {
@@ -234,6 +255,20 @@ fn check_vkey_matches() -> Result<()> {
     let test_files = test_utils::TestFiles::new_from_manifest_dir();
     let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;
     assert_eq!(SP1_CLIENT.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
+    Ok(())
+}
+
+#[test]
+fn check_old_slot_matches() -> Result<()> {
+    let test_files = test_utils::TestFiles::new_from_manifest_dir();
+    let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;
+    assert_eq!(
+        test_utils::DEPLOY_SLOT,
+        proof.metadata.state_for_previous_report.slot,
+        "Stored proof targets wrong previous slot, should be {}, got {}",
+        test_utils::DEPLOY_SLOT,
+        proof.metadata.state_for_previous_report.slot
+    );
     Ok(())
 }
 
@@ -401,6 +436,28 @@ async fn report_tampering_metadata_new_state_merkle_root() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
         new_metadata.new_state.merkle_root = hex!("1234567890000000000000000000000000000000000000000000000000000000");
+        new_metadata
+    }));
+
+    assert_rejects(executor.run_test().await)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn report_tampering_withdrawal_wrong_address() -> Result<()> {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
+        let mut new_metadata = metadata.clone();
+        new_metadata.withdrawal_vault_data.vault_address = hex!("1234567890000000000000000000000000000000").into();
+        new_metadata
+    }));
+
+    assert_rejects(executor.run_test().await)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn report_tampering_withdrawal_wrong_balance() -> Result<()> {
+    let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
+        let mut new_metadata = metadata.clone();
+        new_metadata.withdrawal_vault_data.balance = alloy_primitives::U256::from(1234567890u64);
         new_metadata
     }));
 

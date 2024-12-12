@@ -24,12 +24,13 @@ async fn main() -> anyhow::Result<()> {
     log::debug!("Args: {:?}", args);
 
     let (network, client, bs_reader) = scripts::prelude::initialize();
-    let contract = scripts::prelude::initialize_contract();
+    let (eth_client, contract) = scripts::prelude::initialize_eth();
 
     let tx_hash = scripts::submit::run(
         &client,
         &bs_reader,
         &contract,
+        &eth_client,
         ReferenceSlot(args.target_ref_slot),
         args.previous_ref_slot.map(ReferenceSlot),
         network,

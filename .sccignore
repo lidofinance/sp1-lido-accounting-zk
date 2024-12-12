@@ -1,19 +1,9 @@
-# Cargo build
-**/target
-
-# Cargo config
+# Cargo
+target
 .cargo
-
-# Profile-guided optimization
-/tmp
-pgo-data.profdata
 
 # MacOS nuisances
 .DS_Store
-
-# Proofs
-**/proof-with-pis.json
-**/proof-with-io.json
 
 # Env
 .env
@@ -31,3 +21,17 @@ __pycache__
 # Generated
 elf
 temp
+data/*
+script/tests/data
+
+# Metadata
+metadata/**
+*.toml
+.solhint.json
+rust-toolchain
+LICENSE-*
+README.md
+
+# Scripts
+set_env.sh
+update_metadata.sh

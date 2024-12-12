@@ -1,0 +1,91 @@
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Language                              Files     Lines   Blanks  Comments     Code Complexity Complexity/Lines
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Rust                                     53      7725      971       274     6480        231           158.25
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+script/tests/data_tampering_tests.rs              712       84        43      585         15             2.56
+shared/src/lib/eth_consensus_layer.rs             485       66        49      370          7             1.89
+script/tests/report_tampering_tests.rs            465       67        26      372          6             1.61
+~rc/lib/circuit_logic/input_verification.rs       454       61        25      368         11             2.99
+shared/src/lib/io/eth_io.rs                       404       60         0      344         27             7.85
+script/src/lib/eth_client.rs                      395       48         3      344         11             3.20
+shared/src/lib/merkle_proof.rs                    394       59        11      324         12             3.70
+script/examples/ssz_e2e_test.rs                   305       20        11      274          2             0.73
+shared/src/lib/lido.rs                            294       37        16      241         17             7.05
+~ipt/src/lib/beacon_state_reader/reqwest.rs       261       36         0      225         11             4.89
+script/tests/test_utils.rs                        204       23        13      168          7             4.17
+script/src/lib/scripts/shared.rs                  203       23         0      180          2             1.11
+~t/src/lib/beacon_state_reader/synthetic.rs       177       18         0      159          9             5.66
+script/tests/integration_tests.rs                 169       15         4      150          0             0.00
+script/src/lib/beacon_state_reader.rs             153       13         0      140         11             7.86
+script/src/lib/scripts/deploy.rs                  153       19         1      133          9             6.77
+script/examples/report.rs                         145       16         6      123          0             0.00
+shared/src/lib/circuit_logic/io.rs                144       12         0      132          0             0.00
+script/src/lib/consts.rs                          144       17         5      122         12             9.84
+script/src/lib/beacon_state_reader/file.rs        142       22         0      120          6             5.00
+script/examples/lido_state.rs                     140       16         5      119          7             5.88
+script/src/lib/validator_delta.rs                 129       14        10      105          9             8.57
+script/examples/list_multiproofs.rs               121       13        18       90          0             0.00
+script/examples/gen_synthetic_bs_pair.rs          117       11         1      105          0             0.00
+shared/src/lib/hashing.rs                         103       18         1       84          6             7.14
+script/src/lib/scripts/submit.rs                   98       14         0       84          4             4.76
+script/src/bin/dev/deploy.rs                       86       10        14       62          4             6.45
+script/src/lib/sp1_client_wrapper.rs               83       12         0       71          2             2.82
+shared/src/lib/circuit_logic/report.rs             81        9         2       70          6             8.57
+program/src/main.rs                                81       13         0       68          1             1.47
+script/src/lib/scripts/execute.rs                  75        9         0       66          1             1.52
+script/src/bin/dev/write_test_fixture.rs           74       10         0       64          2             3.12
+~ript/src/lib/scripts/write_test_fixture.rs        69       12         0       57          1             1.75
+script/src/lib/utils.rs                            65       10         1       54          5             9.26
+script/examples/read_bs_pair.rs                    61        9         0       52          0             0.00
+shared/src/lib/io/program_io.rs                    58        8         8       42          0             0.00
+script/examples/balance_proof.rs                   58        6         0       52          2             3.85
+~merkle_tree_field_leaves_derive/src/lib.rs        57       10         0       47          4             8.51
+script/src/lib/scripts/prelude.rs                  52        9         0       43          0             0.00
+shared/src/lib/io/serde_utils.rs                   48        5         0       43          0             0.00
+script/src/bin/submit.rs                           45        5         1       39          0             0.00
+script/src/lib/proof_storage.rs                    43        8         0       35          0             0.00
+script/src/bin/dev/execute.rs                      41        5         0       36          0             0.00
+script/src/bin/dev/submit_cached.rs                38        7         0       31          0             0.00
+script/build.rs                                    31        5         0       26          2             7.69
+shared/src/lib/eth_spec.rs                         18        4         0       14          0             0.00
+shared/src/lib/eth_execution_layer.rs              12        2         0       10          0             0.00
+shared/src/lib/util.rs                              9        1         0        8          0             0.00
+shared/src/lib/lib.rs                               9        0         0        9          0             0.00
+script/src/lib/lib.rs                               8        0         0        8          0             0.00
+script/src/lib/scripts.rs                           6        0         0        6          0             0.00
+shared/src/lib/io.rs                                3        0         0        3          0             0.00
+shared/src/lib/circuit_logic.rs                     3        0         0        3          0             0.00
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Python                                    7       951      118        43      790         59            44.88
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+synthetic_beacon_state_gen/main.py                336       35         2      299         23             7.69
+~ic_beacon_state_gen/eth_consensus_layer.py       319       51        31      237         10             4.22
+~ynthetic_beacon_state_gen/eth_ssz_utils.py       156       12         0      144         18            12.50
+synthetic_beacon_state_gen/report.py               65        9         0       56          5             8.93
+synthetic_beacon_state_gen/constants.py            40        2        10       28          0             0.00
+synthetic_beacon_state_gen/read_bs.py              35        9         0       26          3            11.54
+synthetic_beacon_state_gen/__init__.py              0        0         0        0          0             0.00
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Solidity                                  4       855      135        83      637         29            15.87
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/Sp1LidoAccountingReportContractTest.t.sol       466       75        21      370          5             1.35
+~ts/src/Sp1LidoAccountingReportContract.sol       303       48        54      201         22            10.95
+contracts/script/Deploy.s.sol                      74       11         7       56          2             3.57
+contracts/src/ISecondOpinionOracle.sol             12        1         1       10          0             0.00
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Plain Text                                1         1        0         0        1          0             0.00
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+contracts/remappings.txt                            1        0         0        1          0             0.00
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+YAML                                      1        34        7         0       27          0             0.00
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+contracts/.github/workflows/test.yml               34        7         0       27          0             0.00
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Total                                    66      9566     1231       400     7935        319           219.00
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Estimated Cost to Develop (organic) $237,749
+Estimated Schedule Effort (organic) 7.97 months
+Estimated People Required (organic) 2.65
+Processed 353174 bytes, 0.353 megabytes (SI)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────

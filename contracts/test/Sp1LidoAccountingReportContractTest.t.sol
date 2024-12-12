@@ -39,7 +39,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
                     json.readUint(".report.reference_slot"),
                     json.readUint(".report.deposited_lido_validators"),
                     json.readUint(".report.exited_lido_validators"),
-                    json.readUint(".report.lido_cl_balance")
+                    json.readUint(".report.lido_cl_balance"),
+                    json.readUint(".report.lido_withdrawal_vault_balance")
                 ),
                 Sp1LidoAccountingReportContract.ReportMetadata(
                     json.readUint(".metadata.bc_slot"),
@@ -52,6 +53,10 @@ contract Sp1LidoAccountingReportContractTest is Test {
                     ),
                     Sp1LidoAccountingReportContract.LidoValidatorState(
                         json.readUint(".metadata.new_state.slot"), json.readBytes32(".metadata.new_state.merkle_root")
+                    ),
+                    Sp1LidoAccountingReportContract.WithdrawalVaultData(
+                        json.readUint(".metadata.withdrawal_vault_data.balance"),
+                        json.readAddress(".metadata.withdrawal_vault_data.vault_address")
                     )
                 ),
                 json.readBytes(".publicValues"),
@@ -68,6 +73,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
             verifier,
             fixture.vkey,
             fixture.metadata.lido_withdrawal_credentials,
+            fixture.metadata.withdrawal_vault_data.vault_address,
             GENESIS_BLOCK_TIMESTAMP,
             fixture.metadata.old_state
         );
@@ -182,7 +188,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         assertEq(clBalanceGwei, expected_report.lido_cl_balance);
         assertEq(totalDepositedValidators, expected_report.deposited_lido_validators);
         assertEq(totalExitedValidators, expected_report.exited_lido_validators);
-        assertEq(withdrawalVaultBalanceWei, 0); // TODO: not done yet
+        assertEq(withdrawalVaultBalanceWei, expected_report.lido_withdrawal_vault_balance);
     }
 
     function test_validProof() public {
@@ -265,6 +271,34 @@ contract Sp1LidoAccountingReportContractTest is Test {
         bytes memory public_values_encoded = abi.encode(public_values);
 
         vm.expectRevert(verification_error("New state slot must match actual slot"));
+        _contract.submitReportData(fixture.proof, public_values_encoded);
+    }
+
+    function test_withdrawalVault_ReportAndMetadataBalanceMismatch_reverts() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+
+        setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
+        verifierPasses();
+        Sp1LidoAccountingReportContract.PublicValues memory public_values =
+            abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
+        public_values.metadata.withdrawal_vault_data.balance += 10;
+        bytes memory public_values_encoded = abi.encode(public_values);
+
+        vm.expectRevert(verification_error("Withdrawal vault balance mismatch between report and metadata"));
+        _contract.submitReportData(fixture.proof, public_values_encoded);
+    }
+
+    function test_withdrawalVault_WrongWithdrawalVaultAddress_reverts() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+
+        setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
+        verifierPasses();
+        Sp1LidoAccountingReportContract.PublicValues memory public_values =
+            abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
+        public_values.metadata.withdrawal_vault_data.vault_address = 0x1122334455667788990011223344556677889900;
+        bytes memory public_values_encoded = abi.encode(public_values);
+
+        vm.expectRevert(verification_error("Withdrawal vault address mismatch"));
         _contract.submitReportData(fixture.proof, public_values_encoded);
     }
 

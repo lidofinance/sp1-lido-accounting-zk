@@ -82,7 +82,7 @@ async fn main() {
 
     let new_validators_multiproof = beacon_state2
         .validators
-        .get_field_multiproof(new_validator_indices.as_slice());
+        .get_members_multiproof(new_validator_indices.as_slice());
 
     log::info!("New validators {}", new_validator_indices.len());
     log::debug!(
@@ -96,7 +96,7 @@ async fn main() {
         .collect();
     beacon_state2
         .validators
-        .verify(
+        .verify_instance(
             &new_validators_multiproof,
             &new_validator_indices,
             validators_to_prove.as_slice(),

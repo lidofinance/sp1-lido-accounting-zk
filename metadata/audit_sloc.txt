@@ -1,34 +1,36 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Language                              Files     Lines   Blanks  Comments     Code Complexity Complexity/Lines
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Rust                                     16      2478      330       109     2039         92            42.84
+Rust                                     18      2657      365       112     2180         91            49.18
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-shared/src/lib/merkle_proof.rs                    492       61        12      419         21             5.01
-shared/src/lib/eth_consensus_layer.rs             467       62        51      354          6             1.69
-~rc/lib/circuit_logic/input_verification.rs       397       56        23      318         11             3.46
-shared/src/lib/io/eth_io.rs                       337       51         0      286         24             8.39
+shared/src/lib/eth_consensus_layer.rs             485       66        49      370          7             1.89
+~rc/lib/circuit_logic/input_verification.rs       454       61        25      368         11             2.99
+shared/src/lib/io/eth_io.rs                       404       60         0      344         27             7.85
+shared/src/lib/merkle_proof.rs                    394       59        11      324         12             3.70
 shared/src/lib/lido.rs                            294       37        16      241         17             7.05
+shared/src/lib/circuit_logic/io.rs                144       12         0      132          0             0.00
 shared/src/lib/hashing.rs                         103       18         1       84          6             7.14
-shared/src/lib/circuit_logic/io.rs                102        7         0       95          0             0.00
 shared/src/lib/circuit_logic/report.rs             81        9         2       70          6             8.57
-program/src/main.rs                                79       13         0       66          1             1.52
+program/src/main.rs                                81       13         0       68          1             1.47
+shared/src/lib/io/program_io.rs                    58        8         8       42          0             0.00
+~merkle_tree_field_leaves_derive/src/lib.rs        57       10         0       47          4             8.51
 shared/src/lib/io/serde_utils.rs                   48        5         0       43          0             0.00
-shared/src/lib/io/program_io.rs                    37        6         4       27          0             0.00
 shared/src/lib/eth_spec.rs                         18        4         0       14          0             0.00
+shared/src/lib/eth_execution_layer.rs              12        2         0       10          0             0.00
 shared/src/lib/util.rs                              9        1         0        8          0             0.00
-shared/src/lib/lib.rs                               8        0         0        8          0             0.00
-shared/src/lib/io.rs                                3        0         0        3          0             0.00
+shared/src/lib/lib.rs                               9        0         0        9          0             0.00
 shared/src/lib/circuit_logic.rs                     3        0         0        3          0             0.00
+shared/src/lib/io.rs                                3        0         0        3          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Solidity                                  2       295       46        55      194         20            10.87
+Solidity                                  2       315       49        55      211         22            10.95
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-~ts/src/Sp1LidoAccountingReportContract.sol       283       45        54      184         20            10.87
+~ts/src/Sp1LidoAccountingReportContract.sol       303       48        54      201         22            10.95
 contracts/src/ISecondOpinionOracle.sol             12        1         1       10          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Total                                    18      2773      376       164     2233        112            53.71
+Total                                    20      2972      414       167     2391        113            60.13
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Estimated Cost to Develop (organic) $62,795
-Estimated Schedule Effort (organic) 4.80 months
-Estimated People Required (organic) 1.16
-Processed 101156 bytes, 0.101 megabytes (SI)
+Estimated Cost to Develop (organic) $67,468
+Estimated Schedule Effort (organic) 4.94 months
+Estimated People Required (organic) 1.21
+Processed 108837 bytes, 0.109 megabytes (SI)
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
