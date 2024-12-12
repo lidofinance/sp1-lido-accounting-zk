@@ -15,6 +15,7 @@ contract Deploy is Script {
         address verifier;
         bytes32 vkey;
         bytes32 withdrawal_credentials;
+        address withdrawal_vault_address;
         uint256 genesis_timestamp;
         Sp1LidoAccountingReportContract.LidoValidatorState initial_lido_validator_state;
     }
@@ -37,6 +38,7 @@ contract Deploy is Script {
                 json.readAddress(".verifier"),
                 json.readBytes32(".vkey"),
                 json.readBytes32(".withdrawal_credentials"),
+                json.readAddress(".withdrawal_vault_address"),
                 json.readUint(".genesis_timestamp"),
                 Sp1LidoAccountingReportContract.LidoValidatorState(
                     json.readUint(".initial_validator_state.slot"),
@@ -62,6 +64,7 @@ contract Deploy is Script {
             manifesto.verifier,
             manifesto.vkey,
             manifesto.withdrawal_credentials,
+            manifesto.withdrawal_vault_address,
             manifesto.genesis_timestamp,
             manifesto.initial_lido_validator_state
         );

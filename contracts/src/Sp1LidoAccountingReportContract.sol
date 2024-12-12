@@ -19,6 +19,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     /// and changes with any code modification
     bytes32 public immutable VKEY;
     bytes32 public immutable WITHDRAWAL_CREDENTIALS;
+    address public immutable WITHDRAWAL_VAULT_ADDRESS;
 
     /// @notice Seconds per slot
     uint256 public immutable SECONDS_PER_SLOT = 12;
@@ -35,6 +36,12 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         uint256 deposited_lido_validators;
         uint256 exited_lido_validators;
         uint256 lido_cl_balance;
+        uint256 lido_withdrawal_vault_balance;
+    }
+
+    struct WithdrawalVaultData {
+        uint256 balance;
+        address vault_address;
     }
 
     struct ReportMetadata {
@@ -44,6 +51,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         bytes32 beacon_block_hash;
         LidoValidatorState old_state;
         LidoValidatorState new_state;
+        WithdrawalVaultData withdrawal_vault_data;
     }
 
     struct LidoValidatorState {
@@ -73,12 +81,14 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         address _verifier,
         bytes32 _vkey,
         bytes32 _lido_withdrawal_credentials,
+        address _withdrawal_vault_address,
         uint256 _genesis_timestamp,
         LidoValidatorState memory _initial_state
     ) {
         VERIFIER = _verifier;
         VKEY = _vkey;
         WITHDRAWAL_CREDENTIALS = _lido_withdrawal_credentials;
+        WITHDRAWAL_VAULT_ADDRESS = _withdrawal_vault_address;
         GENESIS_BLOCK_TIMESTAMP = _genesis_timestamp;
         _recordLidoValidatorStateHash(_initial_state.slot, _initial_state.merkle_root);
     }
@@ -105,7 +115,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         success = report.reference_slot == refSlot;
 
         clBalanceGwei = report.lido_cl_balance;
-        withdrawalVaultBalanceWei = 0; // withdrawal vault is not reported yet
+        withdrawalVaultBalanceWei = report.lido_withdrawal_vault_balance;
         totalDepositedValidators = report.deposited_lido_validators;
         totalExitedValidators = report.exited_lido_validators;
     }
@@ -124,11 +134,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     }
 
     /// @notice Main entrypoint for the contract - accepts proof and public values, verifies them,
-    ///         and stores the report if verification passes. 
+    ///         and stores the report if verification passes.
     /// @param proof proof from succinct, in binary format
     /// @param publicValues public values from prover, in binary format
-    /// @dev `publicValues` is passed as bytes and deserialized - if using fuzzing/property-based testing, 
-    ///         directly using bytes generator will produce enormous amount of trivial rejections. Recommend 
+    /// @dev `publicValues` is passed as bytes and deserialized - if using fuzzing/property-based testing,
+    ///         directly using bytes generator will produce enormous amount of trivial rejections. Recommend
     ///         generating `PublicValues` struct and abi.encoding it.
     ///         This function is INTENTIONALLY public and have no access modifiers - ANYONE
     ///         should be allowed to call it, and bring the report+proof to the contract - it is the responsibility
@@ -142,6 +152,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         // Check the report was not previously set
         Report storage report_at_slot = _reports[report.reference_slot];
         require(report_at_slot.reference_slot == 0, VerificationError("Report was already accepted for a given slot"));
+
+        require(
+            report.lido_withdrawal_vault_balance == metadata.withdrawal_vault_data.balance,
+            VerificationError("Withdrawal vault balance mismatch between report and metadata")
+        );
 
         // Check that public values from ZK program match expected blockchain state
         _verify_public_values(public_values);
@@ -201,6 +216,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         require(metadata.old_state.merkle_root == old_state_hash, VerificationError("Old state merkle_root mismatch"));
 
         require(metadata.bc_slot == metadata.new_state.slot, VerificationError("New state slot must match actual slot"));
+
+        require(
+            metadata.withdrawal_vault_data.vault_address == WITHDRAWAL_VAULT_ADDRESS,
+            VerificationError("Withdrawal vault address mismatch")
+        );
     }
 
     function _getExpectedWithdrawalCredentials() internal view virtual returns (bytes32) {

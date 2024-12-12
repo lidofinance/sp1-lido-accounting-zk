@@ -1,11 +1,12 @@
 {
   "network": "mainnet",
-  "verifier": "0xe780809121774d06ad9b0eeec620ff4b3913ced1",
-  "vkey": "0x003f0b09d05b2a312da7660baa8cdca0bcc8a7c9d71a250bab2ca693d6bb436b",
+  "verifier": "0xd2832cf1fc8ba210ffabf62db9a8781153131d16",
+  "vkey": "0x00cd9342377cdc9cfc13ec5c1ac577c1fb8e81e584323d33f794f29dbfcdc88c",
   "withdrawal_credentials": "0x010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
+  "withdrawal_vault_address": "0xb9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
   "genesis_timestamp": 1606824023,
   "initial_validator_state": {
-    "slot": 10339136,
-    "merkle_root": "0xdaa5be1f0313ab581c17fe2a3952fb5d8bf72a6174690641afd87596e811aa66"
+    "slot": 10576416,
+    "merkle_root": "0xc8ce5665758e01d05d566d1f9b17580985728297f5dd456650a05d315a98d41e"
   }
 }

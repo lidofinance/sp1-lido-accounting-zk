@@ -2,12 +2,12 @@ use std::path::PathBuf;
 
 use crate::beacon_state_reader::{BeaconStateReader, StateId};
 use crate::consts::NetworkInfo;
-use crate::eth_client::Contract;
+use crate::eth_client::{Contract, EthELClient};
 use crate::proof_storage;
 use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 
-use alloy_primitives::TxHash;
+use alloy_primitives::{Address, TxHash};
 use anyhow::{self, Context};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
@@ -21,6 +21,7 @@ pub async fn run(
     client: &impl SP1ClientWrapper,
     bs_reader: &impl BeaconStateReader,
     contract: &Contract,
+    eth_client: &EthELClient,
     target_slot: ReferenceSlot,
     prev_slot: Option<ReferenceSlot>,
     network: impl NetworkInfo,
@@ -41,7 +42,10 @@ pub async fn run(
         prev_slot,
         actual_previous_slot
     );
-    let lido_withdrawal_credentials: Hash256 = network.get_config().lido_withdrawal_credentials.into();
+
+    let network_config = network.get_config();
+    let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
+    let lido_withdrawal_vault: Address = network_config.lido_withdrwawal_vault_address.into();
 
     let target_bh = bs_reader
         .read_beacon_block_header(&StateId::Slot(actual_target_slot))
@@ -51,14 +55,21 @@ pub async fn run(
         .read_beacon_state(&StateId::Slot(actual_previous_slot))
         .await?;
 
+    let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
+    let withdrawal_vault_data = eth_client
+        .get_withdrawal_vault_data(lido_withdrawal_vault, execution_layer_block_hash)
+        .await?;
+
     let (program_input, public_values) = shared_logic::prepare_program_input(
         target_slot,
         &target_bs,
         &target_bh,
         &old_bs,
         &lido_withdrawal_credentials,
+        withdrawal_vault_data,
         true,
     );
+
     let proof = client.prove(program_input).context("Failed to generate proof")?;
     log::info!("Generated proof");
 

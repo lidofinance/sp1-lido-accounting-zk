@@ -1,8 +1,11 @@
 use core::fmt;
 
+use crate::merkle_proof::MerkleTreeFieldLeaves;
+
 use derivative::Derivative;
 use ethereum_types::{H160, H256, U256};
 use serde::{Deserialize, Serialize};
+use sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive::MerkleTreeFieldLeaves;
 use ssz_derive::{Decode, Encode};
 pub use ssz_types::{typenum, typenum::Unsigned, BitList, BitVector, FixedVector, VariableList};
 
@@ -47,7 +50,7 @@ pub struct Checkpoint {
     root: Root,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]
 pub struct BeaconBlockHeader {
     pub slot: Slot,
     pub proposer_index: CommitteeIndex,
@@ -58,10 +61,10 @@ pub struct BeaconBlockHeader {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct Eth1Data {
-    deposit_root: Root,
+    pub deposit_root: Root,
     // #[serde(with = "serde_utils::quoted_u64")]
-    deposit_count: u64,
-    block_hash: Hash256,
+    pub deposit_count: u64,
+    pub block_hash: Hash256,
 }
 
 #[derive(Derivative, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
@@ -106,32 +109,32 @@ pub struct SyncCommittee {
     aggregate_pubkey: BlsPublicKey,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Derivative, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]
+#[derivative(Debug)]
 pub struct ExecutionPayloadHeader {
-    parent_hash: Hash256,
-    fee_recipient: Address,
-    state_root: Root,
-    receipts_root: Root,
-    logs_bloom: FixedVector<u8, eth_spec::BytesPerLogBloom>,
-    prev_randao: Hash256,
+    pub parent_hash: Hash256,
+    pub fee_recipient: Address,
+    pub state_root: Root,
+    pub receipts_root: Root,
+    #[derivative(Debug(format_with = "derivatives::fixed_vector_as_hex"))]
+    pub logs_bloom: FixedVector<u8, eth_spec::BytesPerLogBloom>,
+    pub prev_randao: Hash256,
     // #[serde(with = "serde_utils::quoted_u64")]
     pub block_number: u64,
     // #[serde(with = "serde_utils::quoted_u64")]
-    gas_limit: u64,
+    pub gas_limit: u64,
     // #[serde(with = "serde_utils::quoted_u64")]
-    gas_used: u64,
+    pub gas_used: u64,
     // #[serde(with = "serde_utils::quoted_u64")]
-    timestamp: u64,
-    extra_data: VariableList<u8, eth_spec::MaxExtraDataBytes>,
-    // workaround - looks like ByteList is partially broken, but extra data is exactly bytes32
-    // extra_data: Hash256
-    base_fee_per_gas: U256,
+    pub timestamp: u64,
+    pub extra_data: VariableList<u8, eth_spec::MaxExtraDataBytes>,
+    pub base_fee_per_gas: U256,
     pub block_hash: Hash256,
-    transactions_root: Root,
-    withdrawals_root: Root,
+    pub transactions_root: Root,
+    pub withdrawals_root: Root,
     // Since Deneb
-    blob_gas_used: u64,
-    excess_blob_gas: u64,
+    pub blob_gas_used: u64,
+    pub excess_blob_gas: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
@@ -209,7 +212,7 @@ pub struct BeaconState {
     pub historical_summaries: VariableList<HistoricalSummary, eth_spec::HistoricalRootsLimit>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]
 pub struct BeaconStatePrecomputedHashes {
     // Versioning
     pub genesis_time: Hash256,
@@ -333,6 +336,21 @@ impl From<BeaconBlockHeader> for BeaconBlockHeaderPrecomputedHashes {
     fn from(value: BeaconBlockHeader) -> Self {
         let borrowed: &BeaconBlockHeader = &value;
         borrowed.into()
+    }
+}
+
+pub type BeaconStateFields = BeaconStatePrecomputedHashesFields;
+
+impl MerkleTreeFieldLeaves for BeaconState {
+    const FIELD_COUNT: usize = 28;
+    type TFields = BeaconStateFields;
+    fn get_leaf_index(field_name: &Self::TFields) -> usize {
+        BeaconStatePrecomputedHashes::get_leaf_index(field_name)
+    }
+
+    fn get_fields(&self) -> Vec<Hash256> {
+        let precomp: BeaconStatePrecomputedHashes = self.into();
+        precomp.get_fields()
     }
 }
 

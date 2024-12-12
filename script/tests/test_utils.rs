@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::{env, path::PathBuf};
 
 use anyhow::anyhow;
@@ -13,7 +14,7 @@ use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapperImpl;
 use sp1_lido_accounting_scripts::{proof_storage, utils};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::eth_spec;
-use sp1_lido_accounting_zk_shared::io::eth_io::{ReferenceSlot, BeaconChainSlot};
+use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use sp1_sdk::ProverClient;
 use tree_hash::TreeHash;
 use typenum::Unsigned;
@@ -64,7 +65,11 @@ impl TestFiles {
         self.base.join("beacon_states")
     }
 
-    pub fn read_deploy(&self, network: &impl NetworkInfo, slot: BeaconChainSlot) -> Result<ContractDeployParametersRust> {
+    pub fn read_deploy(
+        &self,
+        network: &impl NetworkInfo,
+        slot: BeaconChainSlot,
+    ) -> Result<ContractDeployParametersRust> {
         let deploy_args_file = self
             .deploys()
             .join(format!("{}-{}-deploy.json", network.as_str(), slot.0));
@@ -111,22 +116,22 @@ pub async fn read_latest_bs_at_or_before(
     result.map_err(|e| eyre!("Failed to read beacon state {:#?}", e))
 }
 
-pub struct TamperableBeaconStateReader<'a, T, Mut>
+pub struct TamperableBeaconStateReader<T, Mut>
 where
     T: BeaconStateReader,
     Mut: Fn(BeaconState) -> BeaconState,
 {
-    inner: &'a T,
+    inner: Arc<T>,
     beacon_state_mutators: HashMap<StateId, Mut>,
     should_update_block_header: HashMap<StateId, bool>,
 }
 
-impl<'a, T, Mut> TamperableBeaconStateReader<'a, T, Mut>
+impl<T, Mut> TamperableBeaconStateReader<T, Mut>
 where
     T: BeaconStateReader,
     Mut: Fn(BeaconState) -> BeaconState,
 {
-    pub fn new(inner: &'a T) -> Self {
+    pub fn new(inner: Arc<T>) -> Self {
         Self {
             inner,
             beacon_state_mutators: HashMap::new(),
@@ -142,7 +147,7 @@ where
     }
 }
 
-impl<'a, T, Mut> BeaconStateReader for TamperableBeaconStateReader<'a, T, Mut>
+impl<T, Mut> BeaconStateReader for TamperableBeaconStateReader<T, Mut>
 where
     T: BeaconStateReader,
     Mut: Fn(BeaconState) -> BeaconState,

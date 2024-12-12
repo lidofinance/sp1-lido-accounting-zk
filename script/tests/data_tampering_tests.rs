@@ -2,64 +2,71 @@ use alloy::node_bindings::{Anvil, AnvilInstance};
 use anyhow::{anyhow, Result};
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
-    consts::NetworkInfo,
-    eth_client::{self, Contract, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
+    consts::{NetworkConfig, NetworkInfo},
+    eth_client::{
+        self, Contract, DefaultProvider, EthELClient, ProviderFactory,
+        Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors, Sp1LidoAccountingReportContractWrapper,
+    },
     scripts::{self, shared as shared_logic},
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 
 use sp1_lido_accounting_zk_shared::{
     eth_consensus_layer::{BeaconState, BlsPublicKey, Hash256, Validator},
-    io::eth_io::{BeaconChainSlot, HaveEpoch, HaveSlotWithBlock, ReferenceSlot},
+    io::{
+        eth_io::{BeaconChainSlot, HaveEpoch, HaveSlotWithBlock},
+        program_io::WithdrawalVaultData,
+    },
 };
-use std::env;
+use std::{env, sync::Arc};
 use test_utils::{eyre_to_anyhow, mark_as_refslot, TamperableBeaconStateReader, TestFiles};
 mod test_utils;
 
 type BeaconStateMutator = fn(BeaconState) -> BeaconState;
+type WithdrawalVaultDataMutator = dyn Fn(WithdrawalVaultData) -> WithdrawalVaultData;
 
-struct TestExecutor<'a> {
-    main_bs_reader: &'a BeaconStateReaderEnum,
-    tampered_bs_reader: TamperableBeaconStateReader<'a, BeaconStateReaderEnum, BeaconStateMutator>,
-    client: &'static SP1ClientWrapperImpl,
+#[derive(Debug)]
+enum TestError {
+    ContractRejected(Sp1LidoAccountingReportContractErrors),
+    OtherRejection(eth_client::Error),
+    ProofFailed(anyhow::Error),
+    Other(anyhow::Error),
 }
 
-impl<'a> TestExecutor<'a> {
-    fn new(bs_reader: &'a BeaconStateReaderEnum) -> Self {
-        let tampered_bs: TamperableBeaconStateReader<BeaconStateReaderEnum, BeaconStateMutator> =
-            TamperableBeaconStateReader::new(bs_reader);
+impl From<anyhow::Error> for TestError {
+    fn from(value: anyhow::Error) -> Self {
+        TestError::Other(value)
+    }
+}
 
-        Self {
-            main_bs_reader: bs_reader,
-            tampered_bs_reader: tampered_bs,
-            client: &test_utils::SP1_CLIENT,
+impl From<eth_client::Error> for TestError {
+    fn from(value: eth_client::Error) -> Self {
+        match value {
+            eth_client::Error::Rejection(e) => TestError::ContractRejected(e),
+            other => TestError::OtherRejection(other),
         }
     }
+}
 
-    pub fn set_mutator(
-        &mut self,
-        state_id: StateId,
-        update_block_header: bool,
-        mutator: BeaconStateMutator,
-    ) -> &mut Self {
-        self.tampered_bs_reader
-            .set_mutator(state_id, update_block_header, mutator);
-        self
-    }
+struct TestExecutor {
+    anvil: AnvilInstance,
+    network_config: NetworkConfig,
+    main_bs_reader: Arc<BeaconStateReaderEnum>,
+    tampered_bs_reader: TamperableBeaconStateReader<BeaconStateReaderEnum, BeaconStateMutator>,
+    eth_el_client: EthELClient,
+    contract: Contract,
+    sp1_client: &'static SP1ClientWrapperImpl,
+    withdrawal_vault_data_mutator: Box<WithdrawalVaultDataMutator>,
+}
 
-    async fn get_target_slot(&self) -> Result<BeaconChainSlot> {
-        let finalized_block_header = self
-            .main_bs_reader
-            .read_beacon_block_header(&StateId::Finalized)
-            .await?;
-        Ok(finalized_block_header.bc_slot())
-    }
+impl TestExecutor {
+    async fn new(network: &impl NetworkInfo) -> anyhow::Result<Self> {
+        let bs_reader = BeaconStateReaderEnum::new_from_env(network);
 
-    async fn start_anvil(&self, target_slot: BeaconChainSlot) -> Result<AnvilInstance> {
-        let finalized_bs =
-            test_utils::read_latest_bs_at_or_before(self.main_bs_reader, target_slot, test_utils::RETRIES)
-                .await
-                .map_err(eyre_to_anyhow)?;
+        let target_slot = Self::finalized_slot(&bs_reader).await?;
+        let finalized_bs = test_utils::read_latest_bs_at_or_before(&bs_reader, target_slot, test_utils::RETRIES)
+            .await
+            .map_err(eyre_to_anyhow)?;
         let fork_url =
             env::var("INTEGRATION_TEST_FORK_URL").expect("INTEGRATION_TEST_FORK_URL env var must be specified");
         let fork_block_number = finalized_bs.latest_execution_payload_header.block_number + 2;
@@ -72,38 +79,91 @@ impl<'a> TestExecutor<'a> {
             .fork(fork_url)
             .fork_block_number(fork_block_number)
             .try_spawn()?;
-        Ok(anvil)
-    }
 
-    async fn deploy_contract(&self, network: &impl NetworkInfo, anvil: &AnvilInstance) -> Result<Contract> {
+        let sp1_client = &test_utils::SP1_CLIENT;
+
         let provider = ProviderFactory::create_provider(anvil.keys()[0].clone(), anvil.endpoint().parse()?);
+        let prov = Arc::new(provider);
+        let eth_client = EthELClient::new(Arc::clone(&prov));
 
         let test_files = TestFiles::new_from_manifest_dir();
         let deploy_bs: BeaconState = test_files
             .read_beacon_state(&StateId::Slot(test_utils::DEPLOY_SLOT))
             .await
             .map_err(eyre_to_anyhow)?;
-        let deploy_params = scripts::deploy::prepare_deploy_params(self.client.vk_bytes(), &deploy_bs, network);
+        let deploy_params = scripts::deploy::prepare_deploy_params(sp1_client.vk_bytes(), &deploy_bs, network);
 
         log::info!("Deploying contract with parameters {:?}", deploy_params);
-        let contract = Sp1LidoAccountingReportContractWrapper::deploy(provider, &deploy_params)
+        let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&prov), &deploy_params)
             .await
             .map_err(eyre_to_anyhow)?;
+
         log::info!("Deployed contract at {}", contract.address());
-        Ok(contract)
+
+        let bs_reader_arc = Arc::new(bs_reader);
+        let tampered_bs_reader = TamperableBeaconStateReader::new(Arc::clone(&bs_reader_arc));
+
+        let instance = Self {
+            anvil, // this needs to be here so that test executor assumes ownership of running anvil instance - otherwise it terminates right away
+            network_config: network.get_config(),
+            main_bs_reader: bs_reader_arc,
+            tampered_bs_reader,
+            eth_el_client: eth_client,
+            contract,
+            sp1_client: &test_utils::SP1_CLIENT,
+            withdrawal_vault_data_mutator: Box::new(|wvd| wvd),
+        };
+
+        Ok(instance)
     }
 
-    async fn run_test(&self) -> Result<()> {
-        sp1_sdk::utils::setup_logger();
-        let lido_withdrawal_credentials: Hash256 = test_utils::NETWORK.get_config().lido_withdrawal_credentials.into();
+    pub fn set_bs_mutator(
+        &mut self,
+        state_id: StateId,
+        update_block_header: bool,
+        mutator: BeaconStateMutator,
+    ) -> &mut Self {
+        self.tampered_bs_reader
+            .set_mutator(state_id, update_block_header, mutator);
+        self
+    }
 
-        let target_slot = self.get_target_slot().await?;
+    pub fn set_withdrawal_vault_mutator(&mut self, mutator: Box<WithdrawalVaultDataMutator>) {
+        self.withdrawal_vault_data_mutator = mutator;
+    }
+
+    async fn finalized_slot(bs_reader: &BeaconStateReaderEnum) -> anyhow::Result<BeaconChainSlot> {
+        let finalized_block_header = bs_reader.read_beacon_block_header(&StateId::Finalized).await?;
+        Ok(finalized_block_header.bc_slot())
+    }
+
+    pub async fn get_target_slot(&self) -> anyhow::Result<BeaconChainSlot> {
+        Self::finalized_slot(&self.main_bs_reader).await
+    }
+
+    async fn get_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+        let bs = self.main_bs_reader.read_beacon_state(state_id).await?;
+        Ok(bs)
+    }
+
+    pub async fn get_balance_proof(&self, state_id: &StateId) -> anyhow::Result<WithdrawalVaultData> {
+        let address = self.network_config.lido_withdrwawal_vault_address.into();
+        let bs: BeaconState = self.get_beacon_state(state_id).await?;
+        let execution_layer_block_hash = bs.latest_execution_payload_header.block_hash;
+        let withdrawal_vault_data = self
+            .eth_el_client
+            .get_withdrawal_vault_data(address, execution_layer_block_hash)
+            .await?;
+        Ok(withdrawal_vault_data)
+    }
+
+    async fn run_test(&self, target_slot: BeaconChainSlot) -> core::result::Result<(), TestError> {
+        sp1_sdk::utils::setup_logger();
+        let network_config = test_utils::NETWORK.get_config();
+        let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
+
         let reference_slot = mark_as_refslot(target_slot);
-        // // Anvil needs to be here in scope for the duration of the test, otherwise it terminates
-        // // Hence creating it here (i.e. owner is this function) and passing down to deploy conract
-        let anvil = self.start_anvil(target_slot).await?;
-        let contract = self.deploy_contract(&test_utils::NETWORK, &anvil).await?;
-        let previous_slot = contract.get_latest_validator_state_slot().await?;
+        let previous_slot = self.contract.get_latest_validator_state_slot().await?;
 
         let target_bh = self
             .tampered_bs_reader
@@ -118,6 +178,10 @@ impl<'a> TestExecutor<'a> {
             .main_bs_reader
             .read_beacon_state(&StateId::Slot(previous_slot))
             .await?;
+
+        let withdrawal_vault_data = self.get_balance_proof(&StateId::Slot(target_slot)).await?;
+        let tampered_withdrawal_vault_data = (self.withdrawal_vault_data_mutator)(withdrawal_vault_data);
+
         log::info!("Preparing program input");
         let (program_input, _public_values) = shared_logic::prepare_program_input(
             reference_slot,
@@ -125,35 +189,53 @@ impl<'a> TestExecutor<'a> {
             &target_bh,
             &old_bs,
             &lido_withdrawal_credentials,
+            tampered_withdrawal_vault_data,
             false,
         );
         log::info!("Requesting proof");
-        let try_proof = self.client.prove(program_input);
-        match try_proof {
-            Err(_) => {
-                log::info!("Failed to create proof - this is equivalent to failing verification");
+        let try_proof = self.sp1_client.prove(program_input);
+
+        if let Err(e) = try_proof {
+            return Err(TestError::ProofFailed(e));
+        }
+
+        log::info!("Generated proof");
+        let proof = try_proof.unwrap();
+
+        log::info!("Sending report");
+        let result = self
+            .contract
+            .submit_report_data(proof.bytes(), proof.public_values.to_vec())
+            .await?;
+        Ok(())
+    }
+
+    pub fn assert_failed_proof(&self, result: Result<(), TestError>) -> anyhow::Result<()> {
+        match result {
+            Err(TestError::ProofFailed(e)) => {
+                log::info!("Failed to create proof - as expected: {:?}", e);
                 Ok(())
             }
-            Ok(proof) => {
-                log::info!("Generated proof");
+            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+            Ok(_) => Err(anyhow!("Report accepted")),
+        }
+    }
 
-                log::info!("Sending report");
-                let result = contract
-                    .submit_report_data(proof.bytes(), proof.public_values.to_vec())
-                    .await;
-
-                match result {
-                    Err(eth_client::Error::Rejection(err)) => {
-                        log::info!("As expected, contract rejected {:#?}", err);
-                        Ok(())
-                    }
-                    Err(other_err) => Err(anyhow!(
-                        "Submission failed due to technical reasons - inconclusive outcome {:#?}",
-                        other_err
-                    )),
-                    Ok(_txhash) => Err(anyhow!("Report accepted")),
-                }
+    pub fn assert_rejected(&self, result: Result<(), TestError>) -> anyhow::Result<()> {
+        match result {
+            Err(TestError::ContractRejected(err)) => {
+                log::info!("As expected, contract rejected {:#?}", err);
+                Ok(())
             }
+            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+            Ok(_txhash) => Err(anyhow!("Report accepted")),
+        }
+    }
+
+    pub fn assert_accepted(&self, result: Result<(), TestError>) -> anyhow::Result<()> {
+        match result {
+            Err(other_error) => Err(anyhow!("Error {:#?}", other_error)),
+            Ok(_) => Ok(()),
         }
     }
 }
@@ -209,6 +291,11 @@ Balance
 * Change single Lido validator balance
 * Change mulitple Lido validator balance
 * Change two Lido validator balances to cancel each other out (sum is the same)
+
+Withdrawal vault
+* Real proof, tampered balance
+* Tampered proof, real balance
+* Real balance and proof for wrong slot
 */
 
 // The attacker might approach data tampering from two angles:
@@ -218,18 +305,27 @@ Balance
 // and is rejected by the program (i.e. it won't even get to generating the report)
 // Hence setting this to true is the only option to actually test end-to-end
 // But this is kept here for an easy check that this is the case in all the scenarios listed below
-// Flipping this to false should cause all tests to panic
+// Flipping this to false should cause all tests to fail generating proof
 const MODIFY_BEACON_BLOCK_HASH: bool = true;
 
 // Note: these tests will hit the prover network - will have relatively longer run
 // time (1-2 minutes) and also incur proving costs.
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
-async fn tampering_add_active_lido_validator() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+async fn tampering_no_tampering_should_pass() -> Result<()> {
+    let executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+
+    let result = executor.run_test(target_slot).await;
+    executor.assert_accepted(result)
+}
+
+#[ignore]
+#[tokio::test(flavor = "multi_thread")]
+async fn tampering_add_active_lido_validator() -> Result<()> {
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
+    let target_slot = executor.get_target_slot().await?;
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let balance: u64 = 32_000_000_000;
         let new_validator = Validator {
             pubkey: BlsPublicKey::from([0_u8; 48].to_vec()),
@@ -247,18 +343,16 @@ async fn tampering_add_active_lido_validator() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_add_pending_lido_validator() -> Result<()> {
-    let network = &test_utils::NETWORK;
-
-    let bs_reader = BeaconStateReaderEnum::new_from_env(network);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let balance: u64 = 1_000_000_000;
         let new_validator = Validator {
             pubkey: BlsPublicKey::from([0_u8; 48].to_vec()),
@@ -276,18 +370,16 @@ async fn tampering_add_pending_lido_validator() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_add_exited_lido_validator() -> Result<()> {
-    let network = &test_utils::NETWORK;
-
-    let bs_reader = BeaconStateReaderEnum::new_from_env(network);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let balance: u64 = 1_000_000_000;
         let new_validator = Validator {
             pubkey: BlsPublicKey::from([0_u8; 48].to_vec()),
@@ -305,16 +397,16 @@ async fn tampering_add_exited_lido_validator() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_add_active_non_lido_validator() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let balance: u64 = 32_000_000_000;
         let new_validator = Validator {
             pubkey: BlsPublicKey::from([0_u8; 48].to_vec()),
@@ -332,16 +424,16 @@ async fn tampering_add_active_non_lido_validator() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_remove_lido_validator() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
         let validator_idx = validator_indices(&beacon_state, &[0], is_lido)[0];
@@ -354,16 +446,16 @@ async fn tampering_remove_lido_validator() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_failed_proof(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_remove_multi_lido_validator() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
         let remove_idxs = validator_indices(&beacon_state, &[0, 1, 3], is_lido);
@@ -400,16 +492,16 @@ async fn tampering_remove_multi_lido_validator() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_failed_proof(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_change_lido_to_non_lido_validator() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
         let validator_idx = validator_indices(&beacon_state, &[0], is_lido)[0];
@@ -417,16 +509,16 @@ async fn tampering_change_lido_to_non_lido_validator() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_failed_proof(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_change_non_lido_to_lido_validator() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
         let validator_idx = validator_indices(&beacon_state, &[0], is_non_lido)[0];
@@ -434,16 +526,16 @@ async fn tampering_change_non_lido_to_lido_validator() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_failed_proof(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_change_lido_make_exited() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
         let validator_idx = validator_indices(&beacon_state, &[0], is_lido)[0];
@@ -451,16 +543,16 @@ async fn tampering_change_lido_make_exited() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
-async fn tampering_omit_added_in_deposited_state_lido_validator() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+async fn tampering_omit_new_deposited_lido_validator() -> Result<()> {
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
         // old state https://sepolia.beaconcha.in/slot/5832096 had only 1 validator - all others are now "added"
         let added_deposited_idx = 3;
@@ -474,16 +566,16 @@ async fn tampering_omit_added_in_deposited_state_lido_validator() -> Result<()> 
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_omit_exited_lido_validator() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
         // old state https://sepolia.beaconcha.in/slot/5832096 had only 1 validator - all others are now "added"
         let added_exited_idx = 3;
@@ -497,24 +589,24 @@ async fn tampering_omit_exited_lido_validator() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
 }
 
 // this one is currently impossible as the base state (at test_utils::DEPLOY_SLOT)
-// had no validators in "deposited, but not active" state
+// had no validators in pending state
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
-async fn tampering_omit_activated_lido_validator() -> Result<()> {
+async fn tampering_omit_pending_lido_validator() -> Result<()> {
     Ok(())
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_balance_change_lido_validator_balance() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
         let validator_idx = validator_indices(&beacon_state, &[0], is_lido)[0];
@@ -522,16 +614,16 @@ async fn tampering_balance_change_lido_validator_balance() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_balance_change_multi_lido_validator_balance() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
         let _adjust_idxs = validator_indices(&beacon_state, &[0, 1, 3], is_lido);
@@ -541,16 +633,16 @@ async fn tampering_balance_change_multi_lido_validator_balance() -> Result<()> {
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
 }
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn tampering_balance_change_lido_validator_balance_cancel_out() -> Result<()> {
-    let bs_reader = BeaconStateReaderEnum::new_from_env(&test_utils::NETWORK);
-    let mut executor = TestExecutor::new(&bs_reader);
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
     let target_slot = executor.get_target_slot().await?;
-    executor.set_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
+    executor.set_bs_mutator(StateId::Slot(target_slot), MODIFY_BEACON_BLOCK_HASH, |beacon_state| {
         let mut new_bs = beacon_state.clone();
 
         let indices_to_adjust = validator_indices(&beacon_state, &[1, 3], is_lido);
@@ -566,5 +658,55 @@ async fn tampering_balance_change_lido_validator_balance_cancel_out() -> Result<
         new_bs
     });
 
-    executor.run_test().await
+    let result = executor.run_test(target_slot).await;
+    executor.assert_rejected(result)
+}
+
+#[ignore]
+#[tokio::test(flavor = "multi_thread")]
+async fn tampering_withdrawal_vault_tampered_balance() -> Result<()> {
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
+    let target_slot = executor.get_target_slot().await?;
+    executor.set_withdrawal_vault_mutator(Box::new(|withdrawal_vault_data: WithdrawalVaultData| {
+        let mut tampered_wvd = withdrawal_vault_data.clone();
+        tampered_wvd.balance = tampered_wvd
+            .balance
+            .saturating_add(alloy_primitives::U256::from(10000000));
+        tampered_wvd
+    }));
+    let result = executor.run_test(target_slot).await;
+    executor.assert_failed_proof(result)
+}
+
+#[ignore]
+#[tokio::test(flavor = "multi_thread")]
+async fn tampering_withdrawal_vault_tampered_proof() -> Result<()> {
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
+    let target_slot = executor.get_target_slot().await?;
+    let other_slot = target_slot - 100;
+
+    let other_slot_wv_data = executor.get_balance_proof(&StateId::Slot(other_slot)).await?;
+
+    executor.set_withdrawal_vault_mutator(Box::new(move |wvd| {
+        let mut tampered_wvd = wvd.clone();
+        let other_account_proof = other_slot_wv_data.account_proof.clone();
+        tampered_wvd.account_proof = other_account_proof;
+        tampered_wvd
+    }));
+    let result = executor.run_test(target_slot).await;
+    executor.assert_failed_proof(result)
+}
+
+#[ignore]
+#[tokio::test(flavor = "multi_thread")]
+async fn tampering_withdrawal_vault_different_slot() -> Result<()> {
+    let mut executor = TestExecutor::new(&test_utils::NETWORK).await?;
+    let target_slot = executor.get_target_slot().await?;
+    let other_slot = target_slot - 100;
+
+    let other_slot_wv_data = executor.get_balance_proof(&StateId::Slot(other_slot)).await?;
+
+    executor.set_withdrawal_vault_mutator(Box::new(move |_wvd| other_slot_wv_data.clone()));
+    let result = executor.run_test(target_slot).await;
+    executor.assert_failed_proof(result)
 }

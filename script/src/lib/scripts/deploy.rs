@@ -9,6 +9,7 @@ use alloy_primitives::Address;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
 
+use std::sync::Arc;
 use std::{
     path::{Path, PathBuf},
     process::Command,
@@ -48,6 +49,7 @@ pub fn prepare_deploy_params(
         verifier: network_config.verifier,
         vkey,
         withdrawal_credentials: lido_withdrawal_credentials.to_fixed_bytes(),
+        withdrawal_vault_address: network_config.lido_withdrwawal_vault_address,
         genesis_timestamp: network_config.genesis_block_timestamp,
         initial_validator_state: LidoValidatorStateRust {
             slot: lido_validator_state.slot,
@@ -133,7 +135,7 @@ pub async fn run(
 
     log::info!("Deploying contract");
     log::debug!("Deploying as {}", hex::encode(provider.default_signer_address()));
-    let deployed = Sp1LidoAccountingReportContractWrapper::deploy(provider, &deploy_params)
+    let deployed = Sp1LidoAccountingReportContractWrapper::deploy(Arc::new(provider), &deploy_params)
         .await
         // .map_err(|e| anyhow::anyhow!("Failed to deploy {:?}", e))?;
         .expect("Failed to deploy");

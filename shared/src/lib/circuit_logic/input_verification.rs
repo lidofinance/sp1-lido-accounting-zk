@@ -1,15 +1,21 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
+use alloy_primitives::keccak256;
+use alloy_rlp::Decodable;
+use eth_trie::{EthTrie, MemoryDB, Trie};
 use rs_merkle::{algorithms::Sha256, MerkleProof};
 use tree_hash::TreeHash;
 
 use crate::{
-    eth_consensus_layer::{Hash256, Validator},
+    eth_consensus_layer::{
+        BeaconState, BeaconStateFields, ExecutionPayloadHeader, ExecutionPayloadHeaderFields, Hash256, Validator,
+    },
+    eth_execution_layer::EthAccountRlpValue,
     eth_spec,
     hashing::{self, HashHelper, HashHelperImpl},
-    io::program_io::ProgramInput,
+    io::program_io::{ProgramInput, WithdrawalVaultData},
     lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex},
-    merkle_proof::{self, FieldProof, MerkleTreeFieldLeaves},
+    merkle_proof::{self, FieldProof, MerkleTreeFieldLeaves, StaticFieldProof},
     util::{u64_to_usize, usize_to_u64},
 };
 
@@ -180,9 +186,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         // Step 1: confirm validators and balances hashes are included into beacon_state
         self.cycle_tracker
             .start_span(&format!("{vals_and_bals_prefix}.inclusion_proof"));
-        let bs_indices = beacon_state
-            .get_leafs_indices(["validators", "balances"])
-            .expect("Failed to get leaf indices");
+        let bs_indices = BeaconState::get_leafs_indices([BeaconStateFields::validators, BeaconStateFields::balances]);
 
         let vals_and_bals_multiproof_leaves = [
             beacon_state.validators.to_fixed_bytes(),
@@ -272,9 +276,62 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
 
             log::info!("Pending deposits was empty in the last run");
         }
-
         self.cycle_tracker
             .end_span(&format!("{vals_and_bals_prefix}.validator_inclusion_proofs"));
+
+        // Step 4: Verify withdrawal vault input
+        self.cycle_tracker.start_span("prove_input.widthrawal_vault");
+        // Step 4.1: Verify execution payload header
+        self.verify_execution_payload_header(input, beacon_state);
+
+        self.cycle_tracker
+            .start_span("prove_input.widthrawal_vault.balance_proof");
+        self.verify_account_balance_proof(
+            input.latest_execution_header_data.state_root,
+            &input.withdrawal_vault_data,
+        );
+        self.cycle_tracker
+            .end_span("prove_input.widthrawal_vault.balance_proof");
+        self.cycle_tracker.end_span("prove_input.widthrawal_vault");
+    }
+
+    fn verify_execution_payload_header(
+        &self,
+        input: &ProgramInput,
+        beacon_state: &crate::eth_consensus_layer::BeaconStatePrecomputedHashes,
+    ) {
+        self.cycle_tracker
+            .start_span("prove_input.widthrawal_vault.latest_execution_header");
+
+        let indices = ExecutionPayloadHeader::get_leafs_indices([ExecutionPayloadHeaderFields::state_root]);
+        let proof =
+            merkle_proof::serde::deserialize_proof(&input.latest_execution_header_data.state_root_inclusion_proof)
+                .expect("Failed to deserialize execution payload header proof");
+        let hashes: Vec<merkle_proof::RsMerkleHash> =
+            vec![input.latest_execution_header_data.state_root.to_fixed_bytes()];
+        ExecutionPayloadHeader::verify(
+            &proof,
+            indices.as_slice(),
+            &hashes,
+            &beacon_state.latest_execution_payload_header,
+        )
+        .expect("Failed to verify BeaconState.execution_payload_header.state_root inclusion proof");
+        self.cycle_tracker
+            .end_span("prove_input.widthrawal_vault.latest_execution_header");
+    }
+
+    fn verify_account_balance_proof(&self, expected_root: Hash256, withdrawal_vault_data: &WithdrawalVaultData) {
+        let key = keccak256(withdrawal_vault_data.vault_address);
+        let trie = EthTrie::new(Arc::new(MemoryDB::new(true)));
+        let proof = withdrawal_vault_data.account_proof.clone();
+        let found = trie
+            .verify_proof(expected_root.to_fixed_bytes().into(), key.as_slice(), proof)
+            .unwrap_or_else(|_| panic!("Failed verifying account balance proof for {}", key));
+        let value = found.unwrap_or_else(|| panic!("Key {} not found in the accound patricia tree", key));
+        let decoded = EthAccountRlpValue::decode(&mut value.as_slice())
+            .unwrap_or_else(|e| panic!("Could not decode Account RLP encoding from tree: {:?}", e));
+
+        assert_eq!(withdrawal_vault_data.balance, decoded.balance);
     }
 }
 
@@ -343,7 +400,7 @@ mod test {
         let cycle_tracker = NoopCycleTracker {};
         let input_verifier = InputVerifier::new(&cycle_tracker);
 
-        let proof = validator_variable_list.get_field_multiproof(target_indices.as_slice());
+        let proof = validator_variable_list.get_members_multiproof(target_indices.as_slice());
 
         input_verifier.verify_validator_inclusion_proof(
             "",

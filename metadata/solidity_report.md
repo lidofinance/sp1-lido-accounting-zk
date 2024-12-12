@@ -49,9 +49,9 @@ Source Units in Scope: **`2`** (**100%**)
 
 | Type | File   | Logic Contracts | Interfaces | Lines | nLines | nSLOC | Comment Lines | Complex. Score | Capabilities |
 | ---- | ------ | --------------- | ---------- | ----- | ------ | ----- | ------------- | -------------- | ------------ | 
-| 🔍 | ISecondOpinionOracle.sol | **** | 1 | 12 | 5 | 3 | 1 | 3 | **** |
-| 📝 | Sp1LidoAccountingReportContract.sol | 1 | **** | 277 | 261 | 168 | 49 | 79 | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
-| 📝🔍 | **Totals** | **1** | **1** | **289**  | **266** | **171** | **50** | **82** | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 🔍 | contracts/src/ISecondOpinionOracle.sol | **** | 1 | 12 | 5 | 3 | 1 | 3 | **** |
+| 📝 | contracts/src/Sp1LidoAccountingReportContract.sol | 1 | **** | 303 | 287 | 185 | 54 | 84 | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 📝🔍 | **Totals** | **1** | **1** | **315**  | **292** | **188** | **55** | **87** | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
 
 <sub>
 Legend: <a onclick="toggleVisibility('table-legend', this)">[➕]</a>
@@ -139,7 +139,7 @@ The analysis finished with **`0`** errors and **`0`** duplicate files.
 
 #### <span id=t-inline-documentation>Inline Documentation</span>
 
-- **Comment-to-Source Ratio:** On average there are`3.88` code lines per comment (lower=better).
+- **Comment-to-Source Ratio:** On average there are`3.84` code lines per comment (lower=better).
 - **ToDo's:** `0` 
 
 #### <span id=t-components>Components</span>
@@ -164,7 +164,7 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 | Total      | 🌐Public  |
 | ---------- | --------- |
-| 10  | 6 |
+| 11  | 7 |
 
 #### <span id=t-capabilities>Capabilities</span>
 
@@ -243,8 +243,8 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 |  File Name  |  SHA-1 Hash  |
 |-------------|--------------|
-| ISecondOpinionOracle.sol | 6961c6873aa91aa2e0e2f2afd28ccfc36cc0002c |
-| Sp1LidoAccountingReportContract.sol | 1358a630d3f1b8d237133bb5fc9ed33e32448c7a |
+| contracts/src/ISecondOpinionOracle.sol | 6961c6873aa91aa2e0e2f2afd28ccfc36cc0002c |
+| contracts/src/Sp1LidoAccountingReportContract.sol | 1af6111ad16857ab6a30d91dafb5359fd5dde42e |
 
 
  Contracts Description Table

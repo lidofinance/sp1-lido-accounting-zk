@@ -8,9 +8,12 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
     BeaconStateReader, StateId,
 };
-use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves, RsMerkleHash};
 use sp1_lido_accounting_zk_shared::{
-    eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256},
+    eth_consensus_layer::BeaconBlockHeaderFields,
+    merkle_proof::{FieldProof, MerkleTreeFieldLeaves, RsMerkleHash},
+};
+use sp1_lido_accounting_zk_shared::{
+    eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStateFields, Hash256},
     io::eth_io::BeaconChainSlot,
 };
 
@@ -269,11 +272,9 @@ async fn main() {
 
     // Step 4: get and verify multiproof for validators+balances fields in BeaconState
     // Step 4.1: get multiproof
-    let bs_indices = beacon_state
-        .get_leafs_indices(["validators", "balances"])
-        .expect("Failed to get leaf indices");
+    let bs_indices = BeaconState::get_leafs_indices([BeaconStateFields::validators, BeaconStateFields::balances]);
 
-    let bs_proof = beacon_state.get_field_multiproof(&bs_indices);
+    let bs_proof = beacon_state.get_members_multiproof(&bs_indices);
     log::debug!("BeaconState proof hashes: {:?}", bs_proof.proof_hashes_hex());
 
     // Step 4.2: verify multiproof
@@ -281,7 +282,7 @@ async fn main() {
         beacon_state.validators.tree_hash_root().to_fixed_bytes(),
         beacon_state.balances.tree_hash_root().to_fixed_bytes(),
     ];
-    let verification_result = beacon_state.verify(&bs_proof, &bs_indices, bs_leaves.as_slice());
+    let verification_result = beacon_state.verify_instance(&bs_proof, &bs_indices, bs_leaves.as_slice());
     match verification_result {
         Ok(()) => log::info!("BeaconState Verification succeeded"),
         Err(error) => log::error!("Verification failed: {:?}", error),
@@ -289,16 +290,14 @@ async fn main() {
 
     // Step 5: get and verify multiproof for beacon state hash in BeaconBlockHeader
     // Step 5.1: get multiproof
-    let bh_indices = beacon_block_header
-        .get_leafs_indices(["state_root"])
-        .expect("Failed to get leaf indices");
+    let bh_indices = BeaconBlockHeader::get_leafs_indices([BeaconBlockHeaderFields::state_root]);
 
-    let bh_proof = beacon_block_header.get_field_multiproof(&bh_indices);
+    let bh_proof = beacon_block_header.get_members_multiproof(&bh_indices);
     log::debug!("BeaconBlockHeader proof hashes: {:?}", bh_proof.proof_hashes_hex());
 
     // Step 5.2: verify multiproof
     let bh_leaves = vec![bs_merkle.to_fixed_bytes()];
-    let verification_result = beacon_block_header.verify(&bh_proof, &bh_indices, bh_leaves.as_slice());
+    let verification_result = beacon_block_header.verify_instance(&bh_proof, &bh_indices, bh_leaves.as_slice());
     match verification_result {
         Ok(()) => log::info!("BeaconBlockHeader Verification succeeded"),
         Err(error) => log::error!("Verification failed: {:?}", error),

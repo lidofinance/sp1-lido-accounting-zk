@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    eth_consensus_layer::{Balances, BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Hash256},
+    eth_consensus_layer::{
+        Address, Balances, BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Hash256,
+    },
     io::eth_io::{BeaconChainSlot, ReferenceSlot},
     lido::{LidoValidatorState, ValidatorDelta},
 };
@@ -13,9 +15,15 @@ pub struct ProgramInput {
     pub beacon_block_hash: Hash256,
     pub beacon_block_header: BeaconBlockHeaderPrecomputedHashes,
     pub beacon_state: BeaconStatePrecomputedHashes,
+    // Technically this could've been done by passing the execution payload header as a full structure
+    // on beacon state (instead of a precomputed hash), but this requires more significant refactoring
+    // and makes code handling proving beacon state somewhat harder. So passing one additional field we
+    // actually need + inclusion proof as a separate field is a simpler approach.
+    pub latest_execution_header_data: ExecutionPayloadHeaderData,
     pub validators_and_balances: ValsAndBals,
     pub old_lido_validator_state: LidoValidatorState,
     pub new_lido_validator_state_hash: Hash256,
+    pub withdrawal_vault_data: WithdrawalVaultData,
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
@@ -34,4 +42,17 @@ pub struct ValsAndBals {
     pub validators_delta: ValidatorDelta,
     pub added_validators_inclusion_proof: Vec<u8>,
     pub changed_validators_inclusion_proof: Vec<u8>,
+}
+
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct WithdrawalVaultData {
+    pub account_proof: Vec<Vec<u8>>,
+    pub balance: alloy_primitives::U256,
+    pub vault_address: Address,
+}
+
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionPayloadHeaderData {
+    pub state_root: Hash256,
+    pub state_root_inclusion_proof: Vec<u8>,
 }
