@@ -1,7 +1,7 @@
 {
   "network": "anvil-mainnet",
   "verifier": "0xd2832cf1fc8ba210ffabf62db9a8781153131d16",
-  "vkey": "0x00cd9342377cdc9cfc13ec5c1ac577c1fb8e81e584323d33f794f29dbfcdc88c",
+  "vkey": "0x0093285fee6d0da6c29c4bbe68f500a388eed87115952c894eaf69b13c6476e8",
   "withdrawal_credentials": "0x010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
   "withdrawal_vault_address": "0xb9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
   "genesis_timestamp": 1606824023,
