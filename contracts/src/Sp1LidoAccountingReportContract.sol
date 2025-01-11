@@ -149,10 +149,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         ReportMetadata memory metadata = public_values.metadata;
         _verify_reference_and_bc_slot(report.reference_slot, metadata.bc_slot);
 
-        // Check the report was not previously set
-        Report storage report_at_slot = _reports[report.reference_slot];
-        require(report_at_slot.reference_slot == 0, VerificationError("Report was already accepted for a given slot"));
-
         require(
             report.lido_withdrawal_vault_balance == metadata.withdrawal_vault_data.balance,
             VerificationError("Withdrawal vault balance mismatch between report and metadata")
@@ -203,8 +199,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
             );
         }
     }
-
-    
 
     function _verify_public_values(PublicValues memory publicValues) internal view {
         ReportMetadata memory metadata = publicValues.metadata;
