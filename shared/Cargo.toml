@@ -17,7 +17,7 @@ path = "src/lib/lib.rs"
 alloy-primitives.workspace = true
 alloy-rlp.workspace = true
 alloy-sol-types.workspace = true
-derivative.workspace = true
+derive_more.workspace = true
 ethereum_hashing.workspace = true
 ethereum_serde_utils.workspace = true
 ethereum_ssz_derive.workspace = true
@@ -42,3 +42,4 @@ arbitrary.workspace = true
 hex-literal.workspace = true
 proptest.workspace = true
 proptest-arbitrary-interop.workspace = true
+alloy-primitives = { version = "0.8.15", features = ["arbitrary", "serde", "rlp"] }

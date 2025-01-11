@@ -1,4 +1,4 @@
-use alloy::node_bindings::{anvil, Anvil, AnvilInstance};
+use alloy::node_bindings::{Anvil, AnvilInstance};
 use alloy_sol_types::SolType;
 use anyhow::Context;
 use sp1_lido_accounting_scripts::{
@@ -37,8 +37,8 @@ lazy_static! {
 enum ExecutorError {
     #[error("Contract rejected: {0:#?}")]
     Contract(eth_client::Error),
-    #[error("Failed o launch anvil: {0:#?}")]
-    AnvilLaunch(anvil::AnvilError),
+    #[error("Failed to launch anvil: {0:#?}")]
+    AnvilLaunch(alloy::node_bindings::NodeError),
     #[error("Eyre error: {0:#?}")]
     Eyre(eyre::Error),
     #[error("Anyhow error: {0:#?}")]
@@ -54,8 +54,8 @@ impl From<eth_client::Error> for ExecutorError {
     }
 }
 
-impl From<anvil::AnvilError> for ExecutorError {
-    fn from(value: anvil::AnvilError) -> Self {
+impl From<alloy::node_bindings::NodeError> for ExecutorError {
+    fn from(value: alloy::node_bindings::NodeError) -> Self {
         ExecutorError::AnvilLaunch(value)
     }
 }

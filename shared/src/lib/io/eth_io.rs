@@ -3,9 +3,9 @@ use std::{
     ops::{Add, Sub},
 };
 
+use alloy_primitives::Address;
 use alloy_sol_types::sol;
-use derivative::Derivative;
-use ethereum_types::Address;
+use derive_more::Debug;
 use serde::{Deserialize, Serialize};
 use tree_hash::TreeHash;
 use typenum::Unsigned;
@@ -18,16 +18,7 @@ use crate::{
 
 use super::program_io::WithdrawalVaultData;
 
-mod derivatives {
-    use super::*;
-    pub fn slice_as_hash(val: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(val))
-    }
-}
-
 pub mod conversions {
-    use crate::eth_consensus_layer::Address;
-
     pub fn u64_to_uint256(value: u64) -> alloy_primitives::U256 {
         value
             .try_into()
@@ -38,15 +29,6 @@ pub mod conversions {
         value
             .try_into()
             .unwrap_or_else(|_| panic!("Failed to convert {} to u64", value))
-    }
-
-    pub fn alloy_address_to_h160(value: alloy_primitives::Address) -> Address {
-        let addr_bytes: [u8; 20] = value.into();
-        addr_bytes.into()
-    }
-
-    pub fn h160_to_alloy_address(value: Address) -> alloy_primitives::Address {
-        value.to_fixed_bytes().into()
     }
 }
 
@@ -264,12 +246,11 @@ impl From<LidoValidatorStateRust> for LidoValidatorStateSolidity {
     }
 }
 
-#[derive(Derivative, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[derivative(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct LidoValidatorStateRust {
     pub slot: BeaconChainSlot,
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
-    #[derivative(Debug(format_with = "derivatives::slice_as_hash"))]
+    #[debug("0x{:?}", hex::encode(merkle_root))]
     pub merkle_root: [u8; 32],
 }
 
@@ -290,7 +271,7 @@ pub struct LidoWithdrawalVaultDataRust {
 impl From<LidoWithdrawalVaultDataSolidity> for LidoWithdrawalVaultDataRust {
     fn from(value: LidoWithdrawalVaultDataSolidity) -> Self {
         Self {
-            vault_address: conversions::alloy_address_to_h160(value.vault_address),
+            vault_address: value.vault_address,
             balance: value.balance,
         }
     }
@@ -299,7 +280,7 @@ impl From<LidoWithdrawalVaultDataSolidity> for LidoWithdrawalVaultDataRust {
 impl From<LidoWithdrawalVaultDataRust> for LidoWithdrawalVaultDataSolidity {
     fn from(value: LidoWithdrawalVaultDataRust) -> Self {
         Self {
-            vault_address: conversions::h160_to_alloy_address(value.vault_address),
+            vault_address: value.vault_address,
             balance: value.balance,
         }
     }
@@ -327,16 +308,15 @@ sol! {
     }
 }
 
-#[derive(Derivative, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[derivative(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ReportMetadataRust {
     pub bc_slot: BeaconChainSlot,
     pub epoch: u64,
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
-    #[derivative(Debug(format_with = "derivatives::slice_as_hash"))]
+    #[debug("0x{:?}", hex::encode(lido_withdrawal_credentials))]
     pub lido_withdrawal_credentials: [u8; 32],
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
-    #[derivative(Debug(format_with = "derivatives::slice_as_hash"))]
+    #[debug("0x{:?}", hex::encode(beacon_block_hash))]
     pub beacon_block_hash: [u8; 32],
     pub state_for_previous_report: LidoValidatorStateRust,
     pub new_state: LidoValidatorStateRust,

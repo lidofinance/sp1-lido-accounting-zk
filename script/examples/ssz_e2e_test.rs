@@ -279,8 +279,8 @@ async fn main() {
 
     // Step 4.2: verify multiproof
     let bs_leaves: Vec<RsMerkleHash> = vec![
-        beacon_state.validators.tree_hash_root().to_fixed_bytes(),
-        beacon_state.balances.tree_hash_root().to_fixed_bytes(),
+        beacon_state.validators.tree_hash_root().0,
+        beacon_state.balances.tree_hash_root().0,
     ];
     let verification_result = beacon_state.verify_instance(&bs_proof, &bs_indices, bs_leaves.as_slice());
     match verification_result {
@@ -296,7 +296,7 @@ async fn main() {
     log::debug!("BeaconBlockHeader proof hashes: {:?}", bh_proof.proof_hashes_hex());
 
     // Step 5.2: verify multiproof
-    let bh_leaves = vec![bs_merkle.to_fixed_bytes()];
+    let bh_leaves = vec![bs_merkle.0];
     let verification_result = beacon_block_header.verify_instance(&bh_proof, &bh_indices, bh_leaves.as_slice());
     match verification_result {
         Ok(()) => log::info!("BeaconBlockHeader Verification succeeded"),

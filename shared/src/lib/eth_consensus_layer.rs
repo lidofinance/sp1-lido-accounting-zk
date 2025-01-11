@@ -1,9 +1,7 @@
-use core::fmt;
-
 use crate::merkle_proof::MerkleTreeFieldLeaves;
 
-use derivative::Derivative;
-use ethereum_types::{H160, H256, U256};
+use alloy_primitives::U256;
+use derive_more::Debug;
 use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive::MerkleTreeFieldLeaves;
 use ssz_derive::{Decode, Encode};
@@ -12,9 +10,9 @@ pub use ssz_types::{typenum, typenum::Unsigned, BitList, BitVector, FixedVector,
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
-pub type Address = H160;
+pub type Address = alloy_primitives::Address;
 pub type CommitteeIndex = u64;
-pub type Hash256 = H256;
+pub type Hash256 = alloy_primitives::B256;
 pub type Root = Hash256;
 pub type BlsPublicKey = FixedVector<u8, typenum::U48>;
 pub type ForkVersion = FixedVector<u8, typenum::U4>;
@@ -29,13 +27,6 @@ pub type ValidatorIndex = u64;
 
 // Re-export
 pub type SlotsPerEpoch = eth_spec::SlotsPerEpoch;
-
-mod derivatives {
-    use super::*;
-    pub fn fixed_vector_as_hex<N: typenum::Unsigned>(val: &FixedVector<u8, N>, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(val.to_vec()))
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct Fork {
@@ -67,10 +58,9 @@ pub struct Eth1Data {
     pub block_hash: Hash256,
 }
 
-#[derive(Derivative, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
-#[derivative(Debug)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct Validator {
-    #[derivative(Debug(format_with = "derivatives::fixed_vector_as_hex"))]
+    #[debug("0x{:?}", hex::encode(pubkey.to_vec()))]
     pub pubkey: BlsPublicKey,
     pub withdrawal_credentials: Hash256,
     // #[serde(with = "serde_utils::quoted_u64")]
@@ -109,14 +99,13 @@ pub struct SyncCommittee {
     aggregate_pubkey: BlsPublicKey,
 }
 
-#[derive(Derivative, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]
-#[derivative(Debug)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]
 pub struct ExecutionPayloadHeader {
     pub parent_hash: Hash256,
     pub fee_recipient: Address,
     pub state_root: Root,
     pub receipts_root: Root,
-    #[derivative(Debug(format_with = "derivatives::fixed_vector_as_hex"))]
+    #[debug("0x{:?}", hex::encode(logs_bloom.to_vec()))]
     pub logs_bloom: FixedVector<u8, eth_spec::BytesPerLogBloom>,
     pub prev_randao: Hash256,
     // #[serde(with = "serde_utils::quoted_u64")]

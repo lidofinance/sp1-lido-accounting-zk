@@ -48,12 +48,12 @@ pub fn prepare_deploy_params(
         network: network_name.clone(),
         verifier: network_config.verifier,
         vkey,
-        withdrawal_credentials: lido_withdrawal_credentials.to_fixed_bytes(),
+        withdrawal_credentials: lido_withdrawal_credentials.0,
         withdrawal_vault_address: network_config.lido_withdrwawal_vault_address,
         genesis_timestamp: network_config.genesis_block_timestamp,
         initial_validator_state: LidoValidatorStateRust {
             slot: lido_validator_state.slot,
-            merkle_root: lido_validator_state.tree_hash_root().to_fixed_bytes(),
+            merkle_root: lido_validator_state.tree_hash_root().0,
         },
     }
 }

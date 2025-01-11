@@ -3,7 +3,7 @@ use typenum::Unsigned;
 
 use tree_hash::TreeHash;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use simple_logger::SimpleLogger;
 use sp1_lido_accounting_scripts::beacon_state_reader::reqwest::{BeaconChainRPC, CachedReqwestBeaconStateReader};
 use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};

@@ -11,7 +11,6 @@ use alloy::transports::Transport;
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::io::eth_io;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
 
@@ -223,7 +222,7 @@ where
             {
                 Error::Rejection(contract_error)
             } else if error_payload.message.contains("execution reverted") {
-                Error::CustomRejection(error_payload.message.clone())
+                Error::CustomRejection(error_payload.message.to_string())
             } else {
                 Error::AlloyError(error)
             }
@@ -262,24 +261,24 @@ where
             hex::encode(address),
             hex::encode(block_hash)
         );
-        let eth_address = eth_io::conversions::alloy_address_to_h160(address);
+        let eth_address = address;
 
-        let block_hash: RpcBlockHash = RpcBlockHash::from_hash(block_hash.to_fixed_bytes().into(), Some(true));
-        let request = self
+        let block_hash: RpcBlockHash = RpcBlockHash::from_hash(block_hash.0.into(), Some(true));
+        let response = self
             .provider
             .get_proof(address, vec![])
             .block_id(BlockId::Hash(block_hash))
             // .block_id(BlockId::Number(alloy::eips::BlockNumberOrTag::Latest))
-            .map_resp(|resp| {
+            .await
+            .map(|resp| {
                 let proof_as_vecs = resp.account_proof.iter().map(|val| val.to_vec()).collect();
                 WithdrawalVaultData {
                     vault_address: eth_address,
                     balance: resp.balance,
                     account_proof: proof_as_vecs,
                 }
-            });
-
-        let response = request.await.map_err(map_rpc_error)?;
+            })
+            .map_err(map_rpc_error)?;
 
         Ok(response)
     }
@@ -298,17 +297,23 @@ pub enum ProviderError {
 pub type DefaultProvider = alloy::providers::fillers::FillProvider<
     alloy::providers::fillers::JoinFill<
         alloy::providers::fillers::JoinFill<
+            alloy::providers::Identity,
             alloy::providers::fillers::JoinFill<
-                alloy::providers::fillers::JoinFill<alloy::providers::Identity, alloy::providers::fillers::GasFiller>,
-                alloy::providers::fillers::NonceFiller,
+                alloy::providers::fillers::GasFiller,
+                alloy::providers::fillers::JoinFill<
+                    alloy::providers::fillers::BlobGasFiller,
+                    alloy::providers::fillers::JoinFill<
+                        alloy::providers::fillers::NonceFiller,
+                        alloy::providers::fillers::ChainIdFiller,
+                    >,
+                >,
             >,
-            alloy::providers::fillers::ChainIdFiller,
         >,
         alloy::providers::fillers::WalletFiller<EthereumWallet>,
     >,
     alloy::providers::RootProvider<alloy::transports::http::Http<reqwest::Client>>,
     alloy::transports::http::Http<reqwest::Client>,
-    alloy::network::Ethereum,
+    Ethereum,
 >;
 
 pub type Contract =

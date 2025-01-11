@@ -1,14 +1,14 @@
 use hex;
+use itertools::Itertools;
 use rs_merkle::{algorithms::Sha256, proof_serializers, MerkleProof, MerkleTree};
 use std::any::type_name;
 
 use ssz_types::VariableList;
 use typenum::Unsigned;
 
+use crate::eth_consensus_layer::Hash256;
 use crate::hashing;
-use ethereum_types::H256 as Hash256;
 
-use itertools::Itertools;
 use tree_hash::TreeHash;
 
 type LeafIndex = usize;
@@ -22,7 +22,7 @@ pub enum Error {
 }
 
 const ZEROHASH: [u8; 32] = [0u8; 32];
-const ZEROHASH_H256: Hash256 = Hash256::zero();
+const ZEROHASH_H256: Hash256 = Hash256::ZERO;
 
 pub trait MerkleTreeFieldLeaves {
     const FIELD_COUNT: usize;
@@ -189,10 +189,7 @@ where
 {
     fn get_members_multiproof(&self, indices: &[LeafIndex]) -> MerkleProof<Sha256> {
         let leaves_as_h256 = self.tree_field_leaves();
-        let leaves_vec: Vec<RsMerkleHash> = leaves_as_h256
-            .iter()
-            .map(|val| val.as_fixed_bytes().to_owned())
-            .collect();
+        let leaves_vec: Vec<RsMerkleHash> = leaves_as_h256.iter().map(|val| val.0).collect();
 
         let merkle_tree = MerkleTree::<Sha256>::from_leaves(leaves_vec.as_slice());
 
@@ -231,7 +228,7 @@ where
         assert!(pad_to >= self.len(), "Overflow finding the padding size");
         let leaves: Vec<RsMerkleHash> = self
             .iter()
-            .map(|val| val.tree_hash_root().to_fixed_bytes())
+            .map(|val| val.tree_hash_root().0)
             .pad_using(pad_to, |_i| ZEROHASH)
             .collect();
         assert!(leaves.len().is_power_of_two(), "Number of leaves must be a power of 2");
@@ -295,15 +292,12 @@ mod test {
 
     #[test]
     fn struct_round_trip() {
-        let guinea_pig = GuineaPig::new(1, 2, Hash256::zero());
+        let guinea_pig = GuineaPig::new(1, 2, Hash256::ZERO);
 
         let indices = GuineaPig::get_leafs_indices([GuineaPigFields::uint1, GuineaPigFields::hash]);
 
         let proof = guinea_pig.get_members_multiproof(&indices);
-        let leafs = [
-            guinea_pig.uint1.tree_hash_root().to_fixed_bytes(),
-            guinea_pig.hash.tree_hash_root().to_fixed_bytes(),
-        ];
+        let leafs = [guinea_pig.uint1.tree_hash_root().0, guinea_pig.hash.tree_hash_root().0];
         guinea_pig
             .verify_instance(&proof, &indices, leafs.as_slice())
             .expect("Verification failed")
@@ -313,7 +307,7 @@ mod test {
         let list: VariableList<GuineaPig, N> = input.to_vec().into();
         let target_hashes: Vec<RsMerkleHash> = target_indices
             .iter()
-            .map(|index| input[*index].tree_hash_root().to_fixed_bytes())
+            .map(|index| input[*index].tree_hash_root().0)
             .collect();
 
         let proof = list.get_members_multiproof(target_indices);
@@ -324,7 +318,7 @@ mod test {
     #[test]
     fn variable_list_round_trip() {
         let guinea_pigs = vec![
-            GuineaPig::new(1, 10, Hash256::zero()),
+            GuineaPig::new(1, 10, Hash256::ZERO),
             GuineaPig::new(2, 20, Hash256::random()),
             GuineaPig::new(3, 30, Hash256::random()),
             GuineaPig::new(4, 40, Hash256::random()),
@@ -352,7 +346,7 @@ mod test {
 
         let target_hashes: Vec<RsMerkleHash> = target_indices
             .iter()
-            .map(|index| input[*index].tree_hash_root().to_fixed_bytes())
+            .map(|index| input[*index].tree_hash_root().0)
             .collect();
 
         let proof = list.get_members_multiproof(target_indices);
@@ -372,7 +366,7 @@ mod test {
     #[test]
     fn variable_list_verify_against_hash() {
         let guinea_pigs = vec![
-            GuineaPig::new(1, 10, Hash256::zero()),
+            GuineaPig::new(1, 10, Hash256::ZERO),
             GuineaPig::new(2, 20, Hash256::random()),
             GuineaPig::new(3, 30, Hash256::random()),
             GuineaPig::new(4, 40, Hash256::random()),

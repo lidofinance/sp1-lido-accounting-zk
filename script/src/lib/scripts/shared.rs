@@ -73,15 +73,15 @@ pub fn prepare_program_input(
         metadata: ReportMetadataRust {
             bc_slot: bs.bc_slot(),
             epoch: report.epoch,
-            lido_withdrawal_credentials: lido_withdrawal_credentials.to_fixed_bytes(),
-            beacon_block_hash: beacon_block_hash.to_fixed_bytes(),
+            lido_withdrawal_credentials: lido_withdrawal_credentials.0,
+            beacon_block_hash: beacon_block_hash.0,
             state_for_previous_report: LidoValidatorStateRust {
                 slot: old_validator_state.bc_slot(),
-                merkle_root: old_validator_state.tree_hash_root().to_fixed_bytes(),
+                merkle_root: old_validator_state.tree_hash_root().0,
             },
             new_state: LidoValidatorStateRust {
                 slot: new_validator_state.slot,
-                merkle_root: new_validator_state.tree_hash_root().to_fixed_bytes(),
+                merkle_root: new_validator_state.tree_hash_root().0,
             },
             withdrawal_vault_data: lido_withdrawal_vault_data.clone().into(),
         },

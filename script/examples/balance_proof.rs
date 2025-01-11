@@ -44,7 +44,7 @@ async fn main() {
     let trie = EthTrie::new(Arc::new(MemoryDB::new(true)));
     let found = trie
         .verify_proof(
-            bs.latest_execution_payload_header.state_root.to_fixed_bytes().into(),
+            bs.latest_execution_payload_header.state_root,
             key.as_slice(),
             withdrawal_vault_data.account_proof,
         )

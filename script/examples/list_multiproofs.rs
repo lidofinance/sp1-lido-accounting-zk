@@ -92,7 +92,7 @@ async fn main() {
     log::info!("Validating validators proof");
     let validators_to_prove: Vec<RsMerkleHash> = new_validator_indices
         .iter()
-        .map(|idx| beacon_state2.validators[*idx].tree_hash_root().to_fixed_bytes())
+        .map(|idx| beacon_state2.validators[*idx].tree_hash_root().0)
         .collect();
     beacon_state2
         .validators

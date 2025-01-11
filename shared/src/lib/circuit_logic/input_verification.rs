@@ -68,7 +68,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             .start_span(&format!("{tracker_prefix}.validator_roots"));
         for validator_with_index in validators_with_indices {
             indexes.push(u64_to_usize(validator_with_index.index));
-            hashes.push(validator_with_index.validator.tree_hash_root().to_fixed_bytes());
+            hashes.push(validator_with_index.validator.tree_hash_root().0);
         }
         self.cycle_tracker
             .end_span(&format!("{tracker_prefix}.validator_roots"));
@@ -188,10 +188,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             .start_span(&format!("{vals_and_bals_prefix}.inclusion_proof"));
         let bs_indices = BeaconState::get_leafs_indices([BeaconStateFields::validators, BeaconStateFields::balances]);
 
-        let vals_and_bals_multiproof_leaves = [
-            beacon_state.validators.to_fixed_bytes(),
-            beacon_state.balances.to_fixed_bytes(),
-        ];
+        let vals_and_bals_multiproof_leaves = [beacon_state.validators.0, beacon_state.balances.0];
         beacon_state
             .verify_serialized(
                 &input.validators_and_balances.validators_and_balances_proof,
@@ -307,8 +304,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         let proof =
             merkle_proof::serde::deserialize_proof(&input.latest_execution_header_data.state_root_inclusion_proof)
                 .expect("Failed to deserialize execution payload header proof");
-        let hashes: Vec<merkle_proof::RsMerkleHash> =
-            vec![input.latest_execution_header_data.state_root.to_fixed_bytes()];
+        let hashes: Vec<merkle_proof::RsMerkleHash> = vec![input.latest_execution_header_data.state_root.0];
         ExecutionPayloadHeader::verify(
             &proof,
             indices.as_slice(),
@@ -325,7 +321,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         let trie = EthTrie::new(Arc::new(MemoryDB::new(true)));
         let proof = withdrawal_vault_data.account_proof.clone();
         let found = trie
-            .verify_proof(expected_root.to_fixed_bytes().into(), key.as_slice(), proof)
+            .verify_proof(expected_root.0.into(), key.as_slice(), proof)
             .unwrap_or_else(|_| panic!("Failed verifying account balance proof for {}", key));
         let value = found.unwrap_or_else(|| panic!("Key {} not found in the accound patricia tree", key));
         let decoded = EthAccountRlpValue::decode(&mut value.as_slice())
