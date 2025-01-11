@@ -75,7 +75,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     /// @dev Verification failed
     error VerificationError(string error_message);
 
-    error IllegalActualSlotError(uint256 bc_slot, uint256 reference_slot, string error_message);
+    error IllegalReferenceSlotError(uint256 bc_slot, uint256 bc_slot_timestamp, uint256 reference_slot, uint256 reference_slot_timestamp, string error_message);
 
     constructor(
         address _verifier,
@@ -173,29 +173,38 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     /// * If reference slot had a block, actual slot must be equal to reference slot
     /// * If reference slot did not have a block, actual slot must be the first preceding slot that had a block
     function _verify_reference_and_bc_slot(uint256 reference_slot, uint256 bc_slot) internal view {
-        require(_blockExists(bc_slot), IllegalActualSlotError(bc_slot, reference_slot, "Actual slot is empty"));
+        _require_for_refslot(_blockExists(bc_slot), bc_slot, reference_slot, "Actual slot is empty");
 
         // If actual slot has block and ref_slot == actual slot - no need to check further
         if (reference_slot == bc_slot) {
             return;
         }
 
-        require(
+        _require_for_refslot(
+            bc_slot < reference_slot,
+            bc_slot, reference_slot, "Reference slot must be after actual slot"
+        );
+
+        
+        _require_for_refslot(
+            _slotToTimestamp(reference_slot) <= block.timestamp,
+            bc_slot, reference_slot, "Reference slot must not be in the future"
+        );
+
+        _require_for_refslot(
             !_blockExists(reference_slot),
-            IllegalActualSlotError(
-                bc_slot, reference_slot, "Reference slot has a block, but actual slot != reference slot"
-            )
+            bc_slot, reference_slot, "Reference slot has a block, but actual slot != reference slot"
         );
 
         for (uint256 slot_to_check = reference_slot - 1; slot_to_check > bc_slot; slot_to_check--) {
-            require(
+            _require_for_refslot(
                 !_blockExists(slot_to_check),
-                IllegalActualSlotError(
-                    bc_slot, reference_slot, "Actual slot should be the first preceding non-empty slot before reference"
-                )
+                bc_slot, reference_slot, "Actual slot should be the first preceding non-empty slot before reference"
             );
         }
     }
+
+    
 
     function _verify_public_values(PublicValues memory publicValues) internal view {
         ReportMetadata memory metadata = publicValues.metadata;
@@ -282,6 +291,19 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         } else {
             result = 0;
         }
+    }
+
+    function _require_for_refslot(bool condition, uint256 bc_slot, uint256 refslot, string memory error_message) private view {
+        if (condition) {
+            return;
+        }
+        uint256 bc_slot_timestamp = _slotToTimestamp(bc_slot);
+        uint256 refslot_timestamp = _slotToTimestamp(refslot);
+        revert IllegalReferenceSlotError(
+            bc_slot, bc_slot_timestamp,
+            refslot, refslot_timestamp, 
+            error_message
+        );
     }
 
     function _slotToTimestamp(uint256 slot) internal view returns (uint256) {

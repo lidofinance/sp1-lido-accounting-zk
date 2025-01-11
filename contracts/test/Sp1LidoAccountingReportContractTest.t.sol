@@ -85,21 +85,24 @@ contract Sp1LidoAccountingReportContractTest is Test {
     }
 
     function setBeaconHashSequence(uint256 start_slot, uint256 end_slot, bytes32[] memory hashes) private {
+        console.log(start_slot, end_slot, hashes.length);
+        assert(start_slot + hashes.length == end_slot + 2);
         for (uint256 idx; idx < hashes.length; idx++) {
             uint256 target_slot = start_slot + idx;
             _setHash(target_slot, hashes[idx]);
         }
+        console.log("Warp to slot %d", end_slot+2);
         vm.warp(getSlotTimestamp(end_slot + 2));
     }
 
     function _setHash(uint256 slot, bytes32 expected_hash) private {
         uint256 reportBlockTimestamp = getSlotTimestamp(slot);
         if (expected_hash != 0) {
-            // console.log("Setting block hash for %d", slot);
+            console.log("Setting block hash for %d at time %d", slot, reportBlockTimestamp);
             console.logBytes32(expected_hash);
             vm.mockCall(_contract.BEACON_ROOTS(), abi.encode(reportBlockTimestamp), abi.encode(expected_hash));
         } else {
-            // console.log("Setting block hash call to fail for %d", slot);
+            console.log("Setting block hash call to fail for %d at time %d", slot, reportBlockTimestamp);
             vm.mockCallRevert(_contract.BEACON_ROOTS(), abi.encode(reportBlockTimestamp), "No block");
         }
     }
@@ -154,13 +157,13 @@ contract Sp1LidoAccountingReportContractTest is Test {
         return abi.encodeWithSelector(Sp1LidoAccountingReportContract.VerificationError.selector, message);
     }
 
-    function illegal_bc_slot_error(uint256 bc_slot, uint256 reference_slot, string memory message)
+    function illegal_ref_slot_error(uint256 bc_slot, uint256 ref_slot, string memory message)
         internal
-        pure
+        view
         returns (bytes memory)
     {
         return abi.encodeWithSelector(
-            Sp1LidoAccountingReportContract.IllegalActualSlotError.selector, bc_slot, reference_slot, message
+            Sp1LidoAccountingReportContract.IllegalReferenceSlotError.selector, bc_slot, getSlotTimestamp(bc_slot), ref_slot, getSlotTimestamp(ref_slot), message
         );
     }
 
@@ -366,14 +369,14 @@ contract Sp1LidoAccountingReportContractTest is Test {
             /*bc*/
             SLOT_EXISTED_SENTIEL,
             /*ref*/
-            fixture.metadata.beacon_block_hash
+            fixture.metadata.beacon_block_hash,
+            SLOT_EXISTED_SENTIEL
         );
 
         setBeaconHashSequence(public_values.metadata.bc_slot, public_values.report.reference_slot, hashes);
         vm.expectRevert(
-            illegal_bc_slot_error(
-                public_values.metadata.bc_slot,
-                public_values.report.reference_slot,
+            illegal_ref_slot_error(
+                public_values.metadata.bc_slot, public_values.report.reference_slot,
                 "Reference slot has a block, but actual slot != reference slot"
             )
         );
@@ -390,7 +393,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         bytes memory public_values_encoded = abi.encode(public_values);
 
         bytes32[] memory hashes = _createDyn(
-            /*bc */
+            /*bc*/
             0,
             /* ref */
             0,
@@ -398,7 +401,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         );
         setBeaconHashSequence(public_values.metadata.bc_slot, public_values.report.reference_slot, hashes);
         vm.expectRevert(
-            illegal_bc_slot_error(
+            illegal_ref_slot_error(
                 public_values.metadata.bc_slot, public_values.report.reference_slot, "Actual slot is empty"
             )
         );
@@ -423,8 +426,6 @@ contract Sp1LidoAccountingReportContractTest is Test {
             0,
             fixture.metadata.beacon_block_hash
         );
-
-        console.log("Ref_slot %d, bc_slot %d", public_values.report.reference_slot, public_values.metadata.bc_slot);
 
         setBeaconHashSequence(public_values.metadata.bc_slot, public_values.report.reference_slot, hashes);
         Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
@@ -455,10 +456,70 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
         setBeaconHashSequence(public_values.metadata.bc_slot, public_values.report.reference_slot, hashes);
         vm.expectRevert(
-            illegal_bc_slot_error(
-                public_values.metadata.bc_slot,
-                public_values.report.reference_slot,
+            illegal_ref_slot_error(
+                public_values.metadata.bc_slot, public_values.report.reference_slot,
                 "Actual slot should be the first preceding non-empty slot before reference"
+            )
+        );
+        _contract.submitReportData(fixture.proof, public_values_encoded);
+    }
+
+    function test_refSlotLessThanActualSlot_reverts() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+
+        verifierPasses();
+        Sp1LidoAccountingReportContract.PublicValues memory public_values =
+            abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
+        public_values.report.reference_slot = public_values.metadata.bc_slot - 2;
+        bytes32[] memory hashes = _createDyn(
+            /*ref*/
+            0,
+            0,
+            /*bc*/
+            SLOT_EXISTED_SENTIEL,
+            fixture.metadata.beacon_block_hash
+        );
+
+        setBeaconHashSequence(public_values.report.reference_slot, public_values.metadata.bc_slot, hashes);
+
+        bytes memory public_values_encoded = abi.encode(public_values);
+        Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
+
+        vm.expectRevert(
+            illegal_ref_slot_error(
+                public_values.metadata.bc_slot, public_values.report.reference_slot,
+                "Reference slot must be after actual slot"
+            )
+        );
+        _contract.submitReportData(fixture.proof, public_values_encoded);
+    }
+
+    function test_refSlotInFuture_reverts() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+
+        verifierPasses();
+        Sp1LidoAccountingReportContract.PublicValues memory public_values =
+            abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
+        public_values.report.reference_slot = public_values.metadata.bc_slot + 2;
+        bytes32[] memory hashes = _createDyn(
+            /*bc*/
+            SLOT_EXISTED_SENTIEL,
+            0,
+            /*ref*/
+            0,
+            fixture.metadata.beacon_block_hash
+        );
+
+        setBeaconHashSequence(public_values.metadata.bc_slot, public_values.report.reference_slot, hashes);
+        vm.warp(getSlotTimestamp(public_values.report.reference_slot - 1));
+
+        bytes memory public_values_encoded = abi.encode(public_values);
+        Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
+
+        vm.expectRevert(
+            illegal_ref_slot_error(
+                public_values.metadata.bc_slot, public_values.report.reference_slot,
+                "Reference slot must not be in the future"
             )
         );
         _contract.submitReportData(fixture.proof, public_values_encoded);
