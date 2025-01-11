@@ -263,7 +263,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         _contract.submitReportData(fixture.proof, public_values_encoded);
     }
 
-    function test_newStateSlotMismatchActualSlot_reverts() public {
+    function test_newStateSlot_mismatchBeaconStateSlot_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
@@ -273,7 +273,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         public_values.metadata.new_state.slot = public_values.metadata.bc_slot + 1;
         bytes memory public_values_encoded = abi.encode(public_values);
 
-        vm.expectRevert(verification_error("New state slot must match actual slot"));
+        vm.expectRevert(verification_error("New state slot must match beacon state slot"));
         _contract.submitReportData(fixture.proof, public_values_encoded);
     }
 
@@ -314,14 +314,14 @@ contract Sp1LidoAccountingReportContractTest is Test {
         _contract.submitReportData(fixture.proof, fixture.publicValues);
     }
 
-    function test_refSlotHasBlock_actualSlotEqualToRefSlot_passes() public {
+    function test_refSlotHasBlock_beaconStateSlotEqualToRefSlot_passes() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
         verifierPasses();
         Sp1LidoAccountingReportContract.PublicValues memory public_values =
             abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
-        // fixture should have ref slot and actual slot match, this is a self-check
+        // fixture should have ref slot and beacon state slot match, this is a self-check
         assertEq(public_values.metadata.bc_slot, public_values.report.reference_slot);
         bytes memory public_values_encoded = abi.encode(public_values);
         Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
@@ -330,7 +330,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         assertReportAccepted(public_values.report.reference_slot, expected_report);
     }
 
-    function test_refSlotEmpty_actualFirstPrecedingNonEmpty_passes() public {
+    function test_refSlotEmpty_beaconStateSlotFirstPrecedingNonEmpty_passes() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         verifierPasses();
@@ -355,7 +355,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         assertReportAccepted(public_values.report.reference_slot, expected_report);
     }
 
-    function test_refSlotHasBlock_actualNotEqualToRefSlot_reverts() public {
+    function test_refSlotHasBlock_beaconStateSlotNotEqualToRefSlot_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         verifierPasses();
@@ -377,13 +377,13 @@ contract Sp1LidoAccountingReportContractTest is Test {
         vm.expectRevert(
             illegal_ref_slot_error(
                 public_values.metadata.bc_slot, public_values.report.reference_slot,
-                "Reference slot has a block, but actual slot != reference slot"
+                "Reference slot has a block, but beacon state slot != reference slot"
             )
         );
         _contract.submitReportData(fixture.proof, public_values_encoded);
     }
 
-    function test_actualSlotEmpty_reverts() public {
+    function test_beaconStateSlotEmpty_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         verifierPasses();
@@ -402,13 +402,13 @@ contract Sp1LidoAccountingReportContractTest is Test {
         setBeaconHashSequence(public_values.metadata.bc_slot, public_values.report.reference_slot, hashes);
         vm.expectRevert(
             illegal_ref_slot_error(
-                public_values.metadata.bc_slot, public_values.report.reference_slot, "Actual slot is empty"
+                public_values.metadata.bc_slot, public_values.report.reference_slot, "Beacon state slot is empty"
             )
         );
         _contract.submitReportData(fixture.proof, public_values_encoded);
     }
 
-    function test_refSlotEmpty_actualFirstNonEmptyPreceding_passes() public {
+    function test_refSlotEmpty_beaconStateSlotFirstNonEmptyPreceding_passes() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         verifierPasses();
@@ -417,7 +417,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         public_values.report.reference_slot = public_values.metadata.bc_slot + 2;
         bytes memory public_values_encoded = abi.encode(public_values);
 
-        // bc is filled, [actual + 1, ref_slot] is empty, ref+1 points to bc hash
+        // bc is filled, [beacon state + 1, ref_slot] is empty, ref+1 points to bc hash
         bytes32[] memory hashes = _createDyn(
             /*bc*/
             SLOT_EXISTED_SENTIEL,
@@ -433,7 +433,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         assertReportAccepted(public_values.report.reference_slot, expected_report);
     }
 
-    function test_refSlotEmpty_actualNotFirstNonEmptyPreceding_reverts() public {
+    function test_refSlotEmpty_beaconStateSlotNotFirstNonEmptyPreceding_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         verifierPasses();
@@ -442,8 +442,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
         public_values.report.reference_slot = public_values.metadata.bc_slot + 3;
         bytes memory public_values_encoded = abi.encode(public_values);
 
-        // actual is filled, bc + 1 is filled, [actual + 2, ref_slot] is empty
-        // bc is filled, bc+1 filled, [actual + 2, ref_slot] is empty, ref+1 points to bc+1 hash
+        // beacon state is filled, bc + 1 is filled, [beacon state + 2, ref_slot] is empty
+        // bc is filled, bc+1 filled, [beacon state + 2, ref_slot] is empty, ref+1 points to bc+1 hash
         bytes32[] memory hashes = _createDyn(
             /*bc*/
             SLOT_EXISTED_SENTIEL,
@@ -458,13 +458,13 @@ contract Sp1LidoAccountingReportContractTest is Test {
         vm.expectRevert(
             illegal_ref_slot_error(
                 public_values.metadata.bc_slot, public_values.report.reference_slot,
-                "Actual slot should be the first preceding non-empty slot before reference"
+                "Beacon state slot should be the first preceding non-empty slot before reference"
             )
         );
         _contract.submitReportData(fixture.proof, public_values_encoded);
     }
 
-    function test_refSlotLessThanActualSlot_reverts() public {
+    function test_refSlotLessThanBeaconStateSlot_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         verifierPasses();
@@ -488,7 +488,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         vm.expectRevert(
             illegal_ref_slot_error(
                 public_values.metadata.bc_slot, public_values.report.reference_slot,
-                "Reference slot must be after actual slot"
+                "Reference slot must be after beacon state slot"
             )
         );
         _contract.submitReportData(fixture.proof, public_values_encoded);

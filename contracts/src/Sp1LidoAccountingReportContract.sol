@@ -165,20 +165,20 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         _recordLidoValidatorStateHash(metadata.new_state.slot, metadata.new_state.merkle_root);
     }
 
-    /// @notice Verifies that reference slot and actual slot are correct:
-    /// * If reference slot had a block, actual slot must be equal to reference slot
-    /// * If reference slot did not have a block, actual slot must be the first preceding slot that had a block
+    /// @notice Verifies that reference slot and beacon state slot are correct:
+    /// * If reference slot had a block, beacon state slot must be equal to reference slot
+    /// * If reference slot did not have a block, beacon state slot must be the first preceding slot that had a block
     function _verify_reference_and_bc_slot(uint256 reference_slot, uint256 bc_slot) internal view {
-        _require_for_refslot(_blockExists(bc_slot), bc_slot, reference_slot, "Actual slot is empty");
+        _require_for_refslot(_blockExists(bc_slot), bc_slot, reference_slot, "Beacon state slot is empty");
 
-        // If actual slot has block and ref_slot == actual slot - no need to check further
+        // If beacon state slot has block and ref_slot == beacon state slot - no need to check further
         if (reference_slot == bc_slot) {
             return;
         }
 
         _require_for_refslot(
             bc_slot < reference_slot,
-            bc_slot, reference_slot, "Reference slot must be after actual slot"
+            bc_slot, reference_slot, "Reference slot must be after beacon state slot"
         );
 
         
@@ -189,13 +189,13 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
 
         _require_for_refslot(
             !_blockExists(reference_slot),
-            bc_slot, reference_slot, "Reference slot has a block, but actual slot != reference slot"
+            bc_slot, reference_slot, "Reference slot has a block, but beacon state slot != reference slot"
         );
 
         for (uint256 slot_to_check = reference_slot - 1; slot_to_check > bc_slot; slot_to_check--) {
             _require_for_refslot(
                 !_blockExists(slot_to_check),
-                bc_slot, reference_slot, "Actual slot should be the first preceding non-empty slot before reference"
+                bc_slot, reference_slot, "Beacon state slot should be the first preceding non-empty slot before reference"
             );
         }
     }
@@ -218,7 +218,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         require(old_state_hash != 0, VerificationError("Old state merkle_root not found"));
         require(metadata.old_state.merkle_root == old_state_hash, VerificationError("Old state merkle_root mismatch"));
 
-        require(metadata.bc_slot == metadata.new_state.slot, VerificationError("New state slot must match actual slot"));
+        require(metadata.bc_slot == metadata.new_state.slot, VerificationError("New state slot must match beacon state slot"));
 
         require(
             metadata.withdrawal_vault_data.vault_address == WITHDRAWAL_VAULT_ADDRESS,
@@ -266,7 +266,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     }
 
     function _blockExists(uint256 slot) internal view returns (bool) {
-        // See comment above _findBeaconBlockHash re: why adding 1
         uint256 slot_timestamp = _slotToTimestamp(slot);
         (bool read_success, bytes32 slot_hash) = _getBeaconBlockHashForTimestamp(slot_timestamp);
         return read_success && slot_hash != 0;
