@@ -2,13 +2,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     eth_consensus_layer::{
-        Address, Balances, BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, Hash256,
+        Address, Balances, BeaconBlockHeaderPrecomputedHashes, BeaconStatePrecomputedHashes, ExecutionPayloadHeader,
+        ExecutionPayloadHeaderFields, Hash256,
     },
     io::eth_io::{BeaconChainSlot, ReferenceSlot},
     lido::{LidoValidatorState, ValidatorDelta},
+    merkle_proof::{FieldProof, MerkleTreeFieldLeaves},
 };
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ProgramInput {
     pub reference_slot: ReferenceSlot,
     pub bc_slot: BeaconChainSlot,
@@ -26,7 +28,17 @@ pub struct ProgramInput {
     pub withdrawal_vault_data: WithdrawalVaultData,
 }
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+impl ProgramInput {
+    pub fn compute_new_state(&self) -> LidoValidatorState {
+        self.old_lido_validator_state.merge_validator_delta(
+            self.bc_slot,
+            &self.validators_and_balances.validators_delta,
+            &self.validators_and_balances.lido_withdrawal_credentials,
+        )
+    }
+}
+
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ValsAndBals {
     pub validators_and_balances_proof: Vec<u8>,
     pub lido_withdrawal_credentials: Hash256,
@@ -55,4 +67,15 @@ pub struct WithdrawalVaultData {
 pub struct ExecutionPayloadHeaderData {
     pub state_root: Hash256,
     pub state_root_inclusion_proof: Vec<u8>,
+}
+
+impl ExecutionPayloadHeaderData {
+    pub fn new(exec_payload: &ExecutionPayloadHeader) -> Self {
+        Self {
+            state_root: exec_payload.state_root,
+            state_root_inclusion_proof: exec_payload.get_serialized_multiproof(
+                ExecutionPayloadHeader::get_leafs_indices([ExecutionPayloadHeaderFields::state_root]).as_slice(),
+            ),
+        }
+    }
 }

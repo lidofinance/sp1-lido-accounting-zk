@@ -1,13 +1,11 @@
-use crate::validator_delta::ValidatorDeltaCompute;
+use crate::validator_delta::{ValidatorDeltaCompute, ValidatorDeltaComputeBeaconStateProjection};
 use alloy_sol_types::SolType;
 
 use sp1_sdk::SP1PublicValues;
 
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
-    BeaconBlockHeader, BeaconState, BeaconStateFields, ExecutionPayloadHeader, ExecutionPayloadHeaderFields, Hash256,
-};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStateFields, Hash256};
 use sp1_lido_accounting_zk_shared::io::eth_io::{
     BeaconChainSlot, HaveEpoch, HaveSlotWithBlock, LidoValidatorStateRust, PublicValuesRust, PublicValuesSolidity,
     ReferenceSlot, ReportMetadataRust, ReportRust,
@@ -91,7 +89,66 @@ pub fn prepare_program_input(
     log::debug!("Report {report:?}");
     log::debug!("Public values {public_values:?}");
 
-    let validator_delta = ValidatorDeltaCompute::new(old_bs, &old_validator_state, bs, !verify).compute();
+    let validators_and_balances =
+        compute_validators_and_balances(bs, old_bs, &old_validator_state, lido_withdrawal_credentials, verify);
+
+    let execution_header_data = ExecutionPayloadHeaderData::new(&bs.latest_execution_payload_header);
+    log::info!("Obtained BeaconState.latest_execution_header.state_root proof");
+
+    log::info!("Creating program input");
+    let program_input = ProgramInput {
+        reference_slot,
+        bc_slot: bs.bc_slot(),
+        beacon_block_hash,
+        beacon_block_header: bh.into(),
+        latest_execution_header_data: execution_header_data,
+        beacon_state: bs.into(),
+        validators_and_balances,
+        old_lido_validator_state: old_validator_state.clone(),
+        new_lido_validator_state_hash: new_validator_state.tree_hash_root(),
+
+        withdrawal_vault_data: lido_withdrawal_vault_data,
+    };
+
+    if verify {
+        verify_input_correctness(
+            bs.bc_slot(),
+            &program_input,
+            &old_validator_state,
+            &new_validator_state,
+            lido_withdrawal_credentials,
+        )
+        .expect("Failed to verify input correctness");
+    }
+
+    (program_input, public_values)
+}
+
+// TODO: could be private, but used in input tampering tests
+pub fn compute_validators_and_balances_test_public(
+    bs: &BeaconState,
+    old_bs: &BeaconState,
+    old_validator_state: &LidoValidatorState,
+    lido_withdrawal_credentials: &Hash256,
+    verify: bool,
+) -> ValsAndBals {
+    compute_validators_and_balances(bs, old_bs, old_validator_state, lido_withdrawal_credentials, verify)
+}
+
+fn compute_validators_and_balances(
+    bs: &BeaconState,
+    old_bs: &BeaconState,
+    old_validator_state: &LidoValidatorState,
+    lido_withdrawal_credentials: &Hash256,
+    verify: bool,
+) -> ValsAndBals {
+    let validator_delta = ValidatorDeltaCompute::new(
+        ValidatorDeltaComputeBeaconStateProjection::from_bs(old_bs),
+        old_validator_state,
+        ValidatorDeltaComputeBeaconStateProjection::from_bs(bs),
+        !verify,
+    )
+    .compute();
     log::info!(
         "Computed validator delta. Added: {}, lido changed: {}",
         validator_delta.all_added.len(),
@@ -111,51 +168,15 @@ pub fn prepare_program_input(
     let validators_and_balances_proof = bs.get_serialized_multiproof(bs_indices.as_slice());
     log::info!("Obtained validators and balances fields multiproof");
 
-    let execution_header_indices =
-        ExecutionPayloadHeader::get_leafs_indices([ExecutionPayloadHeaderFields::state_root]);
-    let eh_state_root_proof = bs
-        .latest_execution_payload_header
-        .get_serialized_multiproof(execution_header_indices.as_slice());
-    log::info!("Obtained BeaconState.latest_execution_header.state_root proof");
-
-    log::info!("Creating program input");
-    let program_input = ProgramInput {
-        reference_slot,
-        bc_slot: bs.bc_slot(),
-        beacon_block_hash,
-        beacon_block_header: bh.into(),
-        latest_execution_header_data: ExecutionPayloadHeaderData {
-            state_root: bs.latest_execution_payload_header.state_root,
-            state_root_inclusion_proof: eh_state_root_proof,
-        },
-        beacon_state: bs.into(),
-        validators_and_balances: ValsAndBals {
-            validators_and_balances_proof,
-            lido_withdrawal_credentials: *lido_withdrawal_credentials,
-            total_validators: usize_to_u64(bs.validators.len()),
-            validators_delta: validator_delta,
-            added_validators_inclusion_proof: added_validators_proof,
-            changed_validators_inclusion_proof: changed_validators_proof,
-            balances: bs.balances.clone(),
-        },
-        old_lido_validator_state: old_validator_state.clone(),
-        new_lido_validator_state_hash: new_validator_state.tree_hash_root(),
-
-        withdrawal_vault_data: lido_withdrawal_vault_data,
-    };
-
-    if verify {
-        verify_input_correctness(
-            bs.bc_slot(),
-            &program_input,
-            &old_validator_state,
-            &new_validator_state,
-            lido_withdrawal_credentials,
-        )
-        .expect("Failed to verify input correctness");
+    ValsAndBals {
+        validators_and_balances_proof,
+        lido_withdrawal_credentials: *lido_withdrawal_credentials,
+        total_validators: usize_to_u64(bs.validators.len()),
+        validators_delta: validator_delta,
+        added_validators_inclusion_proof: added_validators_proof,
+        changed_validators_inclusion_proof: changed_validators_proof,
+        balances: bs.balances.clone(),
     }
-
-    (program_input, public_values)
 }
 
 fn verify_input_correctness(

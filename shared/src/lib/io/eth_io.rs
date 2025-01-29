@@ -1,6 +1,6 @@
 use std::{
     fmt,
-    ops::{Add, Sub},
+    ops::{Add, AddAssign, Sub, SubAssign},
 };
 
 use alloy_primitives::Address;
@@ -104,11 +104,23 @@ impl Add<u64> for BeaconChainSlot {
     }
 }
 
+impl AddAssign<u64> for BeaconChainSlot {
+    fn add_assign(&mut self, rhs: u64) {
+        self.0 += rhs;
+    }
+}
+
 impl Sub<u64> for BeaconChainSlot {
     type Output = Self;
 
     fn sub(self, rhs: u64) -> Self::Output {
         Self(self.0 - rhs)
+    }
+}
+
+impl SubAssign<u64> for BeaconChainSlot {
+    fn sub_assign(&mut self, rhs: u64) {
+        self.0 -= rhs;
     }
 }
 

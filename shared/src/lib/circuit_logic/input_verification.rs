@@ -13,7 +13,10 @@ use crate::{
     eth_execution_layer::EthAccountRlpValue,
     eth_spec,
     hashing::{self, HashHelper, HashHelperImpl},
-    io::program_io::{ProgramInput, WithdrawalVaultData},
+    io::{
+        eth_io::HaveEpoch,
+        program_io::{ProgramInput, WithdrawalVaultData},
+    },
     lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex},
     merkle_proof::{self, FieldProof, MerkleTreeFieldLeaves, StaticFieldProof},
     util::{u64_to_usize, usize_to_u64},
@@ -99,11 +102,11 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         self.cycle_tracker.end_span(&format!("{tracker_prefix}.verify_hash"));
     }
 
-    fn verify_delta(&self, delta: &ValidatorDelta, old_state: &LidoValidatorState, actual_valdiator_count: u64) {
+    fn verify_delta(&self, delta: &ValidatorDelta, old_state: &LidoValidatorState, actual_validator_count: u64) {
         let validator_from_delta = old_state.total_validators() + usize_to_u64(delta.all_added.len());
         assert!(
-            validator_from_delta == actual_valdiator_count,
-            "Not all new validators were passed - expected {validator_from_delta}, got {actual_valdiator_count}"
+            validator_from_delta == actual_validator_count,
+            "Not all new validators were passed - expected {validator_from_delta}, got {actual_validator_count}"
         );
 
         let lido_changed_indices: HashSet<u64> = delta.lido_changed_indices().copied().collect();
@@ -122,6 +125,22 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             "Required validators missing. Missed indices: {:?}",
             missed_update
         )
+    }
+
+    // NOTE: mutable iterator - data is still immutable
+    fn is_sorted_and_unique<Elem: PartialOrd>(input: &mut impl Iterator<Item = Elem>) -> bool {
+        let next = input.next();
+        if next.is_none() {
+            return true; // empty iterator is sorted
+        }
+        let mut current = next.expect("Will not panic, just checked it is not none");
+        for new_val in input.by_ref() {
+            if current >= new_val {
+                return false;
+            }
+            current = new_val;
+        }
+        true
     }
 
     /**
@@ -158,6 +177,31 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             hex::encode(beacon_block_header.state_root),
         );
         self.cycle_tracker.end_span("prove_input.beacon_state");
+
+        self.cycle_tracker.start_span("prove_input.old_state");
+        assert_eq!(
+            input.old_lido_validator_state.slot.epoch(),
+            input.old_lido_validator_state.epoch
+        );
+        self.cycle_tracker.start_span("prove_input.old_state.deposited.sorted");
+        assert!(
+            Self::is_sorted_and_unique(&mut input.old_lido_validator_state.deposited_lido_validator_indices.iter()),
+            "Deposited validators should be sorted"
+        );
+        self.cycle_tracker.end_span("prove_input.old_state.deposited.sorted");
+
+        self.cycle_tracker.start_span("prove_input.old_state.pending.sorted");
+        assert!(
+            Self::is_sorted_and_unique(
+                &mut input
+                    .old_lido_validator_state
+                    .pending_deposit_lido_validator_indices
+                    .iter(),
+            ),
+            "Deposited validators should be sorted"
+        );
+        self.cycle_tracker.end_span("prove_input.old_state.pending.sorted");
+        self.cycle_tracker.end_span("prove_input.old_state");
 
         // Validators and balances are included into BeaconState (merkle multiproof)
         let vals_and_bals_prefix = "prove_input.vals_and_bals";
@@ -218,6 +262,10 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             .start_span(&format!("{vals_and_bals_prefix}.validator_inclusion_proofs"));
 
         if !input.validators_and_balances.validators_delta.all_added.is_empty() {
+            assert!(
+                Self::is_sorted_and_unique(&mut input.validators_and_balances.validators_delta.added_indices()),
+                "All added should be sorted by index and have no duplicates"
+            );
             let proof =
                 merkle_proof::serde::deserialize_proof(&input.validators_and_balances.added_validators_inclusion_proof)
                     .expect("Failed to deserialize proof");
@@ -247,6 +295,10 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         }
 
         if !input.validators_and_balances.validators_delta.lido_changed.is_empty() {
+            assert!(
+                Self::is_sorted_and_unique(&mut input.validators_and_balances.validators_delta.lido_changed_indices()),
+                "Lido changed should be sorted by index and have no duplicates"
+            );
             let proof = merkle_proof::serde::deserialize_proof(
                 &input.validators_and_balances.changed_validators_inclusion_proof,
             )
@@ -323,7 +375,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         let found = trie
             .verify_proof(expected_root.0.into(), key.as_slice(), proof)
             .unwrap_or_else(|_| panic!("Failed verifying account balance proof for {}", key));
-        let value = found.unwrap_or_else(|| panic!("Key {} not found in the accound patricia tree", key));
+        let value = found.unwrap_or_else(|| panic!("Key {} not found in the account patricia tree", key));
         let decoded = EthAccountRlpValue::decode(&mut value.as_slice())
             .unwrap_or_else(|e| panic!("Could not decode Account RLP encoding from tree: {:?}", e));
 

@@ -172,12 +172,14 @@ impl LidoValidatorState {
             }
         }
 
-        let pending_deposit_vec: Vec<u64> = new_pending_deposit.into_iter().sorted().collect_vec();
-        let exited_deposit_vec: Vec<u64> = new_exited.into_iter().sorted().collect_vec();
+        // Sorts are important to ensure the validator state merkle hash is stable, regardless of the
+        // order of validators in delta
+        new_deposited.sort();
+        new_exited.sort();
 
         let deposited_list: ValidatorIndexList = new_deposited.into();
-        let pending_deposit_list: ValidatorIndexList = pending_deposit_vec.into();
-        let exited_list: ValidatorIndexList = exited_deposit_vec.into();
+        let pending_deposit_list: ValidatorIndexList = new_pending_deposit.into_iter().sorted().collect_vec().into();
+        let exited_list: ValidatorIndexList = new_exited.into();
 
         Self {
             slot,
@@ -218,13 +220,13 @@ impl ValidatorOps for Validator {
     }
 }
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ValidatorWithIndex {
     pub index: ValidatorIndex,
     pub validator: Validator,
 }
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub struct ValidatorDelta {
     pub all_added: Vec<ValidatorWithIndex>,
     pub lido_changed: Vec<ValidatorWithIndex>,

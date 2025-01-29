@@ -8,55 +8,68 @@ default-run = "execute"
 [[bin]]
 name = "write_test_fixture"
 path = "src/bin/dev/write_test_fixture.rs"
+test = false
 
 [[bin]]
 name = "execute"
 path = "src/bin/dev/execute.rs"
+test = false
+
 
 [[bin]]
 name = "submit_cached"
 path = "src/bin/dev/submit_cached.rs"
+test = false
 
 [[bin]]
 name = "submit"
 path = "src/bin/submit.rs"
+test = false
 
 [[bin]]
 name = "deploy"
 path = "src/bin/dev/deploy.rs"
+test = false
 
 [[example]]
 name = "ssz_e2e_test"
 path = "examples/ssz_e2e_test.rs"
 required-features = ["synthetic"]
+test = false
 
 [[example]]
 name = "report_e2e_test"
 path = "examples/report.rs"
 required-features = ["synthetic"]
+test = false
 
 [[example]]
 name = "lido_state_e2e_test"
 path = "examples/lido_state.rs"
 required-features = ["synthetic"]
+test = false
 
 [[example]]
 name = "gen_pair"
 path = "examples/gen_synthetic_bs_pair.rs"
 required-features = ["synthetic"]
+test = false
 
 [[example]]
 name = "list_multiproofs"
 path = "examples/list_multiproofs.rs"
 required-features = ["synthetic"]
+test = false
 
 [[example]]
 name = "read_bs_pair"
 path = "examples/read_bs_pair.rs"
+test = false
 
 [[example]]
 name = "balance_proof"
 path = "examples/balance_proof.rs"
+test = false
 
 [lib]
 name = "sp1_lido_accounting_scripts"
@@ -83,6 +96,7 @@ simple_logger.workspace = true
 sp1-core-machine.workspace = true
 sp1-sdk.workspace = true
 tokio.workspace = true
+thiserror.workspace = true
 tree_hash.workspace = true
 
 clap = { version = "4.0", features = ["derive", "env"] }
@@ -90,7 +104,6 @@ eyre = "0.6.12"
 k256 = "0.13.3"
 reqwest = "0.12.7"
 sp1_lido_accounting_zk_shared = { path = "../shared" }
-thiserror = "2.0.11"
 tracing = "0.1.40"
 
 [build-dependencies]
@@ -98,9 +111,10 @@ sp1-helper.workspace = true
 
 [dev-dependencies]
 alloy = { version = "0.9.2", features = ["node-bindings"] }
-dotenvy = "0.15.7"
-lazy_static = "1.5.0"
 typenum.workspace = true
+dotenvy.workspace = true
+lazy_static.workspace = true
+rand.workspace = true
 
 [features]
 synthetic = []

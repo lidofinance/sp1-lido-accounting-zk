@@ -261,7 +261,6 @@ where
             hex::encode(address),
             hex::encode(block_hash)
         );
-        let eth_address = address;
 
         let block_hash: RpcBlockHash = RpcBlockHash::from_hash(block_hash.0.into(), Some(true));
         let response = self
@@ -273,7 +272,7 @@ where
             .map(|resp| {
                 let proof_as_vecs = resp.account_proof.iter().map(|val| val.to_vec()).collect();
                 WithdrawalVaultData {
-                    vault_address: eth_address,
+                    vault_address: address,
                     balance: resp.balance,
                     account_proof: proof_as_vecs,
                 }

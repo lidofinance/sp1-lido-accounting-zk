@@ -15,6 +15,7 @@ fn impl_merkle_tree_field_leaves(ast: &syn::DeriveInput) -> TokenStream {
     let mut get_leaf_index_entries = Vec::new();
     let mut get_fields_entries = Vec::new();
     let mut fields_enum_entries = Vec::new();
+    let mut fields_enum_all_entries = Vec::new();
 
     let struct_data: &DataStruct = match &ast.data {
         Data::Struct(struct_data) => struct_data,
@@ -27,6 +28,7 @@ fn impl_merkle_tree_field_leaves(ast: &syn::DeriveInput) -> TokenStream {
         get_leaf_index_entries.push(quote! { Self::TFields::#field_name => #idx });
         get_fields_entries.push(quote! { self.#field_name.tree_hash_root()});
 
+        fields_enum_all_entries.push(quote! { Self::#field_name });
         fields_enum_entries.push(field_name);
     }
 
@@ -34,6 +36,12 @@ fn impl_merkle_tree_field_leaves(ast: &syn::DeriveInput) -> TokenStream {
         #[allow(non_camel_case_types)]
         pub enum #fields_enum_name {
             #(#fields_enum_entries),*
+        }
+
+        impl #fields_enum_name {
+            pub fn all() -> Vec<#fields_enum_name> {
+                vec![#(#fields_enum_all_entries),*]
+            }
         }
 
         impl MerkleTreeFieldLeaves for #name {
