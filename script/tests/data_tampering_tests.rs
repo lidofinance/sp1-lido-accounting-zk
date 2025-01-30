@@ -514,7 +514,8 @@ async fn data_tampering_omit_exited_lido_validator() -> Result<()> {
 // had no validators in pending state
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
-async fn data_tampering_omit_pending_lido_validator() -> Result<()> {
+async fn data_tampering_omit_pending_lido_validator_STUB() -> Result<()> {
+    //TODO: implement test with pending validators
     Ok(())
 }
 

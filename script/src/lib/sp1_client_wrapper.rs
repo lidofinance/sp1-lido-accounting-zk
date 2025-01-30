@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 
 use sp1_sdk::{
-    ExecutionReport, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
+    EnvProver, ExecutionReport, HashableKey, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
     SP1VerifyingKey,
 };
 
@@ -20,14 +20,14 @@ pub trait SP1ClientWrapper {
 }
 
 pub struct SP1ClientWrapperImpl {
-    client: ProverClient,
+    client: EnvProver,
     elf: Vec<u8>,
     pk: SP1ProvingKey,
     vk: SP1VerifyingKey,
 }
 
 impl SP1ClientWrapperImpl {
-    pub fn new(client: ProverClient, elf: &[u8]) -> Self {
+    pub fn new(client: EnvProver, elf: &[u8]) -> Self {
         let (pk, vk) = client.setup(elf);
         Self {
             client,
@@ -61,7 +61,7 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
 
     fn prove(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues> {
         let sp1_stdin = self.write_sp1_stdin(&input);
-        let prove_spec = self.client.prove(&self.pk, sp1_stdin);
+        let prove_spec = self.client.prove(&self.pk, &sp1_stdin);
         let prove_mode = match consts::sp1_verifier::VERIFICATION_MODE {
             VerificationMode::Groth16 => prove_spec.groth16(),
             VerificationMode::Plonk => prove_spec.plonk(),
@@ -78,6 +78,6 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
 
     fn execute(&self, input: ProgramInput) -> Result<(SP1PublicValues, ExecutionReport)> {
         let sp1_stdin = self.write_sp1_stdin(&input);
-        self.client.execute(self.elf.as_slice(), sp1_stdin).run()
+        self.client.execute(self.elf.as_slice(), &sp1_stdin).run()
     }
 }

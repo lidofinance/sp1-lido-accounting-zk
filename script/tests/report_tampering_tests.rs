@@ -3,14 +3,13 @@ mod test_utils;
 use alloy_sol_types::SolType;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
-    consts, eth_client,
+    eth_client,
     proof_storage::StoredProof,
     scripts::shared as shared_logic,
-    sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
+    sp1_client_wrapper::SP1ClientWrapper,
 };
 
 use hex_literal::hex;
-use lazy_static::lazy_static;
 use sp1_lido_accounting_zk_shared::{
     eth_consensus_layer::Hash256,
     io::{
@@ -18,15 +17,11 @@ use sp1_lido_accounting_zk_shared::{
         program_io::WithdrawalVaultData,
     },
 };
-use sp1_sdk::{HashableKey, ProverClient};
+use sp1_sdk::HashableKey;
 use test_utils::env::IntegrationTestEnvironment;
 use thiserror::Error;
 
 const STORED_PROOF_FILE_NAME: &str = "fixture.json";
-
-lazy_static! {
-    static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::network(), consts::ELF);
-}
 
 #[derive(Debug, Error)]
 enum ExecutorError {
@@ -209,7 +204,7 @@ fn assert_rejects(result: TestExecutorResult) -> Result<()> {
 fn check_vkey_matches() -> Result<()> {
     let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
     let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;
-    assert_eq!(SP1_CLIENT.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
+    assert_eq!(test_utils::SP1_CLIENT.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
     Ok(())
 }
 

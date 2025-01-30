@@ -28,8 +28,10 @@ pub async fn run(
     flags: Flags,
 ) -> anyhow::Result<TxHash> {
     let actual_previous_slot = if let Some(prev) = prev_slot {
+        log::debug!("Finding bc slot for previous report refslot {}", prev);
         bs_reader.find_bc_slot_for_refslot(prev).await?
     } else {
+        log::debug!("Reading latest report slot from contract");
         contract.get_latest_validator_state_slot().await?
     };
     let actual_target_slot = bs_reader.find_bc_slot_for_refslot(target_slot).await?;

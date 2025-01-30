@@ -31,7 +31,7 @@ pub const ALT_DEPLOY_SLOT_2: BeaconChainSlot = BeaconChainSlot(6789600);
 // }
 // #[cfg(feature = "test_network_prover")]
 lazy_static! {
-    pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::network(), consts::ELF);
+    pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::from_env(), consts::ELF);
 }
 
 lazy_static! {

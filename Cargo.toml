@@ -41,11 +41,11 @@ serde = { version = "1.0.217", default-features = false, features = ["derive"] }
 serde_derive = "1.0.217"
 serde_json = { version = "1.0.135", default-features = false, features = ["alloc"] }
 simple_logger = "5.0.0"
-sp1-core-machine = "3.4.0"
-sp1-derive = "3.4.0"
-sp1-helper = "3.4.0"
-sp1-sdk = "3.4.0"
-sp1-zkvm = "3.4.0"
+sp1-core-machine = "4.0.1"
+sp1-derive = "4.0.1"
+sp1-helper = "4.0.1"
+sp1-sdk = {version = "4.0.1", features = ["network"] }
+sp1-zkvm = "4.0.1"
 ssz_types = { version = "0.10.0", features = ["arbitrary"] }
 thiserror = "2.0.11"
 tokio = "1.43.0"
@@ -60,6 +60,6 @@ cargo-license = "0.6.1"
 cargo-bundle-licenses = "2.0.0"
 
 [patch.crates-io]
-sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
+sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.10.8-sp1-4.0.0" }
 ethereum_hashing = { git = "https://github.com/sp1-patches/ethereum_hashing", branch = "sp1-patch-0.7.0" }
-tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "tiny_keccak-v2.0.2-patch-v1" }
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-4.0.0" }

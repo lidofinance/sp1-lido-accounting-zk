@@ -1,4 +1,6 @@
-pub const ELF: &[u8] = include_bytes!("../../../elf/riscv32im-succinct-zkvm-elf");
+use sp1_sdk::include_elf;
+
+pub const ELF: &[u8] = include_elf!("sp1-lido-accounting-zk-program");
 
 pub mod sp1_verifier {
     use hex_literal::hex;
@@ -8,8 +10,8 @@ pub mod sp1_verifier {
 
     // https://github.com/succinctlabs/sp1-contracts/tree/main/contracts/deployments
     // The contract addresses matches between mainnet, sepolia and holesky
-    const SP1_GROTH_VERIFIER: [u8; 20] = hex!("E780809121774D06aD9B0EEeC620fF4B3913Ced1");
-    const SP1_PLONK_VERIFIER: [u8; 20] = hex!("d2832Cf1fC8bA210FfABF62Db9A8781153131d16");
+    const SP1_GROTH_VERIFIER: [u8; 20] = hex!("a27A057CAb1a4798c6242F6eE5b2416B7Cd45E5D");
+    const SP1_PLONK_VERIFIER: [u8; 20] = hex!("E00a3cBFC45241b33c0A44C78e26168CBc55EC63");
 
     pub enum VerificationMode {
         Groth16,

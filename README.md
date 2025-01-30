@@ -23,8 +23,8 @@ be submitted via `submit_cached` without re-generating the proof on prover netwo
 
 Rest of the configuration is delivered via environment variables, listed and documented in the [.env.example](.env.example), but to highligh a few important ones:
 
-* SP1_PROVER - could be `network` or `local`. Local proover requires 128+Gb memory and is not tested.
-* SP1_PRIVATE_KEY - private key, granting access to the Succinct prover network. See [setup instructions][sp1-key-instructions]
+* SP1_PROVER - could be `network` or `cpu`. CPU proover requires 128+Gb memory and is not tested.
+* NETWORK_PRIVATE_KEY - private key, granting access to the Succinct prover network. See [setup instructions][sp1-key-instructions]
 * BEACON_STATE_RPC - the oracle needs access to full BeaconState at the `target_slot` to prepare the 
   report and proof. BEACON_STATE_RPC
 
@@ -53,7 +53,7 @@ Examples:
 * end-to-end tests that interact with the SP1 prover network (and hence incur real-life costs)
 
 To run those, use `cargo test -- --include-ignored` - note it will use Sepolia testnet and SP1 prover network. As such,
-env variables needed to access those (`CONSENSUS_LAYER_RPC`, `BEACON_STATE_RPC`, `SP1_PRIVATE_KEY`, etc.) need to be
+env variables needed to access those (`CONSENSUS_LAYER_RPC`, `BEACON_STATE_RPC`, `NETWORK_PRIVATE_KEY`, etc.) need to be
 set for those tests to work.
 
 ### Development scripts
