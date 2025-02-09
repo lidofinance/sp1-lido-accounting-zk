@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use sp1_lido_accounting_scripts::consts::{self, Network, NetworkInfo, WrappedNetwork};
 use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapperImpl;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
-    BeaconStateFields, BeaconStatePrecomputedHashes, Epoch, Hash256, Validator, VariableList,
+    BeaconStateFields, BeaconStatePrecomputedHashes, Epoch, Hash256, Validator,
 };
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use sp1_sdk::ProverClient;

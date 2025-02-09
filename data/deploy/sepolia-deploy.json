@@ -1,7 +1,7 @@
 {
   "network": "sepolia",
   "verifier": "0xe00a3cbfc45241b33c0a44c78e26168cbc55ec63",
-  "vkey": "0x001c58fd0669f47e9b60cdb5dcd108aa804193e3870dc11fba0789b9a08c5bd7",
+  "vkey": "0x007018e54084d459a9f2ee2872a95fe34eab3a520d8d7b45ca0eb12c4118e42a",
   "withdrawal_credentials": "0x010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
   "withdrawal_vault_address": "0xde7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
   "genesis_timestamp": 1655733600,

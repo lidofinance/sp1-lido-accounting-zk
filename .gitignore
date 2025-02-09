@@ -23,7 +23,6 @@ pgo-data.profdata
 .vscode
 .idea
 node_modules
-**/proptest-regressions
 
 # Python
 __pycache__

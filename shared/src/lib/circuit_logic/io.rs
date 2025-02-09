@@ -26,15 +26,15 @@ pub fn create_public_values(
         metadata: ReportMetadataSolidity {
             bc_slot: bc_slot.into(),
             epoch: conversions::u64_to_uint256(report.epoch),
-            lido_withdrawal_credentials: report.lido_withdrawal_credentials.into(),
-            beacon_block_hash: beacon_block_hash.clone(),
+            lido_withdrawal_credentials: report.lido_withdrawal_credentials,
+            beacon_block_hash: *beacon_block_hash,
             state_for_previous_report: LidoValidatorStateSolidity {
                 slot: old_state_slot.into(),
-                merkle_root: old_state_hash.clone(),
+                merkle_root: *old_state_hash,
             },
             new_state: LidoValidatorStateSolidity {
                 slot: new_state_slot.into(),
-                merkle_root: new_state_hash.clone(),
+                merkle_root: *new_state_hash,
             },
             withdrawal_vault_data: lido_withdrawal_vault_data.into(),
         },

@@ -119,7 +119,7 @@ impl TestExecutor {
         let proof = try_proof.unwrap();
 
         log::info!("Sending report");
-        let result = self
+        let _result = self
             .env
             .contract
             .submit_report_data(proof.bytes(), proof.public_values.to_vec())

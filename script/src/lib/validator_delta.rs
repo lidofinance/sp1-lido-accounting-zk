@@ -147,7 +147,7 @@ impl<'a> ValidatorDeltaCompute<'a> {
 mod test {
     use rand::Rng;
     use sp1_lido_accounting_zk_shared::{
-        eth_consensus_layer::{BlsPublicKey, Epoch, Hash256, Slot, Validator, Validators},
+        eth_consensus_layer::{BlsPublicKey, Hash256, Validator, Validators},
         io::eth_io::{BeaconChainSlot, HaveEpoch},
         lido::{LidoValidatorState, ValidatorDelta, ValidatorStatus, ValidatorWithIndex},
         util::usize_to_u64,

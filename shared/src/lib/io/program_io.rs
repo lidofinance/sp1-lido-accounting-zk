@@ -7,7 +7,7 @@ use crate::{
     },
     io::eth_io::{BeaconChainSlot, ReferenceSlot},
     lido::{LidoValidatorState, ValidatorDelta},
-    merkle_proof::{FieldProof, MerkleTreeFieldLeaves},
+    merkle_proof::FieldProof,
 };
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -73,9 +73,8 @@ impl ExecutionPayloadHeaderData {
     pub fn new(exec_payload: &ExecutionPayloadHeader) -> Self {
         Self {
             state_root: exec_payload.state_root,
-            state_root_inclusion_proof: exec_payload.get_serialized_multiproof(
-                ExecutionPayloadHeader::get_leafs_indices([ExecutionPayloadHeaderFields::state_root]).as_slice(),
-            ),
+            state_root_inclusion_proof: exec_payload
+                .get_serialized_multiproof(&[ExecutionPayloadHeaderFields::state_root]),
         }
     }
 }

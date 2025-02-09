@@ -21,7 +21,7 @@ async fn main() {
     let chain = env::var("EVM_CHAIN").expect("Couldn't read EVM_CHAIN env var");
     let network = consts::read_network(&chain);
 
-    let (eth_client, contract) = scripts::prelude::initialize_eth();
+    let (_eth_client, contract) = scripts::prelude::initialize_eth();
 
     let file_name = format!("proof_{}_{}.json", network.as_str(), args.target_slot);
     let proof_file =

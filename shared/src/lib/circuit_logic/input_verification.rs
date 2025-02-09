@@ -3,12 +3,11 @@ use std::{collections::HashSet, sync::Arc};
 use alloy_primitives::keccak256;
 use alloy_rlp::Decodable;
 use eth_trie::{EthTrie, MemoryDB, Trie};
-use rs_merkle::{algorithms::Sha256, MerkleProof};
 use tree_hash::TreeHash;
 
 use crate::{
     eth_consensus_layer::{
-        BeaconState, BeaconStateFields, ExecutionPayloadHeader, ExecutionPayloadHeaderFields, Hash256, Validator,
+        BeaconStateFields, ExecutionPayloadHeader, ExecutionPayloadHeaderFields, Hash256, Validator,
     },
     eth_execution_layer::EthAccountRlpValue,
     eth_spec,
@@ -18,7 +17,7 @@ use crate::{
         program_io::{ProgramInput, WithdrawalVaultData},
     },
     lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex},
-    merkle_proof::{self, FieldProof, MerkleTreeFieldLeaves, StaticFieldProof},
+    merkle_proof::{self, FieldProof, MerkleProofWrapper, StaticFieldProof},
     util::{u64_to_usize, usize_to_u64},
 };
 
@@ -59,19 +58,19 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         total_validator_count: u64,
         validators_hash: &Hash256,
         validators_with_indices: &Vec<ValidatorWithIndex>,
-        proof: MerkleProof<Sha256>,
+        proof: MerkleProofWrapper,
     ) {
         let tree_depth = hashing::target_tree_depth::<Validator, eth_spec::ValidatorRegistryLimit>();
 
         let validators_count = validators_with_indices.len();
         let mut indexes: Vec<usize> = Vec::with_capacity(validators_count);
-        let mut hashes: Vec<merkle_proof::RsMerkleHash> = Vec::with_capacity(validators_count);
+        let mut hashes: Vec<Hash256> = Vec::with_capacity(validators_count);
 
         self.cycle_tracker
             .start_span(&format!("{tracker_prefix}.validator_roots"));
         for validator_with_index in validators_with_indices {
             indexes.push(u64_to_usize(validator_with_index.index));
-            hashes.push(validator_with_index.validator.tree_hash_root().0);
+            hashes.push(validator_with_index.validator.tree_hash_root());
         }
         self.cycle_tracker
             .end_span(&format!("{tracker_prefix}.validator_roots"));
@@ -84,15 +83,15 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
 
         self.cycle_tracker
             .start_span(&format!("{tracker_prefix}.reconstruct_root_from_proof"));
-        let validators_delta_root = merkle_proof::build_root_from_proof(
-            &proof,
-            u64_to_usize(total_validator_count.next_power_of_two()),
-            indexes.as_slice(),
-            hashes.as_slice(),
-            Some(tree_depth),
-            Some(u64_to_usize(total_validator_count)),
-        )
-        .expect("Failed to construct validators merkle root from delta multiproof");
+        let validators_delta_root = proof
+            .build_root_from_proof(
+                u64_to_usize(total_validator_count.next_power_of_two()),
+                indexes.as_slice(),
+                hashes.as_slice(),
+                Some(tree_depth),
+                Some(u64_to_usize(total_validator_count)),
+            )
+            .expect("Failed to construct validators merkle root from delta multiproof");
         self.cycle_tracker
             .end_span(&format!("{tracker_prefix}.reconstruct_root_from_proof"));
 
@@ -230,13 +229,12 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         // Step 1: confirm validators and balances hashes are included into beacon_state
         self.cycle_tracker
             .start_span(&format!("{vals_and_bals_prefix}.inclusion_proof"));
-        let bs_indices = BeaconState::get_leafs_indices([BeaconStateFields::validators, BeaconStateFields::balances]);
 
-        let vals_and_bals_multiproof_leaves = [beacon_state.validators.0, beacon_state.balances.0];
+        let vals_and_bals_multiproof_leaves = [beacon_state.validators, beacon_state.balances];
         beacon_state
             .verify_serialized(
                 &input.validators_and_balances.validators_and_balances_proof,
-                &bs_indices,
+                &[BeaconStateFields::validators, BeaconStateFields::balances],
                 &vals_and_bals_multiproof_leaves,
             )
             .expect("Failed to verify validators and balances inclusion");
@@ -352,18 +350,13 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         self.cycle_tracker
             .start_span("prove_input.widthrawal_vault.latest_execution_header");
 
-        let indices = ExecutionPayloadHeader::get_leafs_indices([ExecutionPayloadHeaderFields::state_root]);
+        let indices = [ExecutionPayloadHeaderFields::state_root];
         let proof =
             merkle_proof::serde::deserialize_proof(&input.latest_execution_header_data.state_root_inclusion_proof)
                 .expect("Failed to deserialize execution payload header proof");
-        let hashes: Vec<merkle_proof::RsMerkleHash> = vec![input.latest_execution_header_data.state_root.0];
-        ExecutionPayloadHeader::verify(
-            &proof,
-            indices.as_slice(),
-            &hashes,
-            &beacon_state.latest_execution_payload_header,
-        )
-        .expect("Failed to verify BeaconState.execution_payload_header.state_root inclusion proof");
+        let hashes: Vec<Hash256> = vec![input.latest_execution_header_data.state_root];
+        ExecutionPayloadHeader::verify(&proof, &indices, &hashes, &beacon_state.latest_execution_payload_header)
+            .expect("Failed to verify BeaconState.execution_payload_header.state_root inclusion proof");
         self.cycle_tracker
             .end_span("prove_input.widthrawal_vault.latest_execution_header");
     }

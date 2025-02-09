@@ -14,7 +14,7 @@ use sp1_lido_accounting_zk_shared::io::program_io::{
     ExecutionPayloadHeaderData, ProgramInput, ValsAndBals, WithdrawalVaultData,
 };
 use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
-use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, MerkleTreeFieldLeaves};
+use sp1_lido_accounting_zk_shared::merkle_proof::FieldProof;
 use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
 
 use anyhow::Result;
@@ -164,8 +164,8 @@ fn compute_validators_and_balances(
     let changed_validators_proof = bs.validators.get_serialized_multiproof(changed_indices.as_slice());
     log::info!("Obtained added and changed validators multiproofs");
 
-    let bs_indices = BeaconState::get_leafs_indices([BeaconStateFields::validators, BeaconStateFields::balances]);
-    let validators_and_balances_proof = bs.get_serialized_multiproof(bs_indices.as_slice());
+    let validators_and_balances_proof =
+        bs.get_serialized_multiproof(&[BeaconStateFields::validators, BeaconStateFields::balances]);
     log::info!("Obtained validators and balances fields multiproof");
 
     ValsAndBals {

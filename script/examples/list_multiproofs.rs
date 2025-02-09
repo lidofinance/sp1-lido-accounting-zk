@@ -10,7 +10,7 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
 };
 use sp1_lido_accounting_scripts::consts;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::merkle_proof::{FieldProof, RsMerkleHash};
+use sp1_lido_accounting_zk_shared::merkle_proof::FieldProof;
 
 use simple_logger::SimpleLogger;
 
@@ -90,9 +90,9 @@ async fn main() {
         new_validators_multiproof.proof_hashes_hex()
     );
     log::info!("Validating validators proof");
-    let validators_to_prove: Vec<RsMerkleHash> = new_validator_indices
+    let validators_to_prove: Vec<Hash256> = new_validator_indices
         .iter()
-        .map(|idx| beacon_state2.validators[*idx].tree_hash_root().0)
+        .map(|idx| beacon_state2.validators[*idx].tree_hash_root())
         .collect();
     beacon_state2
         .validators
