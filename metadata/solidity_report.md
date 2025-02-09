@@ -50,8 +50,8 @@ Source Units in Scope: **`2`** (**100%**)
 | Type | File   | Logic Contracts | Interfaces | Lines | nLines | nSLOC | Comment Lines | Complex. Score | Capabilities |
 | ---- | ------ | --------------- | ---------- | ----- | ------ | ----- | ------------- | -------------- | ------------ | 
 | 🔍 | contracts/src/ISecondOpinionOracle.sol | **** | 1 | 12 | 5 | 3 | 1 | 3 | **** |
-| 📝 | contracts/src/Sp1LidoAccountingReportContract.sol | 1 | **** | 303 | 287 | 185 | 54 | 84 | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
-| 📝🔍 | **Totals** | **1** | **1** | **315**  | **292** | **188** | **55** | **87** | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 📝 | contracts/src/Sp1LidoAccountingReportContract.sol | 1 | **** | 318 | 302 | 200 | 52 | 86 | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 📝🔍 | **Totals** | **1** | **1** | **330**  | **307** | **203** | **53** | **89** | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
 
 <sub>
 Legend: <a onclick="toggleVisibility('table-legend', this)">[➕]</a>
@@ -139,7 +139,7 @@ The analysis finished with **`0`** errors and **`0`** duplicate files.
 
 #### <span id=t-inline-documentation>Inline Documentation</span>
 
-- **Comment-to-Source Ratio:** On average there are`3.84` code lines per comment (lower=better).
+- **Comment-to-Source Ratio:** On average there are`4.26` code lines per comment (lower=better).
 - **ToDo's:** `0` 
 
 #### <span id=t-components>Components</span>
@@ -158,7 +158,7 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 | External   | Internal | Private | Pure | View |
 | ---------- | -------- | ------- | ---- | ---- |
-| 2 | 13  | 0 | 0 | 12 |
+| 2 | 13  | 1 | 0 | 13 |
 
 #### <span id=t-statevariables>StateVariables</span>
 
@@ -244,7 +244,7 @@ This section lists functions that are explicitly declared public or payable. Ple
 |  File Name  |  SHA-1 Hash  |
 |-------------|--------------|
 | contracts/src/ISecondOpinionOracle.sol | 6961c6873aa91aa2e0e2f2afd28ccfc36cc0002c |
-| contracts/src/Sp1LidoAccountingReportContract.sol | 1af6111ad16857ab6a30d91dafb5359fd5dde42e |
+| contracts/src/Sp1LidoAccountingReportContract.sol | 0e72b434b0221e92df87e5744cbb07e65be6d936 |
 
 
  Contracts Description Table
@@ -270,6 +270,7 @@ This section lists functions that are explicitly declared public or payable. Ple
 | └ | _findBeaconBlockHash | Internal 🔒 |   | |
 | └ | _blockExists | Internal 🔒 |   | |
 | └ | _getBeaconBlockHashForTimestamp | Internal 🔒 |   | |
+| └ | _require_for_refslot | Private 🔐 |   | |
 | └ | _slotToTimestamp | Internal 🔒 |   | |
 | └ | _recordReport | Internal 🔒 | 🛑  | |
 | └ | _recordLidoValidatorStateHash | Internal 🔒 | 🛑  | |
