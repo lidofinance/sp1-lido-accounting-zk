@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use crate::beacon_state_reader::{BeaconStateReader, StateId};
 use crate::consts::NetworkInfo;
 use crate::eth_client::{Contract, EthELClient};
-use crate::proof_storage;
 use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
+use crate::{proof_storage, utils};
 
 use alloy_primitives::{Address, TxHash};
 use anyhow::{self, Context};
@@ -14,7 +14,8 @@ use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
 pub struct Flags {
     pub verify: bool,
-    pub store: bool,
+    pub store_input: bool,
+    pub store_proof: bool,
 }
 
 pub async fn run(
@@ -72,10 +73,18 @@ pub async fn run(
         true,
     );
 
+    if flags.store_input {
+        log::info!("Storing proof");
+        let input_file_name = format!("input_{}_{}.json", network.as_str(), target_slot);
+        let input_path = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(input_file_name);
+        utils::write_json(&input_path, &program_input).expect("failed to write fixture");
+        log::info!("Successfully written input to {input_path:?}");
+    }
+
     let proof = client.prove(program_input).context("Failed to generate proof")?;
     log::info!("Generated proof");
 
-    if flags.store {
+    if flags.store_proof {
         log::info!("Storing proof");
         let file_name = format!("proof_{}_{}.json", network.as_str(), target_slot);
         let proof_file = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(file_name);

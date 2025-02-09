@@ -6,6 +6,7 @@ use crate::{
         ExecutionPayloadHeaderFields, Hash256,
     },
     io::eth_io::{BeaconChainSlot, ReferenceSlot},
+    io::serde_utils::serde_hex_as_string,
     lido::{LidoValidatorState, ValidatorDelta},
     merkle_proof::FieldProof,
 };
@@ -58,6 +59,7 @@ pub struct ValsAndBals {
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct WithdrawalVaultData {
+    #[serde(with = "serde_hex_as_string::VecOfHexStringProtocol")]
     pub account_proof: Vec<Vec<u8>>,
     pub balance: alloy_primitives::U256,
     pub vault_address: Address,

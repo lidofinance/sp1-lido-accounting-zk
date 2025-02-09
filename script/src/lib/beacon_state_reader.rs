@@ -35,6 +35,14 @@ impl StateId {
             Self::Hash(hash) => hex::encode(hash),
         }
     }
+
+    pub fn get_permanent_str(&self) -> anyhow::Result<String> {
+        match self {
+            StateId::Slot(slot_id) => Ok(slot_id.to_string()),
+            StateId::Hash(block_hash) => Ok(hex::encode(block_hash)),
+            _ => Err(anyhow::anyhow!("Cannot read transient state ids from file reader")),
+        }
+    }
 }
 
 const MAX_REFERENCE_LOOKBACK_ATTEMPTS: u32 = 60 /*m*/ * 60 /*s*/ / 12 /*sec _per_slot*/;

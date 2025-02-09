@@ -13,6 +13,12 @@ mod test_utils;
 use test_utils::{eyre_to_anyhow, files::TestFiles, mark_as_refslot};
 use typenum::Unsigned;
 
+const DEFAULT_FLAGS: scripts::submit::Flags = scripts::submit::Flags {
+    verify: true,
+    store_proof: false,
+    store_input: false,
+};
+
 #[tokio::test]
 async fn deploy() -> Result<()> {
     let test_files = TestFiles::new_from_manifest_dir();
@@ -52,10 +58,7 @@ async fn submission_success() -> Result<()> {
         mark_as_refslot(finalized_slot),
         None, // alternatively Some(deploy_slot) should do the same
         env.network,
-        scripts::submit::Flags {
-            verify: true,
-            store: true,
-        },
+        DEFAULT_FLAGS,
     )
     .await
     .expect("Failed to execute script");
@@ -79,10 +82,7 @@ async fn two_submission_success() -> Result<()> {
         mark_as_refslot(intermediate_slot),
         None, // alternatively Some(deploy_slot) should do the same
         env.network.clone(),
-        scripts::submit::Flags {
-            verify: true,
-            store: true,
-        },
+        DEFAULT_FLAGS,
     )
     .await
     .context("Failed to perform deploy -> intermediate update")?;
@@ -95,10 +95,7 @@ async fn two_submission_success() -> Result<()> {
         mark_as_refslot(finalized_slot),
         None, // alternatively Some(first_run_slot) should do the same
         env.network.clone(),
-        scripts::submit::Flags {
-            verify: true,
-            store: true,
-        },
+        DEFAULT_FLAGS,
     )
     .await
     .context("Failed to perform intermediate -> finalized update")?;
@@ -123,10 +120,7 @@ async fn non_latest_state_success() -> Result<()> {
         mark_as_refslot(intermediate_slot),
         Some(mark_as_refslot(deploy_slot)),
         env.network.clone(),
-        scripts::submit::Flags {
-            verify: true,
-            store: true,
-        },
+        DEFAULT_FLAGS,
     )
     .await
     .context("Failed to run perform deploy -> intermediate update")?;
@@ -139,10 +133,7 @@ async fn non_latest_state_success() -> Result<()> {
         mark_as_refslot(finalized_slot),
         Some(mark_as_refslot(deploy_slot)),
         env.network.clone(),
-        scripts::submit::Flags {
-            verify: true,
-            store: true,
-        },
+        DEFAULT_FLAGS,
     )
     .await
     .context("Failed to perform deploy -> finalized update")?;
@@ -166,10 +157,7 @@ async fn resubmit_success() -> Result<()> {
         mark_as_refslot(finalized_slot),
         Some(mark_as_refslot(deploy_slot)),
         env.network.clone(),
-        scripts::submit::Flags {
-            verify: true,
-            store: true,
-        },
+        DEFAULT_FLAGS,
     )
     .await
     .context("Failed to run perform initial deploy -> finalized update")?;
@@ -182,10 +170,7 @@ async fn resubmit_success() -> Result<()> {
         mark_as_refslot(finalized_slot),
         Some(mark_as_refslot(deploy_slot)),
         env.network.clone(),
-        scripts::submit::Flags {
-            verify: true,
-            store: true,
-        },
+        DEFAULT_FLAGS,
     )
     .await
     .context("Failed to run perform repeated deploy -> finalized update")?;

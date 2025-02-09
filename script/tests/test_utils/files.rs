@@ -6,9 +6,11 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateI
 use sp1_lido_accounting_scripts::consts::NetworkInfo;
 use sp1_lido_accounting_scripts::eth_client::ContractDeployParametersRust;
 use sp1_lido_accounting_scripts::proof_storage::StoredProof;
+use sp1_lido_accounting_scripts::utils::read_json;
 use sp1_lido_accounting_scripts::{proof_storage, utils};
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconState;
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
+use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
 
 pub struct TestFiles {
     pub base: PathBuf,
@@ -35,6 +37,10 @@ impl TestFiles {
         self.base.join("beacon_states")
     }
 
+    fn withdrawal_vault_account_proofs(&self) -> PathBuf {
+        self.base.join("withdrawal_vault_account_proofs")
+    }
+
     pub fn read_deploy(
         &self,
         network: &impl NetworkInfo,
@@ -59,5 +65,24 @@ impl TestFiles {
             .read_beacon_state(state_id)
             .await
             .map_err(|err| eyre!("Failed to read beacon state {:#?}", err))
+    }
+
+    pub async fn read_beacon_block_header(&self, state_id: &StateId) -> Result<BeaconBlockHeader> {
+        let file_reader = FileBasedBeaconStateReader::new(&self.beacon_states());
+        file_reader
+            .read_beacon_block_header(state_id)
+            .await
+            .map_err(|err| eyre!("Failed to read beacon block header {:#?}", err))
+    }
+
+    pub async fn read_withdrawal_vault_data(&self, state_id: &StateId) -> Result<WithdrawalVaultData> {
+        let folder = self.withdrawal_vault_account_proofs();
+        let permanent_state_id = state_id
+            .get_permanent_str()
+            .map_err(|err| eyre!("Failed to get permanent str for StateId {:#?}", err))?;
+        let file_path = folder.join(format!("vault_data_{}.json", permanent_state_id));
+        log::info!("Reading WithdrawalVault account proof from file {:?}", &file_path);
+        let res: WithdrawalVaultData = read_json(&file_path)?;
+        Ok(res)
     }
 }

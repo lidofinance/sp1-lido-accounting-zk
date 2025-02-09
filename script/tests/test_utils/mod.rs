@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use eyre::eyre;
 use hex_literal::hex;
 use lazy_static::lazy_static;
 use sp1_lido_accounting_scripts::consts::{self, Network, NetworkInfo, WrappedNetwork};
@@ -20,6 +21,8 @@ pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(5832096);
 pub const ALT_DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(5928800);
 // Alternative deploy slot for tests - 6 Lido validators, 2 exited, 1790 total
 pub const ALT_DEPLOY_SLOT_2: BeaconChainSlot = BeaconChainSlot(6789600);
+
+pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(6946176);
 
 // TODO: Enable local prover if/when it becomes feasible.
 // In short, local proving with groth16 seems to not really work at the moment -

@@ -12,7 +12,9 @@ struct ProveArgs {
     #[clap(long, required = false)]
     previous_ref_slot: Option<u64>,
     #[clap(long, required = false)]
-    store: bool,
+    store_proof: bool,
+    #[clap(long, required = false)]
+    store_input: bool,
     #[clap(long, required = false)]
     local_verify: bool,
 }
@@ -36,7 +38,8 @@ async fn main() -> anyhow::Result<()> {
         network,
         scripts::submit::Flags {
             verify: args.local_verify,
-            store: args.store,
+            store_proof: args.store_proof,
+            store_input: args.store_input,
         },
     )
     .await?;

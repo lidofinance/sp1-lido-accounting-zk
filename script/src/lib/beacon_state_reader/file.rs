@@ -69,19 +69,11 @@ impl FileBasedBeaconStateReader {
             file_store: FileBasedBeaconChainStore::new(store_location),
         }
     }
-
-    fn get_permanent_state_id(&self, state_id: &StateId) -> anyhow::Result<String> {
-        match state_id {
-            StateId::Slot(slot_id) => Ok(slot_id.to_string()),
-            StateId::Hash(block_hash) => Ok(hex::encode(block_hash)),
-            _ => Err(anyhow::anyhow!("Cannot read transient state ids from file reader")),
-        }
-    }
 }
 
 impl BeaconStateReader for FileBasedBeaconStateReader {
     async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
-        let permanent_state = self.get_permanent_state_id(state_id)?;
+        let permanent_state = state_id.get_permanent_str()?;
         let beacon_state_path = self.file_store.get_beacon_state_path(&permanent_state);
         log::info!("Reading BeaconState from file {:?}", beacon_state_path);
         let data = read_binary(beacon_state_path)?;
@@ -90,7 +82,7 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
     }
 
     async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
-        let permanent_state = self.get_permanent_state_id(state_id)?;
+        let permanent_state = state_id.get_permanent_str()?;
         let beacon_block_header_path = self.file_store.get_beacon_block_header_path(&permanent_state);
         log::info!("Reading BeaconBlockHeader from file {:?}", &beacon_block_header_path);
         let res: BeaconBlockHeader = read_json(&beacon_block_header_path)?;
