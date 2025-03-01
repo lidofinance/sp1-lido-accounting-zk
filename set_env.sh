@@ -1,1 +1,0 @@
-rm .env && ln -s .env.network.$1 .env
