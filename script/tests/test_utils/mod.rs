@@ -104,6 +104,15 @@ pub fn set_bs_field(bs: &mut BeaconStatePrecomputedHashes, field: &BeaconStateFi
         BeaconStateFields::next_withdrawal_index => bs.next_withdrawal_index = value,
         BeaconStateFields::next_withdrawal_validator_index => bs.next_withdrawal_validator_index = value,
         BeaconStateFields::historical_summaries => bs.historical_summaries = value,
+        BeaconStateFields::deposit_requests_start_index => bs.deposit_requests_start_index = value,
+        BeaconStateFields::deposit_balance_to_consume => bs.deposit_balance_to_consume = value,
+        BeaconStateFields::exit_balance_to_consume => bs.exit_balance_to_consume = value,
+        BeaconStateFields::earliest_exit_epoch => bs.earliest_exit_epoch = value,
+        BeaconStateFields::consolidation_balance_to_consume => bs.consolidation_balance_to_consume = value,
+        BeaconStateFields::earliest_consolidation_epoch => bs.earliest_consolidation_epoch = value,
+        BeaconStateFields::pending_deposits => bs.pending_deposits = value,
+        BeaconStateFields::pending_partial_withdrawals => bs.pending_partial_withdrawals = value,
+        BeaconStateFields::pending_consolidations => bs.pending_consolidations = value,
     }
 }
 
