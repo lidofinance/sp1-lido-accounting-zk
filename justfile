@@ -29,8 +29,24 @@ start_anvil:
 write_manifesto target_slot: build
     ./target/release/deploy --target-slot {{target_slot}} --store x"../data/deploy/${EVM_CHAIN}-deploy.json" --dry-run
 
+### Contract interactions ###
+# These implicitly depends on start_anvil, but we don't want to start anvil each time - it should be running
+[working-directory: 'contracts']
 deploy:
     forge script --chain $CHAIN_ID script/Deploy.s.sol:Deploy --rpc-url $EXECUTION_LAYER_RPC --broadcast {{verify_contract_cmd}}
+
+read_last_report_slot:
+    cast call $CONTRACT_ADDRESS "getLatestLidoValidatorStateSlot()(uint256)"
+
+read_last_report:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+    target_slot=$(cast --json call $CONTRACT_ADDRESS "getLatestLidoValidatorStateSlot()(uint256)" | jq ".[0] | tonumber")
+    cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" $target_slot
+
+read_report target_slot:
+    cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" "{{target_slot}}"
+### Contract interactions ###
 
 # Development
 update_fixtures target_slot previous_slot='0': build
