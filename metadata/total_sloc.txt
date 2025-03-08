@@ -39,7 +39,7 @@ shared/src/lib/circuit_logic/report.rs             81        9         2       7
 script/tests/test_utils/tampering_bs.rs            79        8         0       71          3             4.23
 shared/src/lib/io/serde_utils.rs                   79        8         0       71          2             2.82
 script/src/lib/scripts/execute.rs                  75        9         0       66          1             1.52
-program/src/main.rs                                74       12         0       62          1             1.61
+program/src/bin/main.rs                            74       12         0       62          1             1.61
 script/src/bin/dev/write_test_fixture.rs           74       10         0       64          2             3.12
 script/tests/program_input.rs                      71       13         1       57          2             3.51
 ~ript/src/lib/scripts/write_test_fixture.rs        69       12         0       57          1             1.75
@@ -55,8 +55,8 @@ script/src/bin/dev/submit_cached.rs                38        7         0       3
 script/build.rs                                    31        5         0       26          2             7.69
 shared/src/lib/eth_spec.rs                         18        4         0       14          0             0.00
 shared/src/lib/eth_execution_layer.rs              12        2         0       10          0             0.00
-shared/src/lib/util.rs                              9        1         0        8          0             0.00
 shared/src/lib/lib.rs                               9        0         0        9          0             0.00
+shared/src/lib/util.rs                              9        1         0        8          0             0.00
 script/src/lib/lib.rs                               8        0         0        8          0             0.00
 script/src/lib/scripts.rs                           6        0         0        6          0             0.00
 shared/src/lib/circuit_logic.rs                     3        0         0        3          0             0.00
