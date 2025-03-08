@@ -2,7 +2,8 @@ use std::process::Command;
 
 use sp1_helper::{build_program_with_args, BuildArgs};
 
-const PROGRAM_FEATURE: &str = "program";
+// Keep in sync with program/Cargo.toml feature name
+const PROGRAM_FEATURE: &str = "sp1_lido_accounting_zk_program";
 
 fn build_contract_abi(path: &str) {
     let constracts_dir = std::path::Path::new(path);
@@ -27,6 +28,7 @@ fn build_contract_abi(path: &str) {
 
 fn build_program(path: &str) {
     let mut args = BuildArgs::default();
+    args.features.push(PROGRAM_FEATURE.to_owned());
     build_program_with_args(path, args);
 }
 

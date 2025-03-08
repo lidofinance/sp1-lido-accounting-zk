@@ -5234,6 +5234,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-lido-accounting-zk-lib-merkle-tree-leaves-derive"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn 2.0.96",
+]
+
+[[package]]
+name = "sp1-lido-accounting-zk-program"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-sol-types",
+ "arbitrary",
+ "derive_more",
+ "eth_trie",
+ "ethereum-types",
+ "ethereum_hashing",
+ "ethereum_serde_utils",
+ "ethereum_ssz",
+ "ethereum_ssz_derive",
+ "hex",
+ "hex-literal",
+ "itertools 0.14.0",
+ "log",
+ "proptest",
+ "proptest-arbitrary-interop",
+ "rs_merkle",
+ "serde",
+ "serde_derive",
+ "sp1-derive",
+ "sp1-lido-accounting-zk-lib-merkle-tree-leaves-derive",
+ "sp1-zkvm",
+ "ssz_types",
+ "tree_hash",
+ "tree_hash_derive",
+ "typenum",
+]
+
+[[package]]
 name = "sp1-lido-accounting-zk-script"
 version = "0.1.0"
 dependencies = [
@@ -5261,8 +5302,8 @@ dependencies = [
  "simple_logger",
  "sp1-core-machine",
  "sp1-helper",
+ "sp1-lido-accounting-zk-program",
  "sp1-sdk",
- "sp1_lido_accounting_zk_program",
  "thiserror 2.0.11",
  "tokio",
  "tracing",
@@ -5563,47 +5604,6 @@ dependencies = [
  "sha2",
  "sp1-lib",
  "sp1-primitives",
-]
-
-[[package]]
-name = "sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn 2.0.96",
-]
-
-[[package]]
-name = "sp1_lido_accounting_zk_program"
-version = "0.1.0"
-dependencies = [
- "alloy-primitives",
- "alloy-rlp",
- "alloy-sol-types",
- "arbitrary",
- "derive_more",
- "eth_trie",
- "ethereum-types",
- "ethereum_hashing",
- "ethereum_serde_utils",
- "ethereum_ssz",
- "ethereum_ssz_derive",
- "hex",
- "hex-literal",
- "itertools 0.14.0",
- "log",
- "proptest",
- "proptest-arbitrary-interop",
- "rs_merkle",
- "serde",
- "serde_derive",
- "sp1-derive",
- "sp1-zkvm",
- "sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive",
- "ssz_types",
- "tree_hash",
- "tree_hash_derive",
- "typenum",
 ]
 
 [[package]]

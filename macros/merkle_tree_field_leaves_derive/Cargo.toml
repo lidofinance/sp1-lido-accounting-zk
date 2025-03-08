@@ -2,7 +2,7 @@
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-name = "sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive"
+name = "sp1-lido-accounting-zk-lib-merkle-tree-leaves-derive"
 
 [lib]
 proc-macro = true

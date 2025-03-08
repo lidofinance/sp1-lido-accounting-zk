@@ -2,12 +2,17 @@
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-name = "sp1_lido_accounting_zk_program"
+name = "sp1-lido-accounting-zk-program"
 
 [[bin]]
-name="sp1_lido_accounting_zk_program"
+# Note: package name and bin name must match, otherwise sp1 build stage (in script/build.rs)
+# fails with No such file or directory.bench
+# Note 2: make sure to change the ELF constant value in script/src/lib/consts.rs if changed
+# it won't fail until cargo clean, but will silently use an outdated ELF file
+name = "sp1-lido-accounting-zk-program"
 path = "src/bin/main.rs"
-test=false
+test = false
+required-features = ["sp1_lido_accounting_zk_program"]
 
 [lib]
 name = "sp1_lido_accounting_zk_lib"
@@ -30,14 +35,16 @@ log.workspace = true
 rs_merkle.workspace = true
 serde_derive.workspace = true
 serde.workspace = true
-sp1-derive.workspace = true
-sp1-zkvm.workspace = true
 ssz_types.workspace = true
 tree_hash_derive.workspace = true
 tree_hash.workspace = true
 typenum.workspace = true
 
-sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive.workspace = true
+sp1-lido-accounting-zk-lib-merkle-tree-leaves-derive.workspace = true
+
+# Dependencies only for sp1_lido_accounting_zk_program
+sp1-derive = { workspace = true, optional = true }
+sp1-zkvm = { workspace = true, optional = true }
 
 [dev-dependencies]
 arbitrary.workspace = true
@@ -45,3 +52,7 @@ hex-literal.workspace = true
 proptest.workspace = true
 proptest-arbitrary-interop.workspace = true
 alloy-primitives = { version = "0.8.15", features = ["arbitrary", "serde", "rlp"] }
+
+[features]
+# Keep in sync with script/build.rs PROGRAM_FEATURE constant
+sp1_lido_accounting_zk_program = ["sp1-derive", "sp1-zkvm"]

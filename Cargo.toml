@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "program",
     "script",
-    # "shared",
     "macros/merkle_tree_field_leaves_derive"
 ]
 
@@ -56,8 +55,8 @@ typenum = "1.17.0"
 
 # "Reexporting" workspace members
 # so that sp1_lido_accounting_zk_lib.workspace = true works
-sp1_lido_accounting_zk_program = { path = "program" }
-sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive = { path = "macros/merkle_tree_field_leaves_derive" }
+sp1-lido-accounting-zk-program = { path = "program" }
+sp1-lido-accounting-zk-lib-merkle-tree-leaves-derive = { path = "macros/merkle_tree_field_leaves_derive" }
 
 
 [workspace.devDependencies]

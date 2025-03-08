@@ -22,6 +22,9 @@ submit target_slot previous_slot='0': build
         ./target/release/submit {{local_verify_cmd}} --target-ref-slot {{target_slot}};\
     fi
 
+submit_2 target_slot previous_slot='0':
+    cargo run --bin submit --release -- --target-ref-slot {{target_slot}}
+
 # Deploy
 start_anvil:
     RUST_LOG=info anvil --fork-url $FORK_URL

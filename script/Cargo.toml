@@ -99,11 +99,12 @@ tokio.workspace = true
 thiserror.workspace = true
 tree_hash.workspace = true
 
+sp1-lido-accounting-zk-program.workspace = true
+
 clap = { version = "4.0", features = ["derive", "env"] }
 eyre = "0.6.12"
 k256 = "0.13.3"
 reqwest = "0.12.7"
-sp1_lido_accounting_zk_program.workspace = true
 tracing = "0.1.40"
 
 [build-dependencies]
