@@ -11,8 +11,8 @@ use tokio::try_join;
 
 use alloy_primitives::Address;
 use log;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_lib::io::eth_io::ReferenceSlot;
 
 pub async fn run(
     client: &impl SP1ClientWrapper,

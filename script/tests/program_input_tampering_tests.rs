@@ -13,12 +13,12 @@ use sp1_lido_accounting_scripts::{
     sp1_client_wrapper::SP1ClientWrapper,
 };
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconStateFields;
-use sp1_lido_accounting_zk_shared::io::eth_io::{HaveEpoch, ReferenceSlot};
-use sp1_lido_accounting_zk_shared::io::program_io::ExecutionPayloadHeaderData;
-use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorWithIndex};
-use sp1_lido_accounting_zk_shared::util::usize_to_u64;
-use sp1_lido_accounting_zk_shared::{
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::BeaconStateFields;
+use sp1_lido_accounting_zk_lib::io::eth_io::{HaveEpoch, ReferenceSlot};
+use sp1_lido_accounting_zk_lib::io::program_io::ExecutionPayloadHeaderData;
+use sp1_lido_accounting_zk_lib::lido::{LidoValidatorState, ValidatorWithIndex};
+use sp1_lido_accounting_zk_lib::util::usize_to_u64;
+use sp1_lido_accounting_zk_lib::{
     eth_consensus_layer::{BeaconState, Hash256},
     eth_spec,
     io::{eth_io::BeaconChainSlot, program_io::ProgramInput},

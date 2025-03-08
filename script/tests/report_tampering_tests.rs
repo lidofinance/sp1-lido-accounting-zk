@@ -10,7 +10,7 @@ use sp1_lido_accounting_scripts::{
 };
 
 use hex_literal::hex;
-use sp1_lido_accounting_zk_shared::{
+use sp1_lido_accounting_zk_lib::{
     eth_consensus_layer::Hash256,
     io::{
         eth_io::{PublicValuesRust, PublicValuesSolidity, ReportMetadataRust, ReportRust},

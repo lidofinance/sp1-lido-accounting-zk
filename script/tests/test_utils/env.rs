@@ -7,7 +7,7 @@ use sp1_lido_accounting_scripts::{
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 
-use sp1_lido_accounting_zk_shared::{
+use sp1_lido_accounting_zk_lib::{
     eth_consensus_layer::{BeaconBlockHeader, BeaconState},
     eth_spec,
     io::{

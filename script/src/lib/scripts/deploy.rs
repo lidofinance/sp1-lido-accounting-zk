@@ -6,8 +6,8 @@ use crate::utils;
 
 use alloy::providers::WalletProvider;
 use alloy_primitives::Address;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
-use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::{BeaconState, Hash256};
+use sp1_lido_accounting_zk_lib::io::eth_io::BeaconChainSlot;
 
 use std::sync::Arc;
 use std::{
@@ -16,7 +16,7 @@ use std::{
 };
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::{io::eth_io::LidoValidatorStateRust, lido::LidoValidatorState};
+use sp1_lido_accounting_zk_lib::{io::eth_io::LidoValidatorStateRust, lido::LidoValidatorState};
 
 pub enum Source {
     Network { slot: BeaconChainSlot },

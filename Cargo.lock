@@ -5262,7 +5262,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-helper",
  "sp1-sdk",
- "sp1_lido_accounting_zk_shared",
+ "sp1_lido_accounting_zk_program",
  "thiserror 2.0.11",
  "tokio",
  "tracing",
@@ -5566,7 +5566,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1_lido_accounting_zk_shared"
+name = "sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn 2.0.96",
+]
+
+[[package]]
+name = "sp1_lido_accounting_zk_program"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
@@ -5591,19 +5599,11 @@ dependencies = [
  "serde_derive",
  "sp1-derive",
  "sp1-zkvm",
- "sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive",
+ "sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive",
  "ssz_types",
  "tree_hash",
  "tree_hash_derive",
  "typenum",
-]
-
-[[package]]
-name = "sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn 2.0.96",
 ]
 
 [[package]]

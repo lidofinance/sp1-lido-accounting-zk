@@ -55,9 +55,9 @@ tree_hash_derive = "0.9.0"
 typenum = "1.17.0"
 
 # "Reexporting" workspace members
-# so that sp1_lido_accounting_zk_shared.workspace = true works
-sp1_lido_accounting_zk_shared = { path = "program" }
-sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive = { path = "macros/merkle_tree_field_leaves_derive" }
+# so that sp1_lido_accounting_zk_lib.workspace = true works
+sp1_lido_accounting_zk_program = { path = "program" }
+sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive = { path = "macros/merkle_tree_field_leaves_derive" }
 
 
 [workspace.devDependencies]

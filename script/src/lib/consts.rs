@@ -1,6 +1,6 @@
 use sp1_sdk::include_elf;
 
-pub const ELF: &[u8] = include_elf!("sp1_lido_accounting_zk_shared");
+pub const ELF: &[u8] = include_elf!("sp1_lido_accounting_zk_program");
 
 pub mod sp1_verifier {
     use hex_literal::hex;

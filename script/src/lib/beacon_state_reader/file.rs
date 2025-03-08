@@ -1,12 +1,12 @@
 use crate::utils::{read_binary, read_json};
 use log;
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
+use sp1_lido_accounting_zk_lib::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use ssz::{Decode, Encode};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 
 use super::{BeaconStateReader, StateId};
 

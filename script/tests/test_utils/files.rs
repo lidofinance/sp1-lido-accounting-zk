@@ -8,9 +8,9 @@ use sp1_lido_accounting_scripts::eth_client::ContractDeployParametersRust;
 use sp1_lido_accounting_scripts::proof_storage::StoredProof;
 use sp1_lido_accounting_scripts::utils::read_json;
 use sp1_lido_accounting_scripts::{proof_storage, utils};
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
-use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
-use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
+use sp1_lido_accounting_zk_lib::io::eth_io::BeaconChainSlot;
+use sp1_lido_accounting_zk_lib::io::program_io::WithdrawalVaultData;
 
 pub struct TestFiles {
     pub base: PathBuf,

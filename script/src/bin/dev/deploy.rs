@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts};
-use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
+use sp1_lido_accounting_zk_lib::io::eth_io::BeaconChainSlot;
 
 /*
 Run variants:

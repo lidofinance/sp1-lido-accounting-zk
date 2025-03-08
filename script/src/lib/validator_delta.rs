@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
 use log;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Epoch, ValidatorIndex, Validators};
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch};
-use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex};
-use sp1_lido_accounting_zk_shared::util::u64_to_usize;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::{BeaconState, Epoch, ValidatorIndex, Validators};
+use sp1_lido_accounting_zk_lib::io::eth_io::{BeaconChainSlot, HaveEpoch};
+use sp1_lido_accounting_zk_lib::lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex};
+use sp1_lido_accounting_zk_lib::util::u64_to_usize;
 
 #[derive(Debug, Clone)]
 pub struct ValidatorDeltaComputeBeaconStateProjection<'a> {
@@ -146,7 +146,7 @@ impl<'a> ValidatorDeltaCompute<'a> {
 #[cfg(test)]
 mod test {
     use rand::Rng;
-    use sp1_lido_accounting_zk_shared::{
+    use sp1_lido_accounting_zk_lib::{
         eth_consensus_layer::{BlsPublicKey, Hash256, Validator, Validators},
         io::eth_io::{BeaconChainSlot, HaveEpoch},
         lido::{LidoValidatorState, ValidatorDelta, ValidatorStatus, ValidatorWithIndex},
@@ -160,7 +160,7 @@ mod test {
 
     mod creds {
         use lazy_static::lazy_static;
-        use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
+        use sp1_lido_accounting_zk_lib::eth_consensus_layer::Hash256;
 
         // Not real ones, just test double that we'll treat as lido
         lazy_static! {

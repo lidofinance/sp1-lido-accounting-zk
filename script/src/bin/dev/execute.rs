@@ -1,6 +1,6 @@
 use clap::Parser;
 use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts};
-use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
+use sp1_lido_accounting_zk_lib::io::eth_io::ReferenceSlot;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]

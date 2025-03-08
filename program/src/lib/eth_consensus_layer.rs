@@ -3,7 +3,7 @@ use crate::merkle_proof::MerkleTreeFieldLeaves;
 use alloy_primitives::U256;
 use derive_more::Debug;
 use serde::{Deserialize, Serialize};
-use sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive::MerkleTreeFieldLeaves;
+use sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive::MerkleTreeFieldLeaves;
 use ssz_derive::{Decode, Encode};
 pub use ssz_types::{typenum, typenum::Unsigned, BitList, BitVector, FixedVector, VariableList};
 

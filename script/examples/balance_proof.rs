@@ -12,7 +12,7 @@ use sp1_lido_accounting_scripts::{
     consts::{self, NetworkInfo},
     scripts,
 };
-use sp1_lido_accounting_zk_shared::eth_execution_layer::EthAccountRlpValue;
+use sp1_lido_accounting_zk_lib::eth_execution_layer::EthAccountRlpValue;
 
 #[tokio::main]
 async fn main() {

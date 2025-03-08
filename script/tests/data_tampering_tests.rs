@@ -8,7 +8,7 @@ use sp1_lido_accounting_scripts::{
     sp1_client_wrapper::SP1ClientWrapper,
 };
 
-use sp1_lido_accounting_zk_shared::{
+use sp1_lido_accounting_zk_lib::{
     eth_consensus_layer::{BeaconState, BlsPublicKey, Hash256, Validator},
     io::{
         eth_io::{BeaconChainSlot, HaveEpoch},

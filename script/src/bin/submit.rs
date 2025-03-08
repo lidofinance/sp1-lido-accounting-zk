@@ -1,6 +1,6 @@
 use clap::Parser;
 use sp1_lido_accounting_scripts::scripts;
-use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
+use sp1_lido_accounting_zk_lib::io::eth_io::ReferenceSlot;
 
 // cargo run --bin submit --release -- --target-slot 5982336 --store --local-verify
 

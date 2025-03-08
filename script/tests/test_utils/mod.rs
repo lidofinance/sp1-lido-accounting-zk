@@ -4,10 +4,10 @@ use hex_literal::hex;
 use lazy_static::lazy_static;
 use sp1_lido_accounting_scripts::consts::{self, Network, NetworkInfo, WrappedNetwork};
 use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapperImpl;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::{
     BeaconStateFields, BeaconStatePrecomputedHashes, Epoch, Hash256, Validator,
 };
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
+use sp1_lido_accounting_zk_lib::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use sp1_sdk::ProverClient;
 
 pub mod env;
@@ -183,7 +183,7 @@ pub mod vecs {
 
 pub mod varlists {
     use rand::Rng;
-    use sp1_lido_accounting_zk_shared::eth_consensus_layer::VariableList;
+    use sp1_lido_accounting_zk_lib::eth_consensus_layer::VariableList;
 
     use super::vecs;
 

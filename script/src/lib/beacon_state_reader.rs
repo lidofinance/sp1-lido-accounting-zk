@@ -1,11 +1,11 @@
 use anyhow;
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveSlotWithBlock, ReferenceSlot};
+use sp1_lido_accounting_zk_lib::io::eth_io::{BeaconChainSlot, HaveSlotWithBlock, ReferenceSlot};
 use tree_hash::TreeHash;
 
 use crate::beacon_state_reader::file::FileBasedBeaconStateReader;
 use crate::beacon_state_reader::reqwest::{CachedReqwestBeaconStateReader, ReqwestBeaconStateReader};
 use crate::consts::NetworkInfo;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use std::env;
 use std::path::PathBuf;
 

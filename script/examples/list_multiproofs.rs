@@ -1,4 +1,4 @@
-use sp1_lido_accounting_zk_shared::{io::eth_io::BeaconChainSlot, lido::LidoValidatorState};
+use sp1_lido_accounting_zk_lib::{io::eth_io::BeaconChainSlot, lido::LidoValidatorState};
 
 use std::path::PathBuf;
 use tree_hash::TreeHash;
@@ -9,8 +9,8 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     BeaconStateReader, StateId,
 };
 use sp1_lido_accounting_scripts::consts;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::merkle_proof::FieldProof;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_lib::merkle_proof::FieldProof;
 
 use simple_logger::SimpleLogger;
 

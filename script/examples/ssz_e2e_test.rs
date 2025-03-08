@@ -8,8 +8,8 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
     BeaconStateReader, StateId,
 };
-use sp1_lido_accounting_zk_shared::{eth_consensus_layer::BeaconBlockHeaderFields, merkle_proof::FieldProof};
-use sp1_lido_accounting_zk_shared::{
+use sp1_lido_accounting_zk_lib::{eth_consensus_layer::BeaconBlockHeaderFields, merkle_proof::FieldProof};
+use sp1_lido_accounting_zk_lib::{
     eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStateFields, Hash256},
     io::eth_io::BeaconChainSlot,
 };

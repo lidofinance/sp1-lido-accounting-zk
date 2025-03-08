@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 use tree_hash::TreeHash;
 
 pub struct TamperableBeaconStateReader<T, Mut>
@@ -48,7 +48,7 @@ where
     async fn read_beacon_block_header(
         &self,
         state_id: &StateId,
-    ) -> anyhow::Result<sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconBlockHeader> {
+    ) -> anyhow::Result<sp1_lido_accounting_zk_lib::eth_consensus_layer::BeaconBlockHeader> {
         let (bh, _) = self.read_beacon_state_and_header(state_id).await?;
         Ok(bh)
     }

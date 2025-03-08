@@ -2,7 +2,6 @@ use std::process::Command;
 
 use sp1_helper::{build_program_with_args, BuildArgs};
 
-const PROGRAM_NAME: &str = "sp1_lido_accounting_zk_shared";
 const PROGRAM_FEATURE: &str = "program";
 
 fn build_contract_abi(path: &str) {
@@ -28,7 +27,6 @@ fn build_contract_abi(path: &str) {
 
 fn build_program(path: &str) {
     let mut args = BuildArgs::default();
-    // args.binaries.push(PROGRAM_NAME.to_owned());
     build_program_with_args(path, args);
 }
 

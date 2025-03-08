@@ -5,7 +5,7 @@ use log;
 use reqwest::{header::ACCEPT, Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 
-use sp1_lido_accounting_zk_shared::{
+use sp1_lido_accounting_zk_lib::{
     eth_consensus_layer::{BeaconBlockHeader, BeaconState, Root},
     io::eth_io::{BeaconChainSlot, HaveSlotWithBlock},
 };

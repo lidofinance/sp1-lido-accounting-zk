@@ -1,5 +1,5 @@
 use simple_logger::SimpleLogger;
-use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
+use sp1_lido_accounting_zk_lib::io::eth_io::BeaconChainSlot;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 

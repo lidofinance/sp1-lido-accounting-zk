@@ -9,8 +9,8 @@ use crate::{proof_storage, utils};
 
 use alloy_primitives::{Address, TxHash};
 use anyhow::{self, Context};
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_lib::io::eth_io::ReferenceSlot;
 
 pub struct Flags {
     pub verify: bool,

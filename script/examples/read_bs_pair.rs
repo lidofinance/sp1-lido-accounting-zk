@@ -1,4 +1,4 @@
-use sp1_lido_accounting_zk_shared::eth_spec;
+use sp1_lido_accounting_zk_lib::eth_spec;
 use typenum::Unsigned;
 
 use tree_hash::TreeHash;

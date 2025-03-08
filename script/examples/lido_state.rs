@@ -7,7 +7,7 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     BeaconStateReader, StateId,
 };
 use sp1_lido_accounting_scripts::consts::lido_credentials;
-use sp1_lido_accounting_zk_shared::{
+use sp1_lido_accounting_zk_lib::{
     io::eth_io::{BeaconChainSlot, HaveEpoch},
     lido::LidoValidatorState,
 };
@@ -15,8 +15,8 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
-use sp1_lido_accounting_zk_shared::util::usize_to_u64;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::{BeaconState, Hash256};
+use sp1_lido_accounting_zk_lib::util::usize_to_u64;
 
 use simple_logger::SimpleLogger;
 

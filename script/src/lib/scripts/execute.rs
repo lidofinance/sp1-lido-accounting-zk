@@ -4,8 +4,8 @@ use crate::eth_client::{Contract, EthELClient};
 use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_lib::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use tokio::try_join;
 
 async fn get_previous_bc_slot(

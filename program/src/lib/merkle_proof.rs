@@ -343,7 +343,7 @@ where
 #[cfg(test)]
 mod test {
     use alloy_primitives::U256;
-    use sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive::MerkleTreeFieldLeaves;
+    use sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive::MerkleTreeFieldLeaves;
     use ssz_types::VariableList;
     use tree_hash::TreeHash;
     use tree_hash_derive::TreeHash;

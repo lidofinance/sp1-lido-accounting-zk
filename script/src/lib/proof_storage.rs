@@ -2,11 +2,11 @@ use std::path::Path;
 
 use alloy_sol_types::SolType;
 use serde::{Deserialize, Serialize};
-use sp1_lido_accounting_zk_shared::io::eth_io::{PublicValuesSolidity, ReportMetadataRust, ReportRust};
+use sp1_lido_accounting_zk_lib::io::eth_io::{PublicValuesSolidity, ReportMetadataRust, ReportRust};
 use sp1_sdk::HashableKey;
 use sp1_sdk::{SP1ProofWithPublicValues, SP1VerifyingKey};
 
-use sp1_lido_accounting_zk_shared::io::serde_utils::serde_hex_as_string;
+use sp1_lido_accounting_zk_lib::io::serde_utils::serde_hex_as_string;
 
 use crate::utils;
 

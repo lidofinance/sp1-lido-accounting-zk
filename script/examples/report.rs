@@ -8,11 +8,11 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
     BeaconStateReader,
 };
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch, ReferenceSlot};
+use sp1_lido_accounting_zk_lib::io::eth_io::{BeaconChainSlot, HaveEpoch, ReferenceSlot};
 use std::path::PathBuf;
 
-use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_lib::circuit_logic::report::ReportData;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::Hash256;
 
 use simple_logger::SimpleLogger;
 

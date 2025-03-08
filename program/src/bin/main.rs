@@ -2,14 +2,14 @@
 sp1_zkvm::entrypoint!(main);
 
 use alloy_sol_types::SolType;
-use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{CycleTracker, InputVerifier};
-use sp1_lido_accounting_zk_shared::circuit_logic::io::create_public_values;
-use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
-use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
+use sp1_lido_accounting_zk_lib::circuit_logic::input_verification::{CycleTracker, InputVerifier};
+use sp1_lido_accounting_zk_lib::circuit_logic::io::create_public_values;
+use sp1_lido_accounting_zk_lib::circuit_logic::report::ReportData;
+use sp1_lido_accounting_zk_lib::lido::LidoValidatorState;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_zk_shared::io::eth_io::{LidoWithdrawalVaultDataRust, PublicValuesSolidity};
-use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
+use sp1_lido_accounting_zk_lib::io::eth_io::{LidoWithdrawalVaultDataRust, PublicValuesSolidity};
+use sp1_lido_accounting_zk_lib::io::program_io::ProgramInput;
 
 struct Sp1CycleTracker {}
 impl CycleTracker for Sp1CycleTracker {

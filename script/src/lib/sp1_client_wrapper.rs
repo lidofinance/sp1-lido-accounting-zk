@@ -7,7 +7,7 @@ use sp1_sdk::{
 
 use anyhow::Result;
 use log;
-use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
+use sp1_lido_accounting_zk_lib::io::program_io::ProgramInput;
 
 use crate::consts::{self, sp1_verifier::VerificationMode};
 

@@ -3,19 +3,19 @@ use alloy_sol_types::SolType;
 
 use sp1_sdk::SP1PublicValues;
 
-use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
-use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStateFields, Hash256};
-use sp1_lido_accounting_zk_shared::io::eth_io::{
+use sp1_lido_accounting_zk_lib::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
+use sp1_lido_accounting_zk_lib::circuit_logic::report::ReportData;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStateFields, Hash256};
+use sp1_lido_accounting_zk_lib::io::eth_io::{
     BeaconChainSlot, HaveEpoch, HaveSlotWithBlock, LidoValidatorStateRust, PublicValuesRust, PublicValuesSolidity,
     ReferenceSlot, ReportMetadataRust, ReportRust,
 };
-use sp1_lido_accounting_zk_shared::io::program_io::{
+use sp1_lido_accounting_zk_lib::io::program_io::{
     ExecutionPayloadHeaderData, ProgramInput, ValsAndBals, WithdrawalVaultData,
 };
-use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
-use sp1_lido_accounting_zk_shared::merkle_proof::FieldProof;
-use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
+use sp1_lido_accounting_zk_lib::lido::LidoValidatorState;
+use sp1_lido_accounting_zk_lib::merkle_proof::FieldProof;
+use sp1_lido_accounting_zk_lib::util::{u64_to_usize, usize_to_u64};
 
 use anyhow::Result;
 

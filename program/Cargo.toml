@@ -2,15 +2,15 @@
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-name = "sp1_lido_accounting_zk_shared"
+name = "sp1_lido_accounting_zk_program"
 
 [[bin]]
-name="sp1_lido_accounting_zk_shared"
+name="sp1_lido_accounting_zk_program"
 path = "src/bin/main.rs"
 test=false
 
 [lib]
-name = "sp1_lido_accounting_zk_shared"
+name = "sp1_lido_accounting_zk_lib"
 path = "src/lib/lib.rs"
 
 [dependencies]
@@ -37,7 +37,7 @@ tree_hash_derive.workspace = true
 tree_hash.workspace = true
 typenum.workspace = true
 
-sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive.workspace = true
+sp1_lido_accounting_zk_lib_merkle_tree_leaves_derive.workspace = true
 
 [dev-dependencies]
 arbitrary.workspace = true

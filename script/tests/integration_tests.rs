@@ -5,7 +5,7 @@ use sp1_lido_accounting_scripts::{
     eth_client::{ProviderFactory, Sp1LidoAccountingReportContractWrapper},
     scripts,
 };
-use sp1_lido_accounting_zk_shared::{eth_spec, io::eth_io::BeaconChainSlot};
+use sp1_lido_accounting_zk_lib::{eth_spec, io::eth_io::BeaconChainSlot};
 use std::sync::Arc;
 use test_utils::env::IntegrationTestEnvironment;
 use test_utils::DEPLOY_SLOT;

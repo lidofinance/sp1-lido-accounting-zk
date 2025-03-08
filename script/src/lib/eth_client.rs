@@ -10,9 +10,9 @@ use alloy::transports::http::reqwest::Url;
 use alloy::transports::Transport;
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
-use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
+use sp1_lido_accounting_zk_lib::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_lib::io::eth_io::{BeaconChainSlot, ReferenceSlot};
+use sp1_lido_accounting_zk_lib::io::program_io::WithdrawalVaultData;
 
 use core::clone::Clone;
 use core::fmt;
@@ -22,8 +22,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use sp1_lido_accounting_zk_shared::io::eth_io::{LidoValidatorStateRust, ReportRust};
-use sp1_lido_accounting_zk_shared::io::serde_utils::serde_hex_as_string;
+use sp1_lido_accounting_zk_lib::io::eth_io::{LidoValidatorStateRust, ReportRust};
+use sp1_lido_accounting_zk_lib::io::serde_utils::serde_hex_as_string;
 use thiserror::Error;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
@@ -356,7 +356,7 @@ mod tests {
 
     use super::*;
     use hex_literal::hex;
-    use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
+    use sp1_lido_accounting_zk_lib::io::eth_io::BeaconChainSlot;
 
     fn default_params() -> ContractDeployParametersRust {
         ContractDeployParametersRust {
