@@ -33,5 +33,4 @@ LICENSE-*
 README.md
 
 # Scripts
-set_env.sh
-update_metadata.sh
+justfile
