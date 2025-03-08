@@ -41,7 +41,7 @@ async fn main() {
             let last_state_slot = contract
                 .get_latest_validator_state_slot()
                 .await
-                .expect("Couldn't automatically previuous ref slot");
+                .expect("Couldn't automatically determine previuous ref slot");
             ReferenceSlot(last_state_slot.0)
         }
     };
