@@ -1,5 +1,5 @@
 set dotenv-load := true
-set dotenv-required := true
+set dotenv-required := false
 
 local_verify_proof:="false"
 verify_contract:="false"
@@ -11,7 +11,7 @@ build:
     cargo build --release
 
 switch_env env:
-    rm .env && ln -s .env.network.{{env}} .env
+    rm -f .env && ln -s envs/.env.network.{{env}} .env
 
 
 # Running
