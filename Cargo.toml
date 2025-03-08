@@ -54,6 +54,9 @@ tree_hash = "0.9.0"
 tree_hash_derive = "0.9.0"
 typenum = "1.17.0"
 
+sp1-lido-accounting-zk-shared = { path = "shared" }
+sp1-lido-accounting-zk-shared-merkle-tree-leaves-derive = { path = "macros/merkle_tree_field_leaves_derive" }
+
 
 [workspace.devDependencies]
 cargo-license = "0.6.1"

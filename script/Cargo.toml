@@ -103,7 +103,7 @@ clap = { version = "4.0", features = ["derive", "env"] }
 eyre = "0.6.12"
 k256 = "0.13.3"
 reqwest = "0.12.7"
-sp1_lido_accounting_zk_shared = { path = "../shared" }
+sp1-lido-accounting-zk-shared.workspace = true
 tracing = "0.1.40"
 
 [build-dependencies]

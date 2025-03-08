@@ -2,7 +2,7 @@
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-name = "sp1_lido_accounting_zk_shared"
+name = "sp1-lido-accounting-zk-shared"
 
 [lib]
 name = "sp1_lido_accounting_zk_shared"
@@ -35,7 +35,7 @@ tree_hash_derive.workspace = true
 tree_hash.workspace = true
 typenum.workspace = true
 
-sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive = { path = "../macros/merkle_tree_field_leaves_derive" }
+sp1-lido-accounting-zk-shared-merkle-tree-leaves-derive.workspace = true
 
 [dev-dependencies]
 arbitrary.workspace = true
