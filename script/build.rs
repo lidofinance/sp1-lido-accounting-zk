@@ -1,6 +1,9 @@
 use std::process::Command;
 
-use sp1_helper::build_program;
+use sp1_helper::{build_program_with_args, BuildArgs};
+
+const PROGRAM_NAME: &str = "sp1_lido_accounting_zk_shared";
+const PROGRAM_FEATURE: &str = "program";
 
 fn build_contract_abi(path: &str) {
     let constracts_dir = std::path::Path::new(path);
@@ -21,6 +24,12 @@ fn build_contract_abi(path: &str) {
             println!("cargo::rerun-if-changed={}", dir.canonicalize().unwrap().display());
         }
     }
+}
+
+fn build_program(path: &str) {
+    let mut args = BuildArgs::default();
+    // args.binaries.push(PROGRAM_NAME.to_owned());
+    build_program_with_args(path, args);
 }
 
 fn main() {

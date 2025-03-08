@@ -5234,17 +5234,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-lido-accounting-zk-program"
-version = "0.1.0"
-dependencies = [
- "alloy-sol-types",
- "sp1-derive",
- "sp1-zkvm",
- "sp1_lido_accounting_zk_shared",
- "tree_hash",
-]
-
-[[package]]
 name = "sp1-lido-accounting-zk-script"
 version = "0.1.0"
 dependencies = [
@@ -5600,6 +5589,8 @@ dependencies = [
  "rs_merkle",
  "serde",
  "serde_derive",
+ "sp1-derive",
+ "sp1-zkvm",
  "sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive",
  "ssz_types",
  "tree_hash",

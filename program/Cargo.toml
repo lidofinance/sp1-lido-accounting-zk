@@ -2,16 +2,46 @@
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-name = "sp1-lido-accounting-zk-program"
+name = "sp1_lido_accounting_zk_shared"
 
 [[bin]]
-name="sp1-lido-accounting-zk-program"
+name="sp1_lido_accounting_zk_shared"
 path = "src/bin/main.rs"
 test=false
 
+[lib]
+name = "sp1_lido_accounting_zk_shared"
+path = "src/lib/lib.rs"
+
 [dependencies]
+alloy-primitives.workspace = true
+alloy-rlp.workspace = true
 alloy-sol-types.workspace = true
+derive_more.workspace = true
+ethereum_hashing.workspace = true
+ethereum_serde_utils.workspace = true
+ethereum_ssz_derive.workspace = true
+ethereum_ssz.workspace = true
+ethereum-types.workspace = true
+eth_trie.workspace = true
+hex.workspace = true
+itertools.workspace = true
+log.workspace = true
+rs_merkle.workspace = true
+serde_derive.workspace = true
+serde.workspace = true
 sp1-derive.workspace = true
 sp1-zkvm.workspace = true
-sp1_lido_accounting_zk_shared.workspace = true
+ssz_types.workspace = true
+tree_hash_derive.workspace = true
 tree_hash.workspace = true
+typenum.workspace = true
+
+sp1_lido_accounting_zk_shared_merkle_tree_leaves_derive.workspace = true
+
+[dev-dependencies]
+arbitrary.workspace = true
+hex-literal.workspace = true
+proptest.workspace = true
+proptest-arbitrary-interop.workspace = true
+alloy-primitives = { version = "0.8.15", features = ["arbitrary", "serde", "rlp"] }
