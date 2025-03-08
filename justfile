@@ -27,8 +27,10 @@ start_anvil:
     RUST_LOG=info anvil --fork-url $FORK_URL
 
 write_manifesto target_slot: build
-    ./target/release/deploy --target-slot {{target_slot}} --store x"../data/deploy/${EVM_CHAIN}-deploy.json" --dry-run
+    ./target/release/deploy --target-slot {{target_slot}} --store "data/deploy/${EVM_CHAIN}-deploy.json" --dry-run
 
+# implicitly depends on start-anvil, but it shouldn't run every time
+[working-directory: 'contracts']
 deploy:
     forge script --chain $CHAIN_ID script/Deploy.s.sol:Deploy --rpc-url $EXECUTION_LAYER_RPC --broadcast {{verify_contract_cmd}}
 
@@ -39,6 +41,10 @@ update_fixtures target_slot previous_slot='0': build
     else \
         ./target/release/write_test_fixture --target-ref-slot {{target_slot}};\
     fi
+
+# implicitly depends on deploy, but it shouldn't run every time
+read_report target_slot:
+    cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" "{{target_slot}}"
 
 [working-directory: 'contracts']
 test_contracts:
