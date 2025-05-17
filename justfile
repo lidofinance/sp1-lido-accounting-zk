@@ -27,7 +27,7 @@ start_anvil:
     RUST_LOG=info anvil --fork-url $FORK_URL
 
 write_manifesto target_slot: build
-    ./target/release/deploy --target-slot {{target_slot}} --store x"../data/deploy/${EVM_CHAIN}-deploy.json" --dry-run
+    ./target/release/deploy --target-slot {{target_slot}} --store "data/deploy/${EVM_CHAIN}-deploy.json" --dry-run
 
 ### Contract interactions ###
 # These implicitly depends on start_anvil, but we don't want to start anvil each time - it should be running
@@ -55,6 +55,17 @@ update_fixtures target_slot previous_slot='0': build
     else \
         ./target/release/write_test_fixture --target-ref-slot {{target_slot}};\
     fi
+
+download_state target_slot format="ssz":
+    if [ {{format}} -eq 'ssz']; then \
+        curl -H "Accept:application/octet-stream" ${CONSENSUS_LAYER_RPC}/eth/v2/debug/beacon/states/{{target_slot}} > temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.ssz;\
+    else \
+        curl -H "Accept:application/json" ${CONSENSUS_LAYER_RPC}/eth/v2/debug/beacon/states/{{target_slot}} > temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.json;\
+    fi
+
+# implicitly depends on deploy, but it shouldn't run every time
+read_report target_slot:
+    cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" "{{target_slot}}"
 
 [working-directory: 'contracts']
 test_contracts:

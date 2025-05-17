@@ -15,6 +15,7 @@ pub type CommitteeIndex = u64;
 pub type Hash256 = alloy_primitives::B256;
 pub type Root = Hash256;
 pub type BlsPublicKey = FixedVector<u8, typenum::U48>;
+pub type BlsSignature = FixedVector<u8, typenum::U96>;
 pub type ForkVersion = FixedVector<u8, typenum::U4>;
 pub type Version = FixedVector<u8, typenum::U4>;
 pub type ParticipationFlags = u8;
@@ -24,6 +25,8 @@ use crate::eth_spec;
 pub type Slot = u64;
 pub type Epoch = u64;
 pub type ValidatorIndex = u64;
+pub type WithdrawalCredentials = Hash256;
+pub type Gwei = u64;
 
 // Re-export
 pub type SlotsPerEpoch = eth_spec::SlotsPerEpoch;
@@ -62,9 +65,9 @@ pub struct Eth1Data {
 pub struct Validator {
     #[debug("0x{:?}", hex::encode(pubkey.to_vec()))]
     pub pubkey: BlsPublicKey,
-    pub withdrawal_credentials: Hash256,
+    pub withdrawal_credentials: WithdrawalCredentials,
     // #[serde(with = "serde_utils::quoted_u64")]
-    pub effective_balance: u64,
+    pub effective_balance: Gwei,
     pub slashed: bool,
     // #[serde(with = "serde_utils::quoted_u64")]
     pub activation_eligibility_epoch: Epoch,
@@ -133,7 +136,29 @@ pub struct HistoricalSummary {
 }
 
 pub type Validators = VariableList<Validator, eth_spec::ValidatorRegistryLimit>;
-pub type Balances = VariableList<u64, eth_spec::ValidatorRegistryLimit>;
+pub type Balances = VariableList<Gwei, eth_spec::ValidatorRegistryLimit>;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+pub struct PendingDeposit {
+    pubkey: BlsPublicKey,
+    withdrawal_credentials: WithdrawalCredentials,
+    amount: Gwei,
+    signature: BlsSignature,
+    slot: Slot,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+pub struct PendingPartialWithdrawal {
+    validator_index: ValidatorIndex,
+    amount: Gwei,
+    withdrawable_epoch: Epoch,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+pub struct PendingConsolidation {
+    source_index: ValidatorIndex,
+    target_index: ValidatorIndex,
+}
 
 // Simplified https://github.com/sigp/lighthouse/blob/master/consensus/types/src/beacon_state.rs#L212
 // Primarily - flattening the "superstruct" part on different eth specs,
@@ -199,6 +224,20 @@ pub struct BeaconState {
     pub next_withdrawal_validator_index: u64,
     // Deep history valid from Capella onwards.
     pub historical_summaries: VariableList<HistoricalSummary, eth_spec::HistoricalRootsLimit>,
+    // Electra
+    // #[serde(with = "serde_utils::quoted_u64")]
+    pub deposit_requests_start_index: u64,
+    // #[serde(with = "serde_utils::quoted_u64")]
+    pub deposit_balance_to_consume: Gwei,
+    // #[serde(with = "serde_utils::quoted_u64")]
+    pub exit_balance_to_consume: Gwei,
+    pub earliest_exit_epoch: Epoch,
+    // #[serde(with = "serde_utils::quoted_u64")]
+    pub consolidation_balance_to_consume: Gwei,
+    pub earliest_consolidation_epoch: Epoch,
+    pub pending_deposits: VariableList<PendingDeposit, eth_spec::PendingDepositsLimit>,
+    pub pending_partial_withdrawals: VariableList<PendingPartialWithdrawal, eth_spec::PendingPartialWithdrawalsLimit>,
+    pub pending_consolidations: VariableList<PendingConsolidation, eth_spec::PendingConsolidationsLimit>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]
@@ -256,6 +295,19 @@ pub struct BeaconStatePrecomputedHashes {
     pub next_withdrawal_validator_index: Hash256,
     // Deep history valid from Capella onwards.
     pub historical_summaries: Hash256,
+    // Electra
+    pub deposit_requests_start_index: Hash256,
+    // #[serde(with = "serde_utils::quoted_u64")]
+    pub deposit_balance_to_consume: Hash256,
+    // #[serde(with = "serde_utils::quoted_u64")]
+    pub exit_balance_to_consume: Hash256,
+    pub earliest_exit_epoch: Hash256,
+    // #[serde(with = "serde_utils::quoted_u64")]
+    pub consolidation_balance_to_consume: Hash256,
+    pub earliest_consolidation_epoch: Hash256,
+    pub pending_deposits: Hash256,
+    pub pending_partial_withdrawals: Hash256,
+    pub pending_consolidations: Hash256,
 }
 
 impl From<&BeaconState> for BeaconStatePrecomputedHashes {
@@ -289,6 +341,15 @@ impl From<&BeaconState> for BeaconStatePrecomputedHashes {
             next_withdrawal_index: value.next_withdrawal_index.tree_hash_root(),
             next_withdrawal_validator_index: value.next_withdrawal_validator_index.tree_hash_root(),
             historical_summaries: value.historical_summaries.tree_hash_root(),
+            deposit_requests_start_index: value.deposit_requests_start_index.tree_hash_root(),
+            deposit_balance_to_consume: value.deposit_balance_to_consume.tree_hash_root(),
+            exit_balance_to_consume: value.exit_balance_to_consume.tree_hash_root(),
+            earliest_exit_epoch: value.earliest_exit_epoch.tree_hash_root(),
+            consolidation_balance_to_consume: value.consolidation_balance_to_consume.tree_hash_root(),
+            earliest_consolidation_epoch: value.earliest_consolidation_epoch.tree_hash_root(),
+            pending_deposits: value.pending_deposits.tree_hash_root(),
+            pending_partial_withdrawals: value.pending_partial_withdrawals.tree_hash_root(),
+            pending_consolidations: value.pending_consolidations.tree_hash_root(),
         }
     }
 }
