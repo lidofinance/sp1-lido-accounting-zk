@@ -16,11 +16,7 @@ switch_env env:
 
 # Running
 submit target_slot previous_slot='0': build
-    if [ {{previous_slot}} -ne '0']; then \
-        ./target/release/submit {{local_verify_cmd}} --target-ref-slot {{target_slot}} --previous_slot {{previous_slot}};\
-    else \
-        ./target/release/submit {{local_verify_cmd}} --target-ref-slot {{target_slot}};\
-    fi
+    ./target/release/submit {{local_verify_cmd}} --target-ref-slot {{target_slot}} {{ if previous_slot != "0" { "--previous_slot "+previous_slot } else { "" } }}
 
 # Deploy
 start_anvil:
@@ -50,22 +46,14 @@ read_report target_slot:
 
 # Development
 update_fixtures target_slot previous_slot='0': build
-    if [ {{previous_slot}} -ne '0']; then \
-        ./target/release/write_test_fixture --target-ref-slot {{target_slot}} --previous-ref-slot {{previous_slot}};\
-    else \
-        ./target/release/write_test_fixture --target-ref-slot {{target_slot}};\
-    fi
+    ./target/release/write_test_fixture --target-ref-slot {{target_slot}} {{ if previous_slot != "0" { "--previous_slot "+previous_slot } else { "" } }}
 
 download_state target_slot format="ssz":
-    if [ {{format}} -eq 'ssz']; then \
-        curl -H "Accept:application/octet-stream" ${CONSENSUS_LAYER_RPC}/eth/v2/debug/beacon/states/{{target_slot}} > temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.ssz;\
-    else \
-        curl -H "Accept:application/json" ${CONSENSUS_LAYER_RPC}/eth/v2/debug/beacon/states/{{target_slot}} > temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.json;\
-    fi
+    curl -H {{ if format == "ssz" { "'Accept:application/octet-stream'" } else { "'Accept:application/json'" } }} ${CONSENSUS_LAYER_RPC}/eth/v2/debug/beacon/states/{{target_slot}} > temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
 
-# implicitly depends on deploy, but it shouldn't run every time
-read_report target_slot:
-    cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" "{{target_slot}}"
+read_validators target_slot:
+    curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validators > temp/vals_bals/$EVM_CHAIN/validators_{{target_slot}}.json
+    curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validator_balances > temp/vals_bals/$EVM_CHAIN/balances_{{target_slot}}.json
 
 [working-directory: 'contracts']
 test_contracts:
