@@ -29,15 +29,15 @@ pub async fn run(
     flags: Flags,
 ) -> anyhow::Result<TxHash> {
     let actual_previous_slot = if let Some(prev) = prev_slot {
-        log::debug!("Finding bc slot for previous report refslot {}", prev);
+        tracing::debug!("Finding bc slot for previous report refslot {}", prev);
         bs_reader.find_bc_slot_for_refslot(prev).await?
     } else {
-        log::debug!("Reading latest report slot from contract");
+        tracing::debug!("Reading latest report slot from contract");
         contract.get_latest_validator_state_slot().await?
     };
     let actual_target_slot = bs_reader.find_bc_slot_for_refslot(target_slot).await?;
 
-    log::info!(
+    tracing::info!(
         "Submitting report for network {:?}, target: (ref={:?}, actual={:?}), previous: (ref={:?}, actual={:?})",
         network.as_str(),
         target_slot,
@@ -74,18 +74,18 @@ pub async fn run(
     );
 
     if flags.store_input {
-        log::info!("Storing proof");
+        tracing::info!("Storing proof");
         let input_file_name = format!("input_{}_{}.json", network.as_str(), target_slot);
         let input_path = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(input_file_name);
         utils::write_json(&input_path, &program_input).expect("failed to write fixture");
-        log::info!("Successfully written input to {input_path:?}");
+        tracing::info!("Successfully written input to {input_path:?}");
     }
 
     let proof = client.prove(program_input).context("Failed to generate proof")?;
-    log::info!("Generated proof");
+    tracing::info!("Generated proof");
 
     if flags.store_proof {
-        log::info!("Storing proof");
+        tracing::info!("Storing proof");
         let file_name = format!("proof_{}_{}.json", network.as_str(), target_slot);
         let proof_file = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(file_name);
         proof_storage::store_proof_and_metadata(&proof, client.vk(), proof_file.as_path());
@@ -94,13 +94,13 @@ pub async fn run(
     if flags.verify {
         shared_logic::verify_public_values(&proof.public_values, &public_values)
             .context("Public values from proof do not match expected ones")?;
-        log::info!("Verified public values");
+        tracing::info!("Verified public values");
 
         client.verify_proof(&proof).context("Failed to verify proof")?;
-        log::info!("Verified proof");
+        tracing::info!("Verified proof");
     }
 
-    log::info!("Sending report");
+    tracing::info!("Sending report");
     let tx_hash = contract
         .submit_report_data(proof.bytes(), proof.public_values.to_vec())
         .await

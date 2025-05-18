@@ -25,7 +25,7 @@ async fn main() {
         .await
         .expect("Failed to read bs");
 
-    log::info!("Beacon slot: {}", bs.slot);
+    tracing::info!("Beacon slot: {}", bs.slot);
     let network = consts::read_network(&chain);
     let network_config = network.get_config();
 
@@ -40,7 +40,7 @@ async fn main() {
 
     let key = keccak256(network_config.lido_withdrwawal_vault_address);
 
-    log::info!("Balance: {}", withdrawal_vault_data.balance);
+    tracing::info!("Balance: {}", withdrawal_vault_data.balance);
     let trie = EthTrie::new(Arc::new(MemoryDB::new(true)));
     let found = trie
         .verify_proof(
@@ -51,7 +51,7 @@ async fn main() {
         .expect("Verified");
     if let Some(value) = found {
         let decoded = EthAccountRlpValue::decode(&mut value.as_slice()).unwrap();
-        log::info!("Decoded account state {:?}", decoded);
+        tracing::info!("Decoded account state {:?}", decoded);
     } else {
         panic!("Key not found: {:?}", hex::encode(key));
     }

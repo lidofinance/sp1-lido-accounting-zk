@@ -93,7 +93,7 @@ async fn main() {
         .read_beacon_block_header(&StateId::Slot(BeaconChainSlot(old_slot)))
         .await
         .expect("Failed to read beacon block header");
-    log::info!(
+    tracing::info!(
         "Read Beacon State for slot {:?}, with {} validators, beacon block hash: {}",
         beacon_state1.slot,
         beacon_state1.validators.to_vec().len(),
@@ -108,7 +108,7 @@ async fn main() {
         .read_beacon_block_header(&StateId::Slot(BeaconChainSlot(new_slot)))
         .await
         .expect("Failed to read beacon block header");
-    log::info!(
+    tracing::info!(
         "Read Beacon State for slot {:?}, with {} validators, beacon block hash: {}",
         beacon_state2.slot,
         beacon_state2.validators.to_vec().len(),

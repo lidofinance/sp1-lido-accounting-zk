@@ -6,7 +6,6 @@ use sp1_sdk::{
 };
 
 use anyhow::Result;
-use log;
 use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
 
 use crate::consts::{self, sp1_verifier::VerificationMode};
@@ -38,7 +37,7 @@ impl SP1ClientWrapperImpl {
     }
 
     fn write_sp1_stdin(&self, program_input: &ProgramInput) -> SP1Stdin {
-        log::info!("Writing program input to SP1Stdin");
+        tracing::info!("Writing program input to SP1Stdin");
         let mut stdin: SP1Stdin = SP1Stdin::new();
         stdin.write(&program_input);
         stdin
@@ -70,7 +69,7 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
     }
 
     fn verify_proof(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
-        log::info!("Verifying proof");
+        tracing::info!("Verifying proof");
         self.client
             .verify(proof, &self.vk)
             .map_err(|err| anyhow!("Couldn't verify {:#?}", err))

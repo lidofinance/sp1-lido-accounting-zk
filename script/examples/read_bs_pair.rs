@@ -27,7 +27,7 @@ async fn main() {
         .expect("Failed to read finalized slot");
     let previous_slot = finalized_slot - eth_spec::SlotsPerEpoch::to_u64() * 2;
 
-    log::info!("Loading beacon states for slots: current {finalized_slot}, previous {previous_slot}");
+    tracing::info!("Loading beacon states for slots: current {finalized_slot}, previous {previous_slot}");
 
     let beacon_state1 = bs_reader
         .read_beacon_state(&StateId::Slot(previous_slot))
@@ -37,7 +37,7 @@ async fn main() {
         .read_beacon_block_header(&StateId::Slot(previous_slot))
         .await
         .expect("Failed to read beacon block header");
-    log::info!(
+    tracing::info!(
         "Read Beacon State for slot {:?}, with {} validators, beacon block hash: {}",
         beacon_state1.slot,
         beacon_state1.validators.to_vec().len(),
@@ -52,7 +52,7 @@ async fn main() {
         .read_beacon_block_header(&StateId::Slot(finalized_slot))
         .await
         .expect("Failed to read beacon block header");
-    log::info!(
+    tracing::info!(
         "Read Beacon State for slot {:?}, with {} validators, beacon block hash: {}",
         beacon_state2.slot,
         beacon_state2.validators.to_vec().len(),

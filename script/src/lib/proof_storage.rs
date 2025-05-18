@@ -3,7 +3,6 @@ use std::path::Path;
 use alloy_sol_types::SolType;
 use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_zk_shared::io::eth_io::{PublicValuesSolidity, ReportMetadataRust, ReportRust};
-use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
 use sp1_sdk::HashableKey;
 use sp1_sdk::{SP1ProofWithPublicValues, SP1VerifyingKey};
 
@@ -36,11 +35,7 @@ pub fn store_proof_and_metadata(proof: &SP1ProofWithPublicValues, vk: &SP1Verify
     };
 
     utils::write_json(proof_file, &stored_proof).expect("failed to write fixture");
-    log::info!("Successfully written proof data to {proof_file:?}");
-}
-
-pub fn store_withdrawal_vault_data(data: &WithdrawalVaultData, proof_file: &Path) {
-    utils::write_json(proof_file, &data).expect("failed to write fixture");
+    tracing::info!("Successfully written proof data to {proof_file:?}");
 }
 
 pub fn read_proof_and_metadata(proof_file: &Path) -> utils::Result<StoredProof> {

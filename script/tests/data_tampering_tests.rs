@@ -98,7 +98,7 @@ impl TestExecutor {
         let withdrawal_vault_data = self.env.get_balance_proof(&StateId::Slot(target_slot)).await?;
         let tampered_withdrawal_vault_data = (self.withdrawal_vault_data_mutator)(withdrawal_vault_data);
 
-        log::info!("Preparing program input");
+        tracing::info!("Preparing program input");
         let (program_input, _public_values) = shared_logic::prepare_program_input(
             reference_slot,
             &target_bs,
@@ -108,17 +108,17 @@ impl TestExecutor {
             tampered_withdrawal_vault_data,
             false,
         );
-        log::info!("Requesting proof");
+        tracing::info!("Requesting proof");
         let try_proof = self.env.sp1_client.prove(program_input);
 
         if let Err(e) = try_proof {
             return Err(TestError::ProofFailed(e));
         }
 
-        log::info!("Generated proof");
+        tracing::info!("Generated proof");
         let proof = try_proof.unwrap();
 
-        log::info!("Sending report");
+        tracing::info!("Sending report");
         let _result = self
             .env
             .contract
@@ -130,7 +130,7 @@ impl TestExecutor {
     pub fn assert_failed_proof(&self, result: Result<(), TestError>) -> anyhow::Result<()> {
         match result {
             Err(TestError::ProofFailed(e)) => {
-                log::info!("Failed to create proof - as expected: {:?}", e);
+                tracing::info!("Failed to create proof - as expected: {:?}", e);
                 Ok(())
             }
             Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
@@ -141,7 +141,7 @@ impl TestExecutor {
     pub fn assert_rejected(&self, result: Result<(), TestError>) -> anyhow::Result<()> {
         match result {
             Err(TestError::ContractRejected(err)) => {
-                log::info!("As expected, contract rejected {:#?}", err);
+                tracing::info!("As expected, contract rejected {:#?}", err);
                 Ok(())
             }
             Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),

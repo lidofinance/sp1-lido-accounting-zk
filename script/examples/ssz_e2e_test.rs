@@ -231,7 +231,7 @@ async fn main() {
         .read_beacon_block_header(&StateId::Slot(slot))
         .await
         .expect("Failed to read beacon block header");
-    log::info!(
+    tracing::info!(
         "Read Beacon State for slot {:?}, with {} validators",
         beacon_state.slot,
         beacon_state.validators.to_vec().len(),
@@ -248,10 +248,10 @@ async fn main() {
         .expect("Failed to read manifesto json");
     let manifesto_bs_merkle: Hash256 = hex_str_to_h256(manifesto["beacon_state"]["hash"].as_str().unwrap());
     let manifesto_bh_merkle: Hash256 = hex_str_to_h256(manifesto["beacon_block_header"]["hash"].as_str().unwrap());
-    log::debug!("Beacon state merkle (computed): {}", hex::encode(bs_merkle));
-    log::debug!("Beacon state merkle (manifest): {}", hex::encode(manifesto_bs_merkle));
-    log::debug!("Beacon block header merkle (computed): {}", hex::encode(bh_merkle));
-    log::debug!(
+    tracing::debug!("Beacon state merkle (computed): {}", hex::encode(bs_merkle));
+    tracing::debug!("Beacon state merkle (manifest): {}", hex::encode(manifesto_bs_merkle));
+    tracing::debug!("Beacon block header merkle (computed): {}", hex::encode(bh_merkle));
+    tracing::debug!(
         "Beacon block header merkle (manifest): {}",
         hex::encode(manifesto_bh_merkle)
     );
@@ -263,8 +263,8 @@ async fn main() {
     // Step 3: compute sum
     let total_balance: u64 = beacon_state.balances.iter().sum();
     let manifesto_total_balance = manifesto["report"]["total_balance"].as_u64().unwrap();
-    log::debug!("Total balance (computed): {}", total_balance);
-    log::debug!("Total balance (manifest): {}", manifesto_total_balance);
+    tracing::debug!("Total balance (computed): {}", total_balance);
+    tracing::debug!("Total balance (manifest): {}", manifesto_total_balance);
     assert_eq!(total_balance, manifesto_total_balance);
 
     // Step 4: get and verify multiproof for validators+balances fields in BeaconState
@@ -272,7 +272,7 @@ async fn main() {
     let bs_indices = [BeaconStateFields::validators, BeaconStateFields::balances];
 
     let bs_proof = beacon_state.get_members_multiproof(&bs_indices);
-    log::debug!("BeaconState proof hashes: {:?}", bs_proof.proof_hashes_hex());
+    tracing::debug!("BeaconState proof hashes: {:?}", bs_proof.proof_hashes_hex());
 
     // Step 4.2: verify multiproof
     let bs_leaves: Vec<Hash256> = vec![
@@ -281,8 +281,8 @@ async fn main() {
     ];
     let verification_result = beacon_state.verify_instance(&bs_proof, &bs_indices, bs_leaves.as_slice());
     match verification_result {
-        Ok(()) => log::info!("BeaconState Verification succeeded"),
-        Err(error) => log::error!("Verification failed: {:?}", error),
+        Ok(()) => tracing::info!("BeaconState Verification succeeded"),
+        Err(error) => tracing::error!("Verification failed: {:?}", error),
     }
 
     // Step 5: get and verify multiproof for beacon state hash in BeaconBlockHeader
@@ -290,13 +290,13 @@ async fn main() {
     let bh_indices = [BeaconBlockHeaderFields::state_root];
 
     let bh_proof = beacon_block_header.get_members_multiproof(&bh_indices);
-    log::debug!("BeaconBlockHeader proof hashes: {:?}", bh_proof.proof_hashes_hex());
+    tracing::debug!("BeaconBlockHeader proof hashes: {:?}", bh_proof.proof_hashes_hex());
 
     // Step 5.2: verify multiproof
     let bh_leaves = vec![bs_merkle];
     let verification_result = beacon_block_header.verify_instance(&bh_proof, &bh_indices, bh_leaves.as_slice());
     match verification_result {
-        Ok(()) => log::info!("BeaconBlockHeader Verification succeeded"),
-        Err(error) => log::error!("Verification failed: {:?}", error),
+        Ok(()) => tracing::info!("BeaconBlockHeader Verification succeeded"),
+        Err(error) => tracing::error!("Verification failed: {:?}", error),
     }
 }

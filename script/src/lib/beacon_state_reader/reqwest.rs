@@ -1,7 +1,6 @@
 use std::{num::ParseIntError, path::Path, time::Duration};
 
 use anyhow::{anyhow, Ok};
-use log;
 use reqwest::{header::ACCEPT, Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -120,13 +119,13 @@ impl ReqwestBeaconStateReader {
     }
 
     async fn read_bs(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
-        log::info!("Loading beacon state for {}", state_id.as_str());
+        tracing::info!("Loading beacon state for {}", state_id.as_str());
         let url = format!(
             "{}/eth/v2/debug/beacon/states/{}",
             self.beacon_state_base_uri,
             state_id.as_str()
         );
-        log::debug!("Url: {url}");
+        tracing::debug!("Url: {url}");
         let response = self
             .client
             .get(url.clone())
@@ -135,7 +134,7 @@ impl ReqwestBeaconStateReader {
             .await
             .map_err(|e| Self::map_err(&format!("Failed to make request {url}"), e))?;
 
-        log::debug!(
+        tracing::debug!(
             "Received response with status {} and content length {}",
             response.status(),
             response
@@ -151,7 +150,7 @@ impl ReqwestBeaconStateReader {
             .await
             .map_err(|e| Self::map_err("Failed to get response body", e))?;
 
-        log::info!("Received response for {} - {} bytes", state_id.as_str(), bytes.len());
+        tracing::info!("Received response for {} - {} bytes", state_id.as_str(), bytes.len());
         BeaconState::from_ssz_bytes(&bytes)
             .map_err(|decode_err| anyhow::anyhow!("Couldn't decode ssz {:#?}", decode_err))
     }
@@ -162,7 +161,7 @@ impl ReqwestBeaconStateReader {
             self.consensus_layer_base_uri,
             state_id.as_str()
         );
-        log::info!("Loading beacon header for {}", state_id.as_str());
+        tracing::info!("Loading beacon header for {}", state_id.as_str());
 
         let response = self
             .client
@@ -179,7 +178,7 @@ impl ReqwestBeaconStateReader {
             .await
             .map_err(|e| anyhow::anyhow!("Couldn't parse json {:#?}", e))?;
 
-        log::debug!("Read BeaconBlockHeader {:?}", res.data.header.message);
+        tracing::debug!("Read BeaconBlockHeader {:?}", res.data.header.message);
 
         res.data.header.message.try_into().map_err(|e: ConvertionError| {
             anyhow::anyhow!(

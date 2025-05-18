@@ -32,7 +32,7 @@ pub fn prepare_program_input(
 ) -> (ProgramInput, PublicValuesRust) {
     let beacon_block_hash = bh.tree_hash_root();
 
-    log::info!(
+    tracing::info!(
         "Processing BeaconState. Current slot: {}, Previous Slot: {}, Block Hash: {}, Validator count:{}",
         bs.slot,
         old_bs.slot,
@@ -42,7 +42,7 @@ pub fn prepare_program_input(
     let old_validator_state = LidoValidatorState::compute_from_beacon_state(old_bs, lido_withdrawal_credentials);
     let new_validator_state = LidoValidatorState::compute_from_beacon_state(bs, lido_withdrawal_credentials);
 
-    log::info!(
+    tracing::info!(
         "Computed validator states. Old: deposited {}, pending {}, exited {}. New: deposited {}, pending {}, exited {}",
         old_validator_state.deposited_lido_validator_indices.len(),
         old_validator_state.pending_deposit_lido_validator_indices.len(),
@@ -85,17 +85,17 @@ pub fn prepare_program_input(
         },
     };
 
-    log::info!("Computed report and public values");
-    log::debug!("Report {report:?}");
-    log::debug!("Public values {public_values:?}");
+    tracing::info!("Computed report and public values");
+    tracing::debug!("Report {report:?}");
+    tracing::debug!("Public values {public_values:?}");
 
     let validators_and_balances =
         compute_validators_and_balances(bs, old_bs, &old_validator_state, lido_withdrawal_credentials, verify);
 
     let execution_header_data = ExecutionPayloadHeaderData::new(&bs.latest_execution_payload_header);
-    log::info!("Obtained BeaconState.latest_execution_header.state_root proof");
+    tracing::info!("Obtained BeaconState.latest_execution_header.state_root proof");
 
-    log::info!("Creating program input");
+    tracing::info!("Creating program input");
     let program_input = ProgramInput {
         reference_slot,
         bc_slot: bs.bc_slot(),
@@ -149,7 +149,7 @@ fn compute_validators_and_balances(
         !verify,
     )
     .compute();
-    log::info!(
+    tracing::info!(
         "Computed validator delta. Added: {}, lido changed: {}",
         validator_delta.all_added.len(),
         validator_delta.lido_changed.len(),
@@ -162,11 +162,11 @@ fn compute_validators_and_balances(
 
     let added_validators_proof = bs.validators.get_serialized_multiproof(added_indices.as_slice());
     let changed_validators_proof = bs.validators.get_serialized_multiproof(changed_indices.as_slice());
-    log::info!("Obtained added and changed validators multiproofs");
+    tracing::info!("Obtained added and changed validators multiproofs");
 
     let validators_and_balances_proof =
         bs.get_serialized_multiproof(&[BeaconStateFields::validators, BeaconStateFields::balances]);
-    log::info!("Obtained validators and balances fields multiproof");
+    tracing::info!("Obtained validators and balances fields multiproof");
 
     ValsAndBals {
         validators_and_balances_proof,
@@ -186,13 +186,13 @@ fn verify_input_correctness(
     new_state: &LidoValidatorState,
     lido_withdrawal_credentials: &Hash256,
 ) -> Result<()> {
-    log::debug!("Verifying inputs");
+    tracing::debug!("Verifying inputs");
     let cycle_tracker = LogCycleTracker {};
     let input_verifier = InputVerifier::new(&cycle_tracker);
     input_verifier.prove_input(program_input);
-    log::debug!("Inputs verified");
+    tracing::debug!("Inputs verified");
 
-    log::debug!("Verifying old_state + validator_delta = new_state");
+    tracing::debug!("Verifying old_state + validator_delta = new_state");
     let delta = &program_input.validators_and_balances.validators_delta;
     let computed_new_state = old_state.merge_validator_delta(slot, delta, lido_withdrawal_credentials);
     assert_eq!(computed_new_state, *new_state);
@@ -200,7 +200,7 @@ fn verify_input_correctness(
         computed_new_state.tree_hash_root(),
         program_input.new_lido_validator_state_hash
     );
-    log::debug!("New state verified");
+    tracing::debug!("New state verified");
     Ok(())
 }
 
@@ -209,16 +209,16 @@ pub fn verify_public_values(public_values: &SP1PublicValues, expected_public_val
         PublicValuesSolidity::abi_decode(public_values.as_slice(), true)?;
     let public_values_rust: PublicValuesRust = public_values_solidity.into();
 
-    log::debug!(
+    tracing::debug!(
         "Expected hash: {}",
         hex::encode(expected_public_values.metadata.beacon_block_hash)
     );
-    log::debug!(
+    tracing::debug!(
         "Computed hash: {}",
         hex::encode(public_values_rust.metadata.beacon_block_hash)
     );
     assert!(public_values_rust == *expected_public_values);
-    log::info!("Public values match!");
+    tracing::info!("Public values match!");
 
     Ok(())
 }

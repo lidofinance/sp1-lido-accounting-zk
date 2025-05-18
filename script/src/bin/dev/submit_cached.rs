@@ -16,7 +16,7 @@ struct ProveArgs {
 async fn main() {
     sp1_sdk::utils::setup_logger();
     let args = ProveArgs::parse();
-    log::debug!("Args: {:?}", args);
+    tracing::debug!("Args: {:?}", args);
 
     let chain = env::var("EVM_CHAIN").expect("Couldn't read EVM_CHAIN env var");
     let network = consts::read_network(&chain);
@@ -29,10 +29,10 @@ async fn main() {
     let stored_proof =
         proof_storage::read_proof_and_metadata(proof_file.as_path()).expect("failed to read cached proof");
 
-    log::info!("Sending report");
+    tracing::info!("Sending report");
     let tx_hash = contract
         .submit_report_data(stored_proof.proof, stored_proof.public_values.to_vec())
         .await
         .expect("Failed to submit report");
-    log::info!("Report transaction complete {}", hex::encode(tx_hash));
+    tracing::info!("Report transaction complete {}", hex::encode(tx_hash));
 }

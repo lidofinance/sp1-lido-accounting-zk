@@ -36,10 +36,10 @@ impl CycleTracker for NoopCycleTracker {
 pub struct LogCycleTracker {}
 impl CycleTracker for LogCycleTracker {
     fn start_span(&self, label: &str) {
-        log::debug!("Start {label}")
+        tracing::debug!("Start {label}")
     }
     fn end_span(&self, label: &str) {
-        log::debug!("End {label}")
+        tracing::debug!("End {label}")
     }
 }
 
@@ -280,7 +280,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             // We're not passing the validators as a whole, but we do pass all balances - so we can
             // use that instead. We can trust all balances are passed since we have verified in in
             // Step 2
-            log::info!("ValidatorsDelta.all_added was empty - checking total validator count have not changed");
+            tracing::info!("ValidatorsDelta.all_added was empty - checking total validator count have not changed");
             self.cycle_tracker
                 .start_span(&format!("{vals_and_bals_prefix}.all_added.empty"));
             assert_eq!(
@@ -289,7 +289,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             );
             self.cycle_tracker
                 .end_span(&format!("{vals_and_bals_prefix}.all_added.empty"));
-            log::info!("Validator count have not changed since last run");
+            tracing::info!("Validator count have not changed since last run");
         }
 
         if !input.validators_and_balances.validators_delta.lido_changed.is_empty() {
@@ -309,7 +309,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
                 proof,
             );
         } else {
-            log::info!(
+            tracing::info!(
                 "ValidatorsDelta.lido_changed was empty - checking pending deposits was empty in previous state"
             );
             self.cycle_tracker
@@ -321,7 +321,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             self.cycle_tracker
                 .end_span(&format!("{vals_and_bals_prefix}.lido_changed.empty"));
 
-            log::info!("Pending deposits was empty in the last run");
+            tracing::info!("Pending deposits was empty in the last run");
         }
         self.cycle_tracker
             .end_span(&format!("{vals_and_bals_prefix}.validator_inclusion_proofs"));

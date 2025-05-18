@@ -104,7 +104,7 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
             .bs_reader
             .read_beacon_state(&StateId::Slot(previous_slot))
             .await?;
-        log::info!("Preparing program input");
+        tracing::info!("Preparing program input");
 
         let withdrawal_vault_data = WithdrawalVaultData {
             balance: stored_proof.metadata.withdrawal_vault_data.balance,
@@ -121,14 +121,14 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
             withdrawal_vault_data,
             false,
         );
-        log::info!("Reading proof");
+        tracing::info!("Reading proof");
 
         let tampered_public_values = (self.tamper_public_values)(public_values);
 
         let pub_vals_solidity: PublicValuesSolidity = tampered_public_values.into();
         let public_values_bytes: Vec<u8> = PublicValuesSolidity::abi_encode(&pub_vals_solidity);
 
-        log::info!("Sending report");
+        tracing::info!("Sending report");
         let result = self
             .env
             .contract
@@ -188,11 +188,11 @@ fn wrap_metadata_mapper(
 fn assert_rejects(result: TestExecutorResult) -> Result<()> {
     match result {
         Err(ExecutorError::Contract(eth_client::Error::Rejection(err))) => {
-            log::info!("As expected, contract rejected {:#?}", err);
+            tracing::info!("As expected, contract rejected {:#?}", err);
             Ok(())
         }
         Err(ExecutorError::Contract(eth_client::Error::CustomRejection(err))) => {
-            log::info!("As expected, verifier rejected {:#?}", err);
+            tracing::info!("As expected, verifier rejected {:#?}", err);
             Ok(())
         }
         Err(other_err) => Err(other_err),
@@ -229,7 +229,7 @@ async fn report_tampering_sanity_check_should_pass() -> Result<()> {
     let result = executor.run_test().await;
     match result {
         Ok(_txhash) => {
-            log::info!("Sanity check succeeded - submitting valid report with no tampering succeeds");
+            tracing::info!("Sanity check succeeded - submitting valid report with no tampering succeeds");
             Ok(())
         }
         Err(err) => Err(err),

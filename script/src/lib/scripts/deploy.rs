@@ -59,7 +59,7 @@ pub fn prepare_deploy_params(
 }
 
 async fn read_from_file(slot: u64, file: &Path) -> anyhow::Result<ContractDeployParametersRust> {
-    log::info!("Reading deploy parameters for {} from {:?}", slot, file.as_os_str());
+    tracing::info!("Reading deploy parameters for {} from {:?}", slot, file.as_os_str());
     let deploy_params: ContractDeployParametersRust = utils::read_json(file)?;
     if deploy_params.initial_validator_state.slot.0 == slot {
         Ok(deploy_params)
@@ -70,8 +70,8 @@ async fn read_from_file(slot: u64, file: &Path) -> anyhow::Result<ContractDeploy
 
 async fn verify(contracts_dir: &Path, address: &Address, chain_id: u64) -> anyhow::Result<()> {
     let address_str = hex::encode(address);
-    log::debug!("Contracts folder {:#?}", contracts_dir.as_os_str());
-    log::info!("Verifying contract at {}", address_str);
+    tracing::debug!("Contracts folder {:#?}", contracts_dir.as_os_str());
+    tracing::info!("Verifying contract at {}", address_str);
 
     let mut command = Command::new("forge");
     command
@@ -82,9 +82,9 @@ async fn verify(contracts_dir: &Path, address: &Address, chain_id: u64) -> anyho
         .args(["--chain_id", &chain_id.to_string()])
         .arg("--watch");
 
-    log::debug!("Verification command {:#?}", command);
+    tracing::debug!("Verification command {:#?}", command);
     command.status()?;
-    log::info!("Verified successfully");
+    tracing::info!("Verified successfully");
     Ok(())
 }
 
@@ -117,7 +117,7 @@ pub async fn run(
 
     if let Some(store_manifesto_file_str) = write_manifesto {
         let store_manifesto_file = PathBuf::from(store_manifesto_file_str);
-        log::debug!("Writing manifesto to {:?}", store_manifesto_file.as_os_str());
+        tracing::debug!("Writing manifesto to {:?}", store_manifesto_file.as_os_str());
         if let Some(parent_folder) = store_manifesto_file.parent() {
             std::fs::create_dir_all(parent_folder).expect("Failed to create parent folder");
         }
@@ -125,24 +125,24 @@ pub async fn run(
             store_manifesto_file,
             serde_json::to_string_pretty(&deploy_params).unwrap(),
         )?;
-        log::info!("Deploy manifesto {:?}", deploy_params);
+        tracing::info!("Deploy manifesto {:?}", deploy_params);
     }
 
     if dry_run {
-        log::info!("Dryrun is set, not deploying");
+        tracing::info!("Dryrun is set, not deploying");
         return anyhow::Ok(());
     }
 
-    log::info!("Deploying contract");
-    log::debug!("Deploying as {}", hex::encode(provider.default_signer_address()));
+    tracing::info!("Deploying contract");
+    tracing::debug!("Deploying as {}", hex::encode(provider.default_signer_address()));
     let deployed = Sp1LidoAccountingReportContractWrapper::deploy(Arc::new(provider), &deploy_params)
         .await
         // .map_err(|e| anyhow::anyhow!("Failed to deploy {:?}", e))?;
         .expect("Failed to deploy");
-    log::info!("Deployed contract to {}", deployed.address());
+    tracing::info!("Deployed contract to {}", deployed.address());
 
     match verification {
-        Verification::Skip => log::info!("Skipping verification"),
+        Verification::Skip => tracing::info!("Skipping verification"),
         Verification::Verify {
             contracts_path,
             chain_id,

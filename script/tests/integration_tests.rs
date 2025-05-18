@@ -35,7 +35,7 @@ async fn deploy() -> Result<()> {
     let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::new(provider), &deploy_params)
         .await
         .map_err(eyre_to_anyhow)?;
-    log::info!("Deployed contract at {}", contract.address());
+    tracing::info!("Deployed contract at {}", contract.address());
 
     let latest_report_slot_response = contract.get_latest_validator_state_slot().await?;
     assert_eq!(latest_report_slot_response, deploy_slot);

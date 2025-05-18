@@ -81,7 +81,7 @@ impl TestFiles {
             .get_permanent_str()
             .map_err(|err| eyre!("Failed to get permanent str for StateId {:#?}", err))?;
         let file_path = folder.join(format!("vault_data_{}.json", permanent_state_id));
-        log::info!("Reading WithdrawalVault account proof from file {:?}", &file_path);
+        tracing::info!("Reading WithdrawalVault account proof from file {:?}", &file_path);
         let res: WithdrawalVaultData = read_json(&file_path)?;
         Ok(res)
     }

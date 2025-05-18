@@ -153,13 +153,13 @@ impl MerkleProofWrapper {
             .map_err(Error::ProofError)?
             .into();
 
-        log::debug!("Main data hash {}", hex::encode(root));
+        tracing::debug!("Main data hash {}", hex::encode(root));
         if let Some(target_depth) = expand_to_depth {
             let main_data_depth: usize = leaves_count.trailing_zeros() as usize;
             root = hashing::pad_to_depth(&root, main_data_depth, target_depth);
         }
         if let Some(size) = mix_in_size {
-            log::debug!("Mixing in size {} to {}", size, hex::encode(root));
+            tracing::debug!("Mixing in size {} to {}", size, hex::encode(root));
             root = tree_hash::mix_in_length(&root, size);
         }
 

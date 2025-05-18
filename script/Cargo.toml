@@ -85,23 +85,23 @@ ethereum_serde_utils.workspace = true
 ethereum_ssz_derive.workspace = true
 ethereum_ssz.workspace = true
 eth_trie.workspace = true
+eyre.workspace = true
 hex.workspace = true
 hex-literal.workspace = true
-log.workspace = true
+k256.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 simple_logger.workspace = true
 sp1-sdk.workspace = true
-tokio.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 tree_hash.workspace = true
 
 clap = { version = "4.0", features = ["derive", "env"] }
-eyre = "0.6.12"
-k256 = "0.13.3"
-reqwest = "0.12.7"
 sp1-lido-accounting-zk-shared.workspace = true
-tracing = "0.1.40"
 
 [build-dependencies]
 sp1-helper.workspace = true

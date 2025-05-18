@@ -42,7 +42,7 @@ async fn main() {
     let (network, client, bs_reader) = scripts::prelude::initialize();
     let provider = scripts::prelude::initialize_provider();
 
-    log::info!(
+    tracing::info!(
         "Running pre-deploy for network {:?}, slot: {}",
         network,
         args.target_slot

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use log;
 use std::env;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -69,7 +68,7 @@ impl SyntheticBeaconStateCreator {
             .strip_suffix("\n")
             .or(full_output.strip_suffix("\r\n"))
             .unwrap_or(full_output);
-        log::debug!("Got python location {:?}", no_trailing_newline);
+        tracing::debug!("Got python location {:?}", no_trailing_newline);
         PathBuf::from(&no_trailing_newline)
     }
 
@@ -85,7 +84,7 @@ impl SyntheticBeaconStateCreator {
     }
 
     async fn generate_beacon_state(&self, file_path: &Path, generation_spec: GenerationSpec) {
-        log::info!("Generating synthetic beacon state to file {:?}", file_path);
+        tracing::info!("Generating synthetic beacon state to file {:?}", file_path);
         let python = self.get_python();
         let script = self.get_script();
         let mut command = Command::new(python);
@@ -130,7 +129,7 @@ impl SyntheticBeaconStateCreator {
             command.stdout(Stdio::null());
         }
 
-        log::debug!("Built command {:?}", command);
+        tracing::debug!("Built command {:?}", command);
         command.status().expect("Failed to execute beacon state generator");
     }
 
@@ -140,7 +139,7 @@ impl SyntheticBeaconStateCreator {
     }
 
     async fn read_manifesto_from_file(&self, file_path: &Path) -> Result<serde_json::Value> {
-        log::info!("Reading manifesto from file {:?}", file_path);
+        tracing::info!("Reading manifesto from file {:?}", file_path);
         let res = read_untyped_json(file_path)?;
         Ok(res)
     }
@@ -148,13 +147,13 @@ impl SyntheticBeaconStateCreator {
     pub fn evict_cache(&self, slot: u64) -> io::Result<()> {
         let beacon_state_file = self.file_store.get_beacon_state_path(&slot.to_string());
         if self.exists(&beacon_state_file) {
-            log::debug!("Evicting beacon state file");
+            tracing::debug!("Evicting beacon state file");
             FileBasedBeaconChainStore::delete(&beacon_state_file)?;
         }
 
         let beacon_block_header_file = self.file_store.get_beacon_block_header_path(&slot.to_string());
         if self.exists(&beacon_block_header_file) {
-            log::debug!("Evicting beacon block state file");
+            tracing::debug!("Evicting beacon block state file");
             FileBasedBeaconChainStore::delete(&beacon_block_header_file)?;
         }
         Ok(())

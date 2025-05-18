@@ -48,7 +48,7 @@ impl IntegrationTestEnvironment {
         let fork_url =
             env::var("INTEGRATION_TEST_FORK_URL").expect("INTEGRATION_TEST_FORK_URL env var must be specified");
         let fork_block_number = finalized_bs.latest_execution_payload_header.block_number + 2;
-        log::debug!(
+        tracing::debug!(
             "Starting anvil: fork_block_number={}, fork_url={}",
             fork_block_number,
             fork_url
@@ -71,12 +71,12 @@ impl IntegrationTestEnvironment {
             .map_err(test_utils::eyre_to_anyhow)?;
         let deploy_params = scripts::deploy::prepare_deploy_params(sp1_client.vk_bytes(), &deploy_bs, &network);
 
-        log::info!("Deploying contract with parameters {:?}", deploy_params);
+        tracing::info!("Deploying contract with parameters {:?}", deploy_params);
         let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&prov), &deploy_params)
             .await
             .map_err(test_utils::eyre_to_anyhow)?;
 
-        log::info!("Deployed contract at {}", contract.address());
+        tracing::info!("Deployed contract at {}", contract.address());
 
         let instance = Self {
             anvil, // this needs to be here so that test executor assumes ownership of running anvil instance - otherwise it terminates right away
@@ -141,7 +141,7 @@ impl IntegrationTestEnvironment {
         let mut attempt = 0;
         let mut current_slot = slot;
         let result = loop {
-            log::debug!("Fetching beacon state: attempt {attempt}, target slot {current_slot}");
+            tracing::debug!("Fetching beacon state: attempt {attempt}, target slot {current_slot}");
             let try_bs = bs_reader.read_beacon_state(&StateId::Slot(current_slot)).await;
 
             if let Ok(beacon_state) = try_bs {

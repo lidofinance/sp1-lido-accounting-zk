@@ -69,9 +69,9 @@ pub trait BeaconStateReader {
         let mut attempt_slot: u64 = target_slot.0;
         let mut attempt_count: u32 = 0;
         let max_lookback_slot = target_slot.0 - u64::from(MAX_REFERENCE_LOOKBACK_ATTEMPTS);
-        log::info!("Finding non-empty slot for reference slot {target_slot} searching from {target_slot} to {max_lookback_slot}");
+        tracing::info!("Finding non-empty slot for reference slot {target_slot} searching from {target_slot} to {max_lookback_slot}");
         loop {
-            log::debug!("Checking slot {attempt_slot}");
+            tracing::debug!("Checking slot {attempt_slot}");
             let maybe_header = self
                 .read_beacon_block_header(&StateId::Slot(BeaconChainSlot(attempt_slot)))
                 .await;
@@ -79,17 +79,17 @@ pub trait BeaconStateReader {
                 Ok(bh) => {
                     let result = bh.bc_slot();
                     let hash = bh.tree_hash_root();
-                    log::info!("Found non-empty slot {result} with hash {hash:#x}");
+                    tracing::info!("Found non-empty slot {result} with hash {hash:#x}");
                     return Ok(result);
                 }
                 Err(error) => {
                     if attempt_count == MAX_REFERENCE_LOOKBACK_ATTEMPTS {
-                        log::error!("Couldn't find non-empty slot for reference slot {target_slot} between {target_slot} and {max_lookback_slot}");
+                        tracing::error!("Couldn't find non-empty slot for reference slot {target_slot} between {target_slot} and {max_lookback_slot}");
                         return Err(error);
                     }
                     if attempt_count >= LOG_LOOKBACK_ATTEMPT_DELAY && attempt_count % LOG_LOOKBACK_ATTEMPT_INTERVAL == 0
                     {
-                        log::warn!("Cannot find non-empty slot for reference slot {target_slot} for {attempt_count} attempts; last checked slot {attempt_slot}")
+                        tracing::warn!("Cannot find non-empty slot for reference slot {target_slot} for {attempt_count} attempts; last checked slot {attempt_slot}")
                     }
                     attempt_count += 1;
                     attempt_slot -= 1;

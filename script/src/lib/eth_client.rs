@@ -176,7 +176,7 @@ where
             .await
             .map_err(|e: alloy::contract::Error| self.map_contract_error(e))?;
 
-        log::info!("Waiting for report transaction");
+        tracing::info!("Waiting for report transaction");
         let tx_result = tx.watch().await.expect("Failed to wait for confirmation");
         Ok(tx_result)
     }
@@ -252,7 +252,7 @@ where
         address: Address,
         block_hash: Hash256,
     ) -> Result<WithdrawalVaultData, RPCError> {
-        log::info!(
+        tracing::info!(
             "Reading balance proof for address 0x{} at block 0x{}",
             hex::encode(address),
             hex::encode(block_hash)

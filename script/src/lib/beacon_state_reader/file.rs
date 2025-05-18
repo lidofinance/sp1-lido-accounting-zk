@@ -1,5 +1,4 @@
 use crate::utils::{read_binary, read_json};
-use log;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use ssz::{Decode, Encode};
 use std::io;
@@ -42,9 +41,9 @@ impl FileBasedBeaconChainStore {
     pub fn exists(path: &Path) -> bool {
         let result = Path::exists(path);
         if result {
-            log::debug!("Path exists {:?}", path);
+            tracing::debug!("Path exists {:?}", path);
         } else {
-            log::debug!("Path does not exist ({:?})", path);
+            tracing::debug!("Path does not exist ({:?})", path);
         }
         result
     }
@@ -75,7 +74,7 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
     async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
         let permanent_state = state_id.get_permanent_str()?;
         let beacon_state_path = self.file_store.get_beacon_state_path(&permanent_state);
-        log::info!("Reading BeaconState from file {:?}", beacon_state_path);
+        tracing::info!("Reading BeaconState from file {:?}", beacon_state_path);
         let data = read_binary(beacon_state_path)?;
         BeaconState::from_ssz_bytes(&data)
             .map_err(|decode_err| anyhow::anyhow!("Couldn't decode ssz {:#?}", decode_err))
@@ -84,7 +83,7 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
     async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
         let permanent_state = state_id.get_permanent_str()?;
         let beacon_block_header_path = self.file_store.get_beacon_block_header_path(&permanent_state);
-        log::info!("Reading BeaconBlockHeader from file {:?}", &beacon_block_header_path);
+        tracing::info!("Reading BeaconBlockHeader from file {:?}", &beacon_block_header_path);
         let res: BeaconBlockHeader = read_json(&beacon_block_header_path)?;
         Ok(res)
     }

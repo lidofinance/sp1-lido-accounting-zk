@@ -23,7 +23,7 @@ struct ProveArgs {
 async fn main() -> anyhow::Result<()> {
     sp1_sdk::utils::setup_logger();
     let args = ProveArgs::parse();
-    log::debug!("Args: {:?}", args);
+    tracing::debug!("Args: {:?}", args);
 
     let (network, client, bs_reader) = scripts::prelude::initialize();
     let (eth_client, contract) = scripts::prelude::initialize_eth();
@@ -43,6 +43,6 @@ async fn main() -> anyhow::Result<()> {
         },
     )
     .await?;
-    log::info!("Report transaction complete {}", hex::encode(tx_hash));
+    tracing::info!("Report transaction complete {}", hex::encode(tx_hash));
     Ok(())
 }

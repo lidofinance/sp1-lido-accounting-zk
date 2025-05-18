@@ -21,9 +21,11 @@ dotenvy = "0.15.7"
 ethereum_hashing = "0.7.0"
 ethereum-types = {version = "0.15.1", features = ["arbitrary"] }
 eth_trie = "0.5.0"
+eyre = "0.6.12"
 hex = "0.4.3"
 hex-literal = "0.4.1" # 1.0 requires edition2024 that's stabilized on rust 1.83, but sp1 only works with 1.82 at the moment
 itertools = "0.14.0"
+k256 = "0.13.3"
 lazy_static = "1.5"
 log = "0.4.27"
 proptest = "1.6"
@@ -38,6 +40,7 @@ simple_logger = "5.0"
 thiserror = "2.0"
 tokio = "1.43"
 tracing = "0.1.41"
+tracing-subscriber = {version="0.3.19", features=["std", "fmt", "json"]}
 typenum = "1.18"
 
 ### Non-upgradeable dependencies ###

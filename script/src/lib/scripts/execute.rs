@@ -60,16 +60,16 @@ pub async fn run(
         true,
     );
 
-    log::info!("Executing program");
+    tracing::info!("Executing program");
     let (exec_public_values, execution_report) = client.execute(program_input).unwrap();
 
-    log::info!(
+    tracing::info!(
         "Executed program with {} cycles",
         execution_report.total_instruction_count() + execution_report.total_syscall_count()
     );
-    log::debug!("Full execution report:\n{}", execution_report);
+    tracing::debug!("Full execution report:\n{}", execution_report);
 
     shared_logic::verify_public_values(&exec_public_values, &public_values).expect("Failed to verify public inputs");
-    log::info!("Successfully verified public values!");
+    tracing::info!("Successfully verified public values!");
     anyhow::Ok(())
 }

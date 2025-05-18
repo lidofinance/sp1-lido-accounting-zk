@@ -103,7 +103,7 @@ async fn main() {
         .read_beacon_state(&StateId::Slot(BeaconChainSlot(slot)))
         .await
         .expect("Failed to read beacon state");
-    log::info!(
+    tracing::info!(
         "Read Beacon State for slot {:?}, with {} validators",
         beacon_state.slot,
         beacon_state.validators.to_vec().len(),
@@ -124,16 +124,16 @@ async fn main() {
 
     // Step 5: ensure report merkle root computes
     let merkle_root = lido_state.tree_hash_root();
-    log::info!("State merkle root {}", hex::encode(merkle_root));
-    log::debug!(
+    tracing::info!("State merkle root {}", hex::encode(merkle_root));
+    tracing::debug!(
         "Deposited validators: {:?}",
         lido_state.deposited_lido_validator_indices.to_vec()
     );
-    log::debug!(
+    tracing::debug!(
         "Future deposit validators: {:?}",
         lido_state.pending_deposit_lido_validator_indices.to_vec()
     );
-    log::debug!(
+    tracing::debug!(
         "Exited validators: {:?}",
         lido_state.exited_lido_validator_indices.to_vec()
     );

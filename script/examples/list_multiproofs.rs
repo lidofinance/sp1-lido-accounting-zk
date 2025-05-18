@@ -84,12 +84,12 @@ async fn main() {
         .validators
         .get_members_multiproof(new_validator_indices.as_slice());
 
-    log::info!("New validators {}", new_validator_indices.len());
-    log::debug!(
+    tracing::info!("New validators {}", new_validator_indices.len());
+    tracing::debug!(
         "Validators proof hashes: {:?}",
         new_validators_multiproof.proof_hashes_hex()
     );
-    log::info!("Validating validators proof");
+    tracing::info!("Validating validators proof");
     let validators_to_prove: Vec<Hash256> = new_validator_indices
         .iter()
         .map(|idx| beacon_state2.validators[*idx].tree_hash_root())
@@ -106,16 +106,16 @@ async fn main() {
     // let lido_balances_multiproof = beacon_state2
     //     .balances
     //     .get_field_multiproof(all_lido_validator_indices.as_slice());
-    // log::info!("Lido validators {}", all_lido_validator_indices.len());
-    // log::debug!(
+    // tracing::info!("Lido validators {}", all_lido_validator_indices.len());
+    // tracing::debug!(
     //     "Lido balances proof hashes: {:?}",
     //     lido_balances_multiproof.proof_hashes_hex()
     // );
-    // log::info!("Validating balances proof");
+    // tracing::info!("Validating balances proof");
     // beacon_state2
     //     .balances
     //     .verify(&lido_balances_multiproof, &new_validator_indices)
     //     .expect("Failed to validate multiproof");
 
-    log::info!("Successfully validated multiproofs");
+    tracing::info!("Successfully validated multiproofs");
 }

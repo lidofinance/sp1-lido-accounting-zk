@@ -58,7 +58,7 @@ async fn main() {
         .read_beacon_state(&StateId::Slot(old_slot))
         .await
         .expect("Failed to read beacon state");
-    log::info!(
+    tracing::info!(
         "Read Old Beacon State for slot {:?}, with {} validators",
         old_beacon_state.slot,
         old_beacon_state.validators.to_vec().len(),
@@ -101,7 +101,7 @@ async fn main() {
         .read_beacon_state(&StateId::Slot(new_slot))
         .await
         .expect("Failed to read beacon state");
-    log::info!(
+    tracing::info!(
         "Read New Beacon State for slot {:?}, with {} validators",
         new_beacon_state.slot,
         new_beacon_state.validators.to_vec().len(),
@@ -124,19 +124,19 @@ async fn main() {
 
     // Step 4: verify report matches
     verify_report(&new_report, &manifesto);
-    log::info!(
+    tracing::info!(
         "Old Report: {:>16} balance, {:>8} deposited validators, {:>8} exited validators",
         old_report.lido_cl_balance,
         old_report.deposited_lido_validators,
         old_report.exited_lido_validators
     );
-    log::info!(
+    tracing::info!(
         "New Report: {:>16} balance, {:>8} deposited validators, {:>8} exited validators",
         new_report.lido_cl_balance,
         new_report.deposited_lido_validators,
         new_report.exited_lido_validators
     );
-    log::info!(
+    tracing::info!(
         "Manifesto: {:>16} balance, {:>8} all validators, {:>8} exited validators",
         new_report.lido_cl_balance,
         new_report.deposited_lido_validators,

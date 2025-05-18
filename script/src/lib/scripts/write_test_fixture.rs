@@ -2,17 +2,21 @@ use crate::beacon_state_reader::{BeaconStateReader, StateId};
 
 use crate::consts::NetworkConfig;
 use crate::eth_client::EthELClient;
-use crate::proof_storage;
 use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
+use crate::{proof_storage, utils};
 
-use std::path::PathBuf;
+use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
+use std::path::{Path, PathBuf};
 use tokio::try_join;
 
 use alloy_primitives::Address;
-use log;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
+
+fn store_withdrawal_vault_data(data: &WithdrawalVaultData, proof_file: &Path) {
+    utils::write_json(proof_file, &data).expect("failed to write fixture");
+}
 
 pub async fn run(
     client: &impl SP1ClientWrapper,
@@ -44,7 +48,7 @@ pub async fn run(
         .await?;
 
     for fixture_file in withdrawal_vault_fixture_files {
-        proof_storage::store_withdrawal_vault_data(&withdrawal_vault_data, fixture_file.as_path());
+        store_withdrawal_vault_data(&withdrawal_vault_data, fixture_file.as_path());
     }
 
     let (program_input, public_values) = shared_logic::prepare_program_input(
@@ -58,13 +62,13 @@ pub async fn run(
     );
 
     let proof = client.prove(program_input).expect("Failed to generate proof");
-    log::info!("Generated proof");
+    tracing::info!("Generated proof");
 
     client.verify_proof(&proof).expect("Failed to verify proof");
-    log::info!("Verified proof");
+    tracing::info!("Verified proof");
 
     shared_logic::verify_public_values(&proof.public_values, &public_values).expect("Failed to verify public inputs");
-    log::info!("Verified public values");
+    tracing::info!("Verified public values");
 
     for fixture_file in fixture_files {
         proof_storage::store_proof_and_metadata(&proof, client.vk(), fixture_file.as_path());

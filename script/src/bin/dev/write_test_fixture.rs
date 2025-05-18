@@ -20,7 +20,7 @@ struct ProveArgs {
 async fn main() {
     sp1_sdk::utils::setup_logger();
     let args = ProveArgs::parse();
-    log::debug!("Args: {:?}", args);
+    tracing::debug!("Args: {:?}", args);
 
     let (network, client, bs_reader) = scripts::prelude::initialize();
     let (eth_client, contract) = scripts::prelude::initialize_eth();
@@ -46,7 +46,7 @@ async fn main() {
         }
     };
 
-    log::info!(
+    tracing::info!(
         "Running for network {:?}, slot: {}, previous_slot: {}",
         network,
         refslot,

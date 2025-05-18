@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use log;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Epoch, ValidatorIndex, Validators};
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch};
 use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex};
@@ -125,7 +124,7 @@ impl<'a> ValidatorDeltaCompute<'a> {
     }
 
     pub fn compute(&self) -> ValidatorDelta {
-        log::debug!(
+        tracing::debug!(
             "Validator count: old {}, new {}",
             self.old_bs.validators.len(),
             self.new_bs.validators.len()
