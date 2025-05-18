@@ -22,6 +22,7 @@ pub async fn run(
     previous_slot: ReferenceSlot,
     network_config: &NetworkConfig,
     fixture_files: Vec<PathBuf>,
+    withdrawal_vault_fixture_files: Vec<PathBuf>,
 ) -> anyhow::Result<()> {
     let (actual_target_slot, actual_previous_slot) = try_join!(
         bs_reader.find_bc_slot_for_refslot(target_slot),
@@ -41,6 +42,10 @@ pub async fn run(
     let withdrawal_vault_data = eth_client
         .get_withdrawal_vault_data(lido_withdrawal_vault, execution_layer_block_hash)
         .await?;
+
+    for fixture_file in withdrawal_vault_fixture_files {
+        proof_storage::store_withdrawal_vault_data(&withdrawal_vault_data, fixture_file.as_path());
+    }
 
     let (program_input, public_values) = shared_logic::prepare_program_input(
         ReferenceSlot(target_slot.0),

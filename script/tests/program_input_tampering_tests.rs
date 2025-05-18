@@ -943,9 +943,7 @@ async fn program_input_tampering_vals_and_bals_delta_lido_changed_emptied_old_no
 
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_vals_and_bals_delta_lido_changed_shuffled() -> Result<()> {
-    // Need alternative deploy slot since there's only one validator in original
-    // Thus changed is at most 1, and shuffling don't do anything (so ensured_shuffle crashes on len>1 assertion)
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
 
     let mut program_input = executor.prepare_actual_input(target_slot).await?;
@@ -1071,7 +1069,7 @@ async fn program_input_tampering_old_state_deposited_remove_existing() -> Result
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_old_state_deposited_shuffle() -> Result<()> {
     // Using alt deploy slot since it has 5 validators
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
 
     let mut program_input = executor.prepare_actual_input(target_slot).await?;
@@ -1108,8 +1106,7 @@ async fn program_input_tampering_old_state_exited_add_new_accepted_subsequent_re
 #[ignore = "Hits external prover (slow, incurs costs)"]
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_old_state_exited_duplicated_accepted_subsequent_report_accepted() -> Result<()> {
-    // Need alt deploy slot since there are no exited at the main deploy slot
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT_2).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
     let intermediate_slot = target_slot - eth_spec::SlotsPerEpoch::to_u64();
 
@@ -1129,8 +1126,7 @@ async fn program_input_tampering_old_state_exited_duplicated_accepted_subsequent
 #[ignore = "Hits external prover (slow, incurs costs)"]
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_old_state_exited_removed_accepted_subsequent_report_accepted() -> Result<()> {
-    // Need alt deploy slot since there are no exited at the main deploy slot
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT_2).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
     let intermediate_slot = target_slot - eth_spec::SlotsPerEpoch::to_u64();
 
@@ -1150,8 +1146,7 @@ async fn program_input_tampering_old_state_exited_removed_accepted_subsequent_re
 #[ignore = "Hits external prover (slow, incurs costs)"]
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_old_state_exited_shuffled_accepted_subsequent_report_accepted() -> Result<()> {
-    // Using alt deploy slot since it has 5 validators
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT_2).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
     let intermediate_slot = target_slot - eth_spec::SlotsPerEpoch::to_u64();
 

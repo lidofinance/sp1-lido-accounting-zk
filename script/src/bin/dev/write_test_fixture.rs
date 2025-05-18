@@ -60,6 +60,12 @@ async fn main() {
         project_root.join("../script/tests/data/proofs/fixture.json"),
     ];
 
+    let withdrawal_vault_data_filename = format!("vault_data_{refslot}.json");
+
+    let withdrawal_vault_fixture_files = vec![project_root
+        .join("../script/tests/data/withdrawal_vault_account_proofs/")
+        .join(withdrawal_vault_data_filename)];
+
     scripts::write_test_fixture::run(
         &client,
         &bs_reader,
@@ -68,6 +74,7 @@ async fn main() {
         previous_slot,
         &network.get_config(),
         fixture_files,
+        withdrawal_vault_fixture_files,
     )
     .await
     .expect("Failed to run `write_test_fixture");

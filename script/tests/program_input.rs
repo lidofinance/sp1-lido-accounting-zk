@@ -47,7 +47,7 @@ async fn program_input_integration_test() -> Result<()> {
     let lido_validator_ids = [1973, 1974, 1975, 1976, 1977, 1978];
     let balances: Vec<u64> = lido_validator_ids.iter().map(|idx| new_bs.balances[*idx]).collect();
     let cl_balance_sum: u64 = balances.iter().sum();
-    assert_eq!(cl_balance_sum, 96000663228);
+    assert_eq!(cl_balance_sum, 96000686270);
 
     let withdrawal_vault_data = test_files.read_withdrawal_vault_data(&report_state_id).await?;
     let expected_wv_balance = withdrawal_vault_data.balance;
