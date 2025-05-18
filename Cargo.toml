@@ -13,46 +13,61 @@ edition = "2021"
 license = "MIT"
 
 [workspace.dependencies]
-arbitrary = "1.4.1"
-alloy = { version = "0.9.2", features = ["contract", "json", "providers", "signer-local", "signers", "sol-types", "network"] }
+arbitrary = "1.4"
 alloy-rlp = { version = "0.3.10", features = ["derive"] }
-alloy-primitives = { version = "0.8.18", features = ["serde", "rlp"] }
-alloy-sol-types = "0.8.18"
-anyhow = "1.0.95"
-derive_more = { version = "1", features = ["debug"] }
+anyhow = "1.0"
+derive_more = { version = "2.0", features = ["debug"] }
 dotenvy = "0.15.7"
 ethereum_hashing = "0.7.0"
-ethereum_serde_utils = "0.7.0"
-ethereum_ssz = "0.8.2"
-ethereum_ssz_derive = "0.8.2"
 ethereum-types = {version = "0.15.1", features = ["arbitrary"] }
 eth_trie = "0.5.0"
 hex = "0.4.3"
-hex-literal = "0.4.1"
+hex-literal = "0.4.1" # 1.0 requires edition2024 that's stabilized on rust 1.83, but sp1 only works with 1.82 at the moment
 itertools = "0.14.0"
-lazy_static = "1.5.0"
-log = "0.4.24"
-proptest = "1.6.0"
-proptest-arbitrary-interop = "0.1.0"
-rand = "0.8.5"
-reqwest = "0.12.12"
-rs_merkle = "1.4.2"
-serde = { version = "1.0.217", default-features = false, features = ["derive"] }
-serde_derive = "1.0.217"
-serde_json = { version = "1.0.135", default-features = false, features = ["alloc"] }
-simple_logger = "5.0.0"
-sp1-core-machine = "4.0.1"
-sp1-derive = "4.0.1"
-sp1-helper = "4.0.1"
-sp1-sdk = {version = "4.0.1", features = ["network"] }
-sp1-zkvm = "4.0.1"
-ssz_types = { version = "0.10.0", features = ["arbitrary"] }
-thiserror = "2.0.11"
-tokio = "1.43.0"
+lazy_static = "1.5"
+log = "0.4.27"
+proptest = "1.6"
+proptest-arbitrary-interop = "0.1"
+rand = "0.9"
+reqwest = "0.12.15"
+rs_merkle = "1.5"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_derive = "1.0"
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+simple_logger = "5.0"
+thiserror = "2.0"
+tokio = "1.43"
 tracing = "0.1.41"
-tree_hash = "0.9.0"
-tree_hash_derive = "0.9.0"
-typenum = "1.17.0"
+typenum = "1.18"
+
+### Non-upgradeable dependencies ###
+# Bumping ssz_types even to 0.10.1 will cause crashes in program - since 0.10.1 adds checking the
+# size of the VariableList against it's max length (https://github.com/sigp/ssz_types/pull/43).
+# The problematic code is at
+# https://github.com/sigp/ssz_types/blob/4fef53f83403658c9db5b1d8ba4e02f3edd8b18e/src/variable_list.rs#L285
+# 
+# eth_spec::ValidatorRegistryLimit 2**40, so that code runs perfectly fine on x64, but sp1-zkvm uses riscv32 architecute
+# with usize being u32, so eth_spec::ValidatorRegistryLimit::to_usize() overflows to 0.
+ssz_types = { version = "=0.10.0", features = ["arbitrary"] }
+# these are direct dependencies for ssz-types, so we have to pin them too - to avoid conflicting versions in the dependency tree
+tree_hash = "=0.9.0"
+tree_hash_derive = "=0.9.0"
+ethereum_serde_utils = "=0.7.0"
+ethereum_ssz = "=0.8.2"
+ethereum_ssz_derive = "=0.8.2"
+
+# Alloy and sp1 are here since moving them forward causes a conflict between alloy-primities
+# used by ssz_types (0.8.25 at most) and whatever version they use
+# Note: some of alloy deps are used by scripts and shared in devDependencies (using a different set of features)
+# The versions should match there
+alloy = { version = "=0.12.6", features = ["contract", "json", "providers", "signer-local", "signers", "sol-types", "network"] }
+alloy-primitives = { version = "=0.8.25", features = ["serde", "rlp"] }
+alloy-sol-types = "=0.8.25"
+sp1-derive = "=4.0.1"
+sp1-helper = "=4.0.1"
+sp1-sdk = {version = "=4.0.1", features = ["network"] }
+sp1-zkvm = "=4.0.1"
+### Non-upgradeable dependencies ###
 
 sp1-lido-accounting-zk-shared = { path = "shared" }
 sp1-lido-accounting-zk-shared-merkle-tree-leaves-derive = { path = "macros/merkle_tree_field_leaves_derive" }

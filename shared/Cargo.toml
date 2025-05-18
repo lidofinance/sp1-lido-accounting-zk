@@ -42,4 +42,4 @@ arbitrary.workspace = true
 hex-literal.workspace = true
 proptest.workspace = true
 proptest-arbitrary-interop.workspace = true
-alloy-primitives = { version = "0.8.15", features = ["arbitrary", "serde", "rlp"] }
+alloy-primitives = { version = "=0.8.25", features = ["arbitrary", "serde", "rlp"] }

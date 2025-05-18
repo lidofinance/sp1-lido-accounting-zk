@@ -3,11 +3,11 @@ use alloy::eips::RpcBlockHash;
 use alloy::network::Ethereum;
 use alloy::network::EthereumWallet;
 use alloy::primitives::Address;
+use alloy::providers::fillers::RecommendedFillers;
 use alloy::providers::ProviderBuilder;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
 use alloy::transports::http::reqwest::Url;
-use alloy::transports::Transport;
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
@@ -19,7 +19,6 @@ use core::fmt;
 use eyre::Result;
 use k256;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use sp1_lido_accounting_zk_shared::io::eth_io::{LidoValidatorStateRust, ReportRust};
@@ -125,16 +124,16 @@ impl Debug for ContractDeployParametersRust {
     }
 }
 
-pub struct Sp1LidoAccountingReportContractWrapper<P, T: Transport + Clone>
+pub struct Sp1LidoAccountingReportContractWrapper<P>
 where
-    P: alloy::providers::Provider<T, Ethereum> + std::clone::Clone,
+    P: alloy::providers::Provider<Ethereum> + std::clone::Clone,
 {
-    contract: Sp1LidoAccountingReportContractInstance<T, Arc<P>>,
+    contract: Sp1LidoAccountingReportContractInstance<(), Arc<P>>,
 }
 
-impl<P, T: Transport + Clone> Sp1LidoAccountingReportContractWrapper<P, T>
+impl<P> Sp1LidoAccountingReportContractWrapper<P>
 where
-    P: alloy::providers::Provider<T, Ethereum> + std::clone::Clone,
+    P: alloy::providers::Provider<Ethereum> + std::clone::Clone,
 {
     pub fn new(provider: Arc<P>, contract_address: Address) -> Self {
         let contract = Sp1LidoAccountingReportContract::new(contract_address, Arc::clone(&provider));
@@ -218,7 +217,8 @@ where
     fn map_contract_error(&self, error: alloy::contract::Error) -> Error {
         if let alloy::contract::Error::TransportError(alloy::transports::RpcError::ErrorResp(ref error_payload)) = error
         {
-            if let Some(contract_error) = error_payload.as_decoded_error::<Sp1LidoAccountingReportContractErrors>(true)
+            if let Some(contract_error) =
+                error_payload.as_decoded_interface_error::<Sp1LidoAccountingReportContractErrors>()
             {
                 Error::Rejection(contract_error)
             } else if error_payload.message.contains("execution reverted") {
@@ -232,23 +232,19 @@ where
     }
 }
 
-pub struct ExecutionLayerClient<P, T: Transport + Clone>
+pub struct ExecutionLayerClient<P>
 where
-    P: alloy::providers::Provider<T, Ethereum> + Clone,
+    P: alloy::providers::Provider<Ethereum> + Clone,
 {
     provider: Arc<P>,
-    _phantom: PhantomData<T>,
 }
 
-impl<P, T: Transport + Clone> ExecutionLayerClient<P, T>
+impl<P> ExecutionLayerClient<P>
 where
-    P: alloy::providers::Provider<T, Ethereum> + Clone,
+    P: alloy::providers::Provider<Ethereum> + Clone,
 {
     pub fn new(provider: Arc<P>) -> Self {
-        Self {
-            provider,
-            _phantom: PhantomData,
-        }
+        Self { provider }
     }
 
     pub async fn get_withdrawal_vault_data(
@@ -297,28 +293,16 @@ pub type DefaultProvider = alloy::providers::fillers::FillProvider<
     alloy::providers::fillers::JoinFill<
         alloy::providers::fillers::JoinFill<
             alloy::providers::Identity,
-            alloy::providers::fillers::JoinFill<
-                alloy::providers::fillers::GasFiller,
-                alloy::providers::fillers::JoinFill<
-                    alloy::providers::fillers::BlobGasFiller,
-                    alloy::providers::fillers::JoinFill<
-                        alloy::providers::fillers::NonceFiller,
-                        alloy::providers::fillers::ChainIdFiller,
-                    >,
-                >,
-            >,
+            <Ethereum as RecommendedFillers>::RecommendedFillers,
         >,
         alloy::providers::fillers::WalletFiller<EthereumWallet>,
     >,
-    alloy::providers::RootProvider<alloy::transports::http::Http<reqwest::Client>>,
-    alloy::transports::http::Http<reqwest::Client>,
-    Ethereum,
+    alloy::providers::RootProvider,
 >;
 
-pub type Contract =
-    Sp1LidoAccountingReportContractWrapper<DefaultProvider, alloy::transports::http::Http<reqwest::Client>>;
+pub type Contract = Sp1LidoAccountingReportContractWrapper<DefaultProvider>;
 
-pub type EthELClient = ExecutionLayerClient<DefaultProvider, alloy::transports::http::Http<reqwest::Client>>;
+pub type EthELClient = ExecutionLayerClient<DefaultProvider>;
 pub struct ProviderFactory {}
 impl ProviderFactory {
     fn decode_key(private_key_raw: &str) -> Result<k256::SecretKey, ProviderError> {
@@ -336,10 +320,7 @@ impl ProviderFactory {
     pub fn create_provider(key: k256::SecretKey, endpoint: Url) -> DefaultProvider {
         let signer: PrivateKeySigner = PrivateKeySigner::from(key);
         let wallet: EthereumWallet = EthereumWallet::from(signer);
-        ProviderBuilder::new()
-            .with_recommended_fillers()
-            .wallet(wallet)
-            .on_http(endpoint)
+        ProviderBuilder::new().wallet(wallet).on_http(endpoint)
     }
 
     pub fn create_provider_decode_key(key_str: String, endpoint: Url) -> DefaultProvider {
@@ -361,14 +342,14 @@ mod tests {
     fn default_params() -> ContractDeployParametersRust {
         ContractDeployParametersRust {
             network: "anvil-sepolia".to_owned(),
-            verifier: hex!("3b6041173b80e77f038f3f2c0f9744f04837185e"),
-            vkey: hex!("00da6bb9e019268e8f2494fc5dbcda36d7c1c854ca2682df448f761cf47887f4"),
+            verifier: hex!("e00a3cbfc45241b33c0a44c78e26168cbc55ec63"),
+            vkey: hex!("00a13852b52626b0cc77128e2935361ed27c3ba6e97ffa92a9faaa62f0720643"),
             withdrawal_credentials: hex!("010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76"),
             withdrawal_vault_address: consts::lido_withdrawal_vault::SEPOLIA,
             genesis_timestamp: 1655733600,
             initial_validator_state: LidoValidatorStateRust {
-                slot: BeaconChainSlot(5832096),
-                merkle_root: hex!("918070ce0cb66881d6839965371f79a600bc26b50a363a17ac00a1b295f89113"),
+                slot: BeaconChainSlot(7643456),
+                merkle_root: hex!("5d22a84a06f79d4b9f4d94769190a9f5afb077607f5084b781c1d996c4bd3c16"),
             },
         }
     }
@@ -387,7 +368,7 @@ mod tests {
     #[test]
     fn deployment_parameters_from_file() {
         let deploy_args_file =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/deploy/anvil-sepolia-5832096-deploy.json");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/deploy/anvil-sepolia-7643456-deploy.json");
         let deploy_params: ContractDeployParametersRust =
             utils::read_json(deploy_args_file).expect("Failed to read deployment args");
 
