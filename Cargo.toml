@@ -40,6 +40,7 @@ simple_logger = "5.0"
 thiserror = "2.0"
 tokio = "1.43"
 tracing = "0.1.41"
+tracing-forest = "0.1.6"
 tracing-subscriber = {version="0.3.19", features=["std", "fmt", "json"]}
 typenum = "1.18"
 

@@ -97,6 +97,7 @@ sp1-sdk.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+tracing-forest.workspace = true
 tracing-subscriber.workspace = true
 tree_hash.workspace = true
 

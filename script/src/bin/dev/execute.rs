@@ -1,5 +1,5 @@
 use clap::Parser;
-use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts};
+use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts, tracing::LoggingConfig};
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
 #[derive(Parser, Debug)]
@@ -13,12 +13,14 @@ struct ExecuteArgs {
 
 #[tokio::main]
 async fn main() {
-    sp1_sdk::utils::setup_logger();
+    sp1_lido_accounting_scripts::tracing::setup_logger(LoggingConfig::default().use_json(true));
     let args = ExecuteArgs::parse();
     tracing::debug!("Args: {:?}", args);
 
     let (network, client, bs_reader) = scripts::prelude::initialize();
     let (eth_client, contract) = scripts::prelude::initialize_eth();
+
+    let main_span = tracing::info_span!("main", network = network.as_str()).entered();
 
     tracing::info!(
         "Running for network {:?}, slot: {}, previous_slot: {:?}",
@@ -38,4 +40,6 @@ async fn main() {
     )
     .await
     .expect("Failed to run `execute");
+
+    main_span.exit();
 }
