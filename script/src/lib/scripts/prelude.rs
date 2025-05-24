@@ -1,7 +1,7 @@
 use crate::beacon_state_reader::file::FileBasedBeaconStateReader;
 use crate::beacon_state_reader::reqwest::{CachedReqwestBeaconStateReader, ReqwestBeaconStateReader};
-use crate::beacon_state_reader::{BeaconStateReader, StateId};
-use crate::consts::{self, Network, NetworkConfig, NetworkInfo, WrappedNetwork};
+use crate::beacon_state_reader::{self, BeaconStateReader, StateId};
+use crate::consts::{self, NetworkConfig, NetworkInfo, WrappedNetwork};
 use crate::sp1_client_wrapper::SP1ClientWrapperImpl;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 use sp1_sdk::ProverClient;
@@ -23,6 +23,12 @@ use alloy::transports::http::reqwest::Url;
 pub enum Error {
     #[error("Failed to read env var {0:?}")]
     FailedToReadEnvVar(VarError),
+
+    #[error("Failed to read network from env var: {0:?}")]
+    FailedToParseNetwork(#[from] consts::NetworkParseError),
+
+    #[error("Failed to create beacon state reader: {0:?}")]
+    FailedToCreateBeaconState(#[from] beacon_state_reader::Error),
 
     #[error("Failed to parse URL {0}")]
     FailedToParseUrl(String),
@@ -51,28 +57,22 @@ impl BeaconStateReaderEnum {
             "file" => {
                 let file_store_location = env::var("BS_FILE_STORE")?;
                 let file_store = PathBuf::from(file_store_location).join(network.as_str());
-                Ok(BeaconStateReaderEnum::File(FileBasedBeaconStateReader::new(
-                    &file_store,
-                )))
+                let file_reader = FileBasedBeaconStateReader::new(&file_store)?;
+                Ok(BeaconStateReaderEnum::File(file_reader))
             }
             "rpc" => {
                 let rpc_endpoint = env::var("CONSENSUS_LAYER_RPC")?;
                 let bs_endpoint = env::var("BEACON_STATE_RPC")?;
-                Ok(BeaconStateReaderEnum::RPC(ReqwestBeaconStateReader::new(
-                    &rpc_endpoint,
-                    &bs_endpoint,
-                )))
+                let reqwest_reader = ReqwestBeaconStateReader::new(&rpc_endpoint, &bs_endpoint);
+                Ok(BeaconStateReaderEnum::RPC(reqwest_reader))
             }
             "rpc_cached" => {
                 let file_store_location = env::var("BS_FILE_STORE")?;
                 let rpc_endpoint = env::var("CONSENSUS_LAYER_RPC")?;
                 let bs_endpoint = env::var("BEACON_STATE_RPC")?;
                 let file_store = PathBuf::from(file_store_location).join(network.as_str());
-                Ok(BeaconStateReaderEnum::RPCCached(CachedReqwestBeaconStateReader::new(
-                    &rpc_endpoint,
-                    &bs_endpoint,
-                    &file_store,
-                )))
+                let cached_reader = CachedReqwestBeaconStateReader::new(&rpc_endpoint, &bs_endpoint, &file_store)?;
+                Ok(BeaconStateReaderEnum::RPCCached(cached_reader))
             }
             unknown_value => Err(Error::UnknownSetting {
                 name: "BS_READER_MODE".to_string(),
@@ -141,8 +141,8 @@ impl ScriptRuntime {
             .parse()
             .expect("Failed to parse CONTRACT_ADDRESS into Address");
 
-        let network = read_network(&chain);
-        let client = SP1ClientWrapperImpl::new(ProverClient::from_env(), consts::ELF);
+        let network = chain.parse::<WrappedNetwork>()?;
+        let client = SP1ClientWrapperImpl::new(ProverClient::from_env());
         let beacon_state_reader = BeaconStateReaderEnum::new_from_env(&network)?;
         let provider = Arc::new(ProviderFactory::create_provider_decode_key(private_key, endpoint));
         let report_contract = Sp1LidoAccountingReportContractWrapper::new(Arc::clone(&provider), address);
@@ -170,28 +170,5 @@ impl ScriptRuntime {
 
     pub fn network_config(&self) -> NetworkConfig {
         self.network.get_config()
-    }
-}
-
-pub fn read_network(val: &str) -> WrappedNetwork {
-    let is_anvil = val.starts_with("anvil");
-    let base_network: &str = if is_anvil {
-        let mut parts = val.splitn(2, '-');
-        parts.nth(1).unwrap()
-    } else {
-        val
-    };
-
-    let network = match base_network {
-        "mainnet" => Network::Mainnet,
-        "sepolia" => Network::Sepolia,
-        "holesky" => Network::Holesky,
-        _ => panic!("Unknown network"),
-    };
-
-    if is_anvil {
-        WrappedNetwork::Anvil(network)
-    } else {
-        WrappedNetwork::Id(network)
     }
 }

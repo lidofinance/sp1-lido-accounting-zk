@@ -44,6 +44,28 @@ pub enum Network {
     Holesky,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum NetworkParseError {
+    #[error("Failed to parse network,  value={value}, error={error}")]
+    FailedToParseNetwork { value: String, error: String },
+}
+
+impl FromStr for Network {
+    type Err = NetworkParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "mainnet" => Ok(Self::Mainnet),
+            "sepolia" => Ok(Self::Sepolia),
+            "holesky" => Ok(Self::Holesky),
+            val => Err(NetworkParseError::FailedToParseNetwork {
+                value: val.to_string(),
+                error: "Unknown network".to_string(),
+            }),
+        }
+    }
+}
+
 impl NetworkInfo for Network {
     fn as_str(&self) -> String {
         let val = match self {
@@ -90,6 +112,23 @@ pub enum WrappedNetwork {
     Id(Network),
 }
 
+impl FromStr for WrappedNetwork {
+    type Err = NetworkParseError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.split_once('-') {
+            Some(("anvil", network_id)) => {
+                let network = network_id.parse::<Network>()?;
+                Ok(Self::Anvil(network))
+            }
+            _ => {
+                let network = value.parse::<Network>()?;
+                Ok(Self::Id(network))
+            }
+        }
+    }
+}
+
 impl NetworkInfo for WrappedNetwork {
     fn as_str(&self) -> String {
         match self {
@@ -129,27 +168,4 @@ pub mod lido_accounting_hash_consensus_contract {
     pub const MAINNET: [u8; 20] = hex!("D624B08C83bAECF0807Dd2c6880C3154a5F0B288");
     pub const SEPOLIA: [u8; 20] = hex!("758D8c3CE794b3Dfe3b3A3482B7eD33de2109D95");
     pub const HOLESKY: [u8; 20] = hex!("a067FC95c22D51c3bC35fd4BE37414Ee8cc890d2");
-}
-
-pub fn read_network(val: &str) -> WrappedNetwork {
-    let is_anvil = val.starts_with("anvil");
-    let base_network: &str = if is_anvil {
-        let mut parts = val.splitn(2, '-');
-        parts.nth(1).unwrap()
-    } else {
-        val
-    };
-
-    let network = match base_network {
-        "mainnet" => Network::Mainnet,
-        "sepolia" => Network::Sepolia,
-        "holesky" => Network::Holesky,
-        _ => panic!("Unknown network"),
-    };
-
-    if is_anvil {
-        WrappedNetwork::Anvil(network)
-    } else {
-        WrappedNetwork::Id(network)
-    }
 }

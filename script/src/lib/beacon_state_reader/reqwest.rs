@@ -1,6 +1,6 @@
 use std::{num::ParseIntError, path::Path, time::Duration};
 
-use anyhow::{anyhow, Ok};
+use anyhow::anyhow;
 use reqwest::{header::ACCEPT, Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -214,12 +214,17 @@ pub struct CachedReqwestBeaconStateReader {
 }
 
 impl CachedReqwestBeaconStateReader {
-    pub fn new(consensus_layer_base_uri: &str, beacon_state_base_uri: &str, file_store: &Path) -> Self {
-        Self {
+    pub fn new(
+        consensus_layer_base_uri: &str,
+        beacon_state_base_uri: &str,
+        file_store: &Path,
+    ) -> Result<Self, super::Error> {
+        let result = Self {
             rpc_reader: ReqwestBeaconStateReader::new(consensus_layer_base_uri, beacon_state_base_uri),
-            file_reader: FileBasedBeaconStateReader::new(file_store),
-            file_writer: FileBeaconStateWriter::new(file_store),
-        }
+            file_reader: FileBasedBeaconStateReader::new(file_store)?,
+            file_writer: FileBeaconStateWriter::new(file_store)?,
+        };
+        Ok(result)
     }
 }
 

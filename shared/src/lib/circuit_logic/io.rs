@@ -1,7 +1,7 @@
 use crate::{circuit_logic::report::ReportData, eth_consensus_layer::Hash256};
 
 use crate::io::eth_io::{
-    conversions, BeaconChainSlot, LidoValidatorStateSolidity, LidoWithdrawalVaultDataRust, PublicValuesSolidity,
+    self, conversions, BeaconChainSlot, LidoValidatorStateSolidity, LidoWithdrawalVaultDataRust, PublicValuesSolidity,
     ReportMetadataSolidity, ReportSolidity,
 };
 
@@ -14,31 +14,32 @@ pub fn create_public_values(
     old_state_hash: &Hash256,
     new_state_slot: BeaconChainSlot,
     new_state_hash: &Hash256,
-) -> PublicValuesSolidity {
-    PublicValuesSolidity {
+) -> Result<PublicValuesSolidity, eth_io::Error> {
+    let result = PublicValuesSolidity {
         report: ReportSolidity {
-            reference_slot: report.slot.into(),
-            deposited_lido_validators: conversions::u64_to_uint256(report.deposited_lido_validators),
-            exited_lido_validators: conversions::u64_to_uint256(report.exited_lido_validators),
-            lido_cl_valance: conversions::u64_to_uint256(report.lido_cl_balance),
+            reference_slot: report.slot.try_into()?,
+            deposited_lido_validators: conversions::u64_to_uint256(report.deposited_lido_validators)?,
+            exited_lido_validators: conversions::u64_to_uint256(report.exited_lido_validators)?,
+            lido_cl_valance: conversions::u64_to_uint256(report.lido_cl_balance)?,
             lido_withdrawal_vault_balance: lido_withdrawal_vault_data.balance,
         },
         metadata: ReportMetadataSolidity {
-            bc_slot: bc_slot.into(),
-            epoch: conversions::u64_to_uint256(report.epoch),
+            bc_slot: bc_slot.try_into()?,
+            epoch: conversions::u64_to_uint256(report.epoch)?,
             lido_withdrawal_credentials: report.lido_withdrawal_credentials,
             beacon_block_hash: *beacon_block_hash,
             state_for_previous_report: LidoValidatorStateSolidity {
-                slot: old_state_slot.into(),
+                slot: old_state_slot.try_into()?,
                 merkle_root: *old_state_hash,
             },
             new_state: LidoValidatorStateSolidity {
-                slot: new_state_slot.into(),
+                slot: new_state_slot.try_into()?,
                 merkle_root: *new_state_hash,
             },
             withdrawal_vault_data: lido_withdrawal_vault_data.into(),
         },
-    }
+    };
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -112,9 +113,12 @@ mod tests {
             &public_values.metadata.state_for_previous_report.merkle_root.into(),
             public_values.metadata.new_state.slot,
             &public_values.metadata.new_state.merkle_root.into(),
-        );
+        )
+        .expect("Failed to create public values");
 
-        let public_values_rust: PublicValuesRust = public_values_solidity.into();
+        let public_values_rust: PublicValuesRust = public_values_solidity
+            .try_into()
+            .expect("Failed to convert PublicValuesSolidity to PublicValuesRust");
 
         assert_eq!(public_values, public_values_rust)
     }
@@ -132,12 +136,15 @@ mod tests {
             &public_values.metadata.state_for_previous_report.merkle_root.into(),
             public_values.metadata.new_state.slot,
             &public_values.metadata.new_state.merkle_root.into(),
-        );
+        )
+        .expect("Failed to create public values");
 
         let abi_encoded = PublicValuesSolidity::abi_encode(&public_values_solidity);
         let decoded =
             PublicValuesSolidity::abi_decode(&abi_encoded, true).expect("Failed to decode PublicValuesSolidity");
-        let public_values_rust: PublicValuesRust = decoded.into();
+        let public_values_rust: PublicValuesRust = decoded
+            .try_into()
+            .expect("Failed to convert PublicValuesSolidity to PublicValuesRust");
 
         assert_eq!(public_values, public_values_rust)
     }

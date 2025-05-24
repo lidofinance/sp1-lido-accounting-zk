@@ -207,7 +207,7 @@ fn verify_input_correctness(
 pub fn verify_public_values(public_values: &SP1PublicValues, expected_public_values: &PublicValuesRust) -> Result<()> {
     let public_values_solidity: PublicValuesSolidity =
         PublicValuesSolidity::abi_decode(public_values.as_slice(), true)?;
-    let public_values_rust: PublicValuesRust = public_values_solidity.into();
+    let public_values_rust: PublicValuesRust = public_values_solidity.try_into()?;
 
     tracing::debug!(
         "Expected hash: {}",

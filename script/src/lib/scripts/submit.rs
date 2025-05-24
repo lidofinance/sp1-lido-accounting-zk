@@ -109,7 +109,11 @@ pub async fn run(
         tracing::info!("Storing proof");
         let file_name = format!("proof_{}_{}.json", network.as_str(), target_slot);
         let proof_file = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(file_name);
-        proof_storage::store_proof_and_metadata(&proof, runtime.sp1_client.vk(), proof_file.as_path());
+        let store_result =
+            proof_storage::store_proof_and_metadata(&proof, runtime.sp1_client.vk(), proof_file.as_path());
+        if let Err(e) = store_result {
+            tracing::warn!("Failed to store proof: {:?}", e);
+        }
     }
 
     if flags.verify {

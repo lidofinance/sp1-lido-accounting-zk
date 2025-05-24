@@ -5455,6 +5455,7 @@ dependencies = [
  "simple_logger",
  "sp1-lido-accounting-zk-scripts",
  "sp1-lido-accounting-zk-shared",
+ "sp1-sdk",
  "tokio",
  "tracing",
  "tree_hash",

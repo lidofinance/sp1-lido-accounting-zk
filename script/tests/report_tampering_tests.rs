@@ -137,7 +137,9 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
 
         let tampered_public_values = (self.tamper_public_values)(public_values);
 
-        let pub_vals_solidity: PublicValuesSolidity = tampered_public_values.into();
+        let pub_vals_solidity: PublicValuesSolidity = tampered_public_values
+            .try_into()
+            .expect("Failed to convert public values to solidity");
         let public_values_bytes: Vec<u8> = PublicValuesSolidity::abi_encode(&pub_vals_solidity);
 
         tracing::info!("Sending report");

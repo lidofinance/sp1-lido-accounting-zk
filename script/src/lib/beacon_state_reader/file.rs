@@ -7,19 +7,16 @@ use std::{env, fs};
 
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 
-use super::{BeaconStateReader, StateId};
+use super::{BeaconStateReader, Error, StateId};
 
 pub struct FileBasedBeaconChainStore {
     pub store_location: PathBuf,
 }
 
 impl FileBasedBeaconChainStore {
-    pub fn new(store_location: &Path) -> Self {
-        let abs_path = Self::abs_path(PathBuf::from(store_location))
-            .unwrap_or_else(|_| panic!("Failed to convert {} into absolute path", store_location.display()));
-        Self {
-            store_location: abs_path,
-        }
+    pub fn new(store_location: &Path) -> Result<Self, Error> {
+        let store_location = Self::abs_path(store_location.to_path_buf())?;
+        Ok(Self { store_location })
     }
 
     fn abs_path(path: PathBuf) -> io::Result<PathBuf> {
@@ -63,10 +60,10 @@ pub struct FileBasedBeaconStateReader {
 }
 
 impl FileBasedBeaconStateReader {
-    pub fn new(store_location: &Path) -> Self {
-        Self {
-            file_store: FileBasedBeaconChainStore::new(store_location),
-        }
+    pub fn new(store_location: &Path) -> Result<Self, Error> {
+        Ok(Self {
+            file_store: FileBasedBeaconChainStore::new(store_location)?,
+        })
     }
 }
 
@@ -89,6 +86,8 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
     }
 
     async fn find_bc_slot_for_refslot(&self, _target_slot: ReferenceSlot) -> anyhow::Result<BeaconChainSlot> {
+        // This is actually fatal - neither cli nor service cannot continue without changing env vars and restart,
+        // so panicing is fine here.
         panic!(
             "File bs reader cannot be used to find beacon chain slot for reference slot - please use RPC or RPC cached"
         );
@@ -100,10 +99,10 @@ pub struct FileBeaconStateWriter {
 }
 
 impl FileBeaconStateWriter {
-    pub fn new(store_location: &Path) -> Self {
-        Self {
-            file_store: FileBasedBeaconChainStore::new(store_location),
-        }
+    pub fn new(store_location: &Path) -> Result<Self, Error> {
+        Ok(Self {
+            file_store: FileBasedBeaconChainStore::new(store_location)?,
+        })
     }
 
     pub fn write_beacon_state(&self, bs: &BeaconState) -> anyhow::Result<()> {

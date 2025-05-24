@@ -60,6 +60,7 @@ pub fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
         std::fs::create_dir_all(fixture_path).expect("failed to create fixture path");
     }
 
-    std::fs::write(path, serde_json::to_string_pretty(value).unwrap())?;
+    let json = serde_json::to_string_pretty(value)?;
+    std::fs::write(path, json)?;
     Ok(())
 }

@@ -11,6 +11,7 @@ use alloy::transports::http::reqwest::Url;
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_shared::io::eth_io;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
 
@@ -58,7 +59,10 @@ pub enum Error {
     ReportNotFound(ReferenceSlot),
 
     #[error("Other alloy error {0:#?}")]
-    AlloyError(alloy::contract::Error),
+    AlloyError(#[from] alloy::contract::Error),
+
+    #[error("{0:#?}")]
+    EthIOConversionError(#[from] eth_io::Error),
 }
 
 #[derive(Debug, Error)]
@@ -71,24 +75,28 @@ fn map_rpc_error(error: alloy::transports::RpcError<alloy::transports::Transport
     error.into()
 }
 
-impl From<ReportRust> for Sp1LidoAccountingReportContract::Report {
-    fn from(value: ReportRust) -> Self {
-        Sp1LidoAccountingReportContract::Report {
-            reference_slot: value.reference_slot.into(),
+impl TryFrom<ReportRust> for Sp1LidoAccountingReportContract::Report {
+    type Error = Error;
+    fn try_from(value: ReportRust) -> Result<Self, Self::Error> {
+        let result = Sp1LidoAccountingReportContract::Report {
+            reference_slot: value.reference_slot.try_into()?,
             deposited_lido_validators: U256::from(value.deposited_lido_validators),
             exited_lido_validators: U256::from(value.exited_lido_validators),
             lido_cl_balance: U256::from(value.lido_cl_balance),
             lido_withdrawal_vault_balance: U256::from(value.lido_withdrawal_vault_balance),
-        }
+        };
+        Ok(result)
     }
 }
 
-impl From<LidoValidatorStateRust> for Sp1LidoAccountingReportContract::LidoValidatorState {
-    fn from(value: LidoValidatorStateRust) -> Self {
-        Sp1LidoAccountingReportContract::LidoValidatorState {
-            slot: value.slot.into(),
+impl TryFrom<LidoValidatorStateRust> for Sp1LidoAccountingReportContract::LidoValidatorState {
+    type Error = Error;
+    fn try_from(value: LidoValidatorStateRust) -> Result<Self, Self::Error> {
+        let result = Sp1LidoAccountingReportContract::LidoValidatorState {
+            slot: value.slot.try_into()?,
             merkle_root: value.merkle_root.into(),
-        }
+        };
+        Ok(result)
     }
 }
 
@@ -147,7 +155,7 @@ where
         // Deploy the `Counter` contract.
         let validator_state_solidity: Sp1LidoAccountingReportContract::LidoValidatorState =
             Sp1LidoAccountingReportContract::LidoValidatorState {
-                slot: constructor_args.initial_validator_state.slot.into(),
+                slot: constructor_args.initial_validator_state.slot.try_into()?,
                 merkle_root: constructor_args.initial_validator_state.merkle_root.into(),
             };
         let contract = Sp1LidoAccountingReportContract::deploy(
@@ -198,7 +206,7 @@ where
     pub async fn get_report(&self, slot: ReferenceSlot) -> Result<ReportRust, Error> {
         let report_response = self
             .contract
-            .getReport(slot.into())
+            .getReport(slot.try_into()?)
             .call()
             .await
             .map_err(|e: alloy::contract::Error| self.map_contract_error(e))?;
@@ -227,10 +235,10 @@ where
             } else if error_payload.message.contains("execution reverted") {
                 Error::CustomRejection(error_payload.message.to_string())
             } else {
-                Error::AlloyError(error)
+                error.into()
             }
         } else {
-            Error::AlloyError(error)
+            error.into()
         }
     }
 }
@@ -251,9 +259,12 @@ where
         HashConsensusContractWrapper { contract }
     }
 
-    pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), alloy::contract::Error> {
+    pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), Error> {
         let result: HashConsensus::getCurrentFrameReturn = self.contract.getCurrentFrame().call().await?;
-        Ok((result.refSlot.into(), result.reportProcessingDeadlineSlot.into()))
+        Ok((
+            result.refSlot.try_into()?,
+            result.reportProcessingDeadlineSlot.try_into()?,
+        ))
     }
 }
 

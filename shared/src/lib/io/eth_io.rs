@@ -3,7 +3,10 @@ use std::{
     ops::{Add, AddAssign, Sub, SubAssign},
 };
 
-use alloy_primitives::Address;
+use alloy_primitives::{
+    ruint::{FromUintError, ToUintError},
+    Address,
+};
 use alloy_sol_types::sol;
 use derive_more::Debug;
 use serde::{Deserialize, Serialize};
@@ -15,20 +18,35 @@ use crate::{
     eth_spec,
     io::serde_utils::serde_hex_as_string,
 };
+use thiserror::Error;
 
 use super::program_io::WithdrawalVaultData;
 
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Conversion error: failed to convert {value} to uint256: {error:?}")]
+    ToUint256Error {
+        value: u64,
+        error: ToUintError<alloy_primitives::U256>,
+    },
+
+    #[error("Conversion error: failed to convert {value} to u64: {error:?}")]
+    FromUint256Error {
+        value: alloy_primitives::U256,
+        error: FromUintError<u64>,
+    },
+}
+
 pub mod conversions {
-    pub fn u64_to_uint256(value: u64) -> alloy_primitives::U256 {
-        value
-            .try_into()
-            .unwrap_or_else(|_| panic!("Failed to convert {} to u256", value))
+    use super::Error;
+    pub fn u64_to_uint256(value: u64) -> Result<alloy_primitives::U256, Error> {
+        value.try_into().map_err(|error| Error::ToUint256Error { value, error })
     }
 
-    pub fn uint256_to_u64(value: alloy_primitives::U256) -> u64 {
+    pub fn uint256_to_u64(value: alloy_primitives::U256) -> Result<u64, Error> {
         value
             .try_into()
-            .unwrap_or_else(|_| panic!("Failed to convert {} to u64", value))
+            .map_err(|error| Error::FromUint256Error { value, error })
     }
 }
 
@@ -68,15 +86,21 @@ impl fmt::Display for ReferenceSlot {
     }
 }
 
-impl From<alloy_primitives::U256> for ReferenceSlot {
-    fn from(value: alloy_primitives::U256) -> Self {
-        ReferenceSlot(conversions::uint256_to_u64(value))
+impl TryFrom<alloy_primitives::U256> for ReferenceSlot {
+    type Error = Error;
+
+    fn try_from(value: alloy_primitives::U256) -> Result<Self, Self::Error> {
+        let val = conversions::uint256_to_u64(value)?;
+        Ok(ReferenceSlot(val))
     }
 }
 
-impl From<ReferenceSlot> for alloy_primitives::U256 {
-    fn from(value: ReferenceSlot) -> Self {
-        conversions::u64_to_uint256(value.0)
+impl TryFrom<ReferenceSlot> for alloy_primitives::U256 {
+    type Error = Error;
+
+    fn try_from(value: ReferenceSlot) -> Result<Self, Self::Error> {
+        let val = conversions::u64_to_uint256(value.0)?;
+        Ok(val)
     }
 }
 
@@ -136,9 +160,21 @@ impl fmt::Display for BeaconChainSlot {
     }
 }
 
-impl From<BeaconChainSlot> for alloy_primitives::U256 {
-    fn from(value: BeaconChainSlot) -> Self {
-        conversions::u64_to_uint256(value.0)
+impl TryFrom<alloy_primitives::U256> for BeaconChainSlot {
+    type Error = Error;
+
+    fn try_from(value: alloy_primitives::U256) -> Result<Self, Self::Error> {
+        let val = conversions::uint256_to_u64(value)?;
+        Ok(BeaconChainSlot(val))
+    }
+}
+
+impl TryFrom<BeaconChainSlot> for alloy_primitives::U256 {
+    type Error = Error;
+
+    fn try_from(value: BeaconChainSlot) -> Result<Self, Self::Error> {
+        let val = conversions::u64_to_uint256(value.0)?;
+        Ok(val)
     }
 }
 
@@ -214,27 +250,33 @@ pub struct ReportRust {
     pub lido_withdrawal_vault_balance: alloy_primitives::U256,
 }
 
-impl From<ReportSolidity> for ReportRust {
-    fn from(value: ReportSolidity) -> Self {
-        Self {
-            reference_slot: ReferenceSlot(conversions::uint256_to_u64(value.reference_slot)),
-            deposited_lido_validators: conversions::uint256_to_u64(value.deposited_lido_validators),
-            exited_lido_validators: conversions::uint256_to_u64(value.exited_lido_validators),
-            lido_cl_balance: conversions::uint256_to_u64(value.lido_cl_valance),
+impl TryFrom<ReportSolidity> for ReportRust {
+    type Error = Error;
+
+    fn try_from(value: ReportSolidity) -> Result<Self, Self::Error> {
+        let result = Self {
+            reference_slot: value.reference_slot.try_into()?,
+            deposited_lido_validators: conversions::uint256_to_u64(value.deposited_lido_validators)?,
+            exited_lido_validators: conversions::uint256_to_u64(value.exited_lido_validators)?,
+            lido_cl_balance: conversions::uint256_to_u64(value.lido_cl_valance)?,
             lido_withdrawal_vault_balance: value.lido_withdrawal_vault_balance,
-        }
+        };
+        Ok(result)
     }
 }
 
-impl From<ReportRust> for ReportSolidity {
-    fn from(value: ReportRust) -> Self {
-        Self {
-            reference_slot: conversions::u64_to_uint256(value.reference_slot.0),
-            deposited_lido_validators: conversions::u64_to_uint256(value.deposited_lido_validators),
-            exited_lido_validators: conversions::u64_to_uint256(value.exited_lido_validators),
-            lido_cl_valance: conversions::u64_to_uint256(value.lido_cl_balance),
+impl TryFrom<ReportRust> for ReportSolidity {
+    type Error = Error;
+
+    fn try_from(value: ReportRust) -> Result<Self, Self::Error> {
+        let result = Self {
+            reference_slot: conversions::u64_to_uint256(value.reference_slot.0)?,
+            deposited_lido_validators: conversions::u64_to_uint256(value.deposited_lido_validators)?,
+            exited_lido_validators: conversions::u64_to_uint256(value.exited_lido_validators)?,
+            lido_cl_valance: conversions::u64_to_uint256(value.lido_cl_balance)?,
             lido_withdrawal_vault_balance: value.lido_withdrawal_vault_balance,
-        }
+        };
+        Ok(result)
     }
 }
 
@@ -246,21 +288,27 @@ sol! {
     }
 }
 
-impl From<LidoValidatorStateSolidity> for LidoValidatorStateRust {
-    fn from(value: LidoValidatorStateSolidity) -> Self {
-        Self {
-            slot: BeaconChainSlot(conversions::uint256_to_u64(value.slot)),
+impl TryFrom<LidoValidatorStateSolidity> for LidoValidatorStateRust {
+    type Error = Error;
+
+    fn try_from(value: LidoValidatorStateSolidity) -> Result<Self, Self::Error> {
+        let result = Self {
+            slot: value.slot.try_into()?,
             merkle_root: value.merkle_root.into(),
-        }
+        };
+        Ok(result)
     }
 }
 
-impl From<LidoValidatorStateRust> for LidoValidatorStateSolidity {
-    fn from(value: LidoValidatorStateRust) -> Self {
-        Self {
-            slot: value.slot.into(),
+impl TryFrom<LidoValidatorStateRust> for LidoValidatorStateSolidity {
+    type Error = Error;
+
+    fn try_from(value: LidoValidatorStateRust) -> Result<Self, Self::Error> {
+        let result = Self {
+            slot: value.slot.try_into()?,
             merkle_root: value.merkle_root.into(),
-        }
+        };
+        Ok(result)
     }
 }
 
@@ -341,31 +389,37 @@ pub struct ReportMetadataRust {
     pub withdrawal_vault_data: LidoWithdrawalVaultDataRust,
 }
 
-impl From<ReportMetadataSolidity> for ReportMetadataRust {
-    fn from(value: ReportMetadataSolidity) -> Self {
-        Self {
-            bc_slot: BeaconChainSlot(conversions::uint256_to_u64(value.bc_slot)),
-            epoch: conversions::uint256_to_u64(value.epoch),
+impl TryFrom<ReportMetadataSolidity> for ReportMetadataRust {
+    type Error = Error;
+
+    fn try_from(value: ReportMetadataSolidity) -> Result<Self, Self::Error> {
+        let result = Self {
+            bc_slot: value.bc_slot.try_into()?,
+            epoch: conversions::uint256_to_u64(value.epoch)?,
             lido_withdrawal_credentials: value.lido_withdrawal_credentials.into(),
             beacon_block_hash: value.beacon_block_hash.into(),
-            state_for_previous_report: value.state_for_previous_report.into(),
-            new_state: value.new_state.into(),
+            state_for_previous_report: value.state_for_previous_report.try_into()?,
+            new_state: value.new_state.try_into()?,
             withdrawal_vault_data: value.withdrawal_vault_data.into(),
-        }
+        };
+        Ok(result)
     }
 }
 
-impl From<ReportMetadataRust> for ReportMetadataSolidity {
-    fn from(value: ReportMetadataRust) -> Self {
-        Self {
-            bc_slot: conversions::u64_to_uint256(value.bc_slot.0),
-            epoch: conversions::u64_to_uint256(value.epoch),
+impl TryFrom<ReportMetadataRust> for ReportMetadataSolidity {
+    type Error = Error;
+
+    fn try_from(value: ReportMetadataRust) -> Result<Self, Self::Error> {
+        let result = Self {
+            bc_slot: value.bc_slot.try_into()?,
+            epoch: conversions::u64_to_uint256(value.epoch)?,
             lido_withdrawal_credentials: value.lido_withdrawal_credentials.into(),
             beacon_block_hash: value.beacon_block_hash.into(),
-            state_for_previous_report: value.state_for_previous_report.into(),
-            new_state: value.new_state.into(),
+            state_for_previous_report: value.state_for_previous_report.try_into()?,
+            new_state: value.new_state.try_into()?,
             withdrawal_vault_data: value.withdrawal_vault_data.into(),
-        }
+        };
+        Ok(result)
     }
 }
 
@@ -383,20 +437,26 @@ pub struct PublicValuesRust {
     pub metadata: ReportMetadataRust,
 }
 
-impl From<PublicValuesSolidity> for PublicValuesRust {
-    fn from(value: PublicValuesSolidity) -> Self {
-        Self {
-            report: value.report.into(),
-            metadata: value.metadata.into(),
-        }
+impl TryFrom<PublicValuesSolidity> for PublicValuesRust {
+    type Error = Error;
+
+    fn try_from(value: PublicValuesSolidity) -> Result<Self, Self::Error> {
+        let result = Self {
+            report: value.report.try_into()?,
+            metadata: value.metadata.try_into()?,
+        };
+        Ok(result)
     }
 }
 
-impl From<PublicValuesRust> for PublicValuesSolidity {
-    fn from(value: PublicValuesRust) -> Self {
-        Self {
-            report: value.report.into(),
-            metadata: value.metadata.into(),
-        }
+impl TryFrom<PublicValuesRust> for PublicValuesSolidity {
+    type Error = Error;
+
+    fn try_from(value: PublicValuesRust) -> Result<Self, Self::Error> {
+        let result = Self {
+            report: value.report.try_into()?,
+            metadata: value.metadata.try_into()?,
+        };
+        Ok(result)
     }
 }
