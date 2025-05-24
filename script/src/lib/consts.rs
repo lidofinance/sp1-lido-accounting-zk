@@ -1,6 +1,4 @@
-use sp1_sdk::include_elf;
-
-pub const ELF: &[u8] = include_elf!("sp1-lido-accounting-zk-program");
+use std::str::FromStr;
 
 pub mod sp1_verifier {
     use hex_literal::hex;

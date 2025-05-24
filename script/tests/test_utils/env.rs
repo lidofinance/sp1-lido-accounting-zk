@@ -57,7 +57,7 @@ impl IntegrationTestEnvironment {
             .fork_block_number(fork_block_number)
             .try_spawn()?;
 
-        let sp1_client = SP1ClientWrapperImpl::new(ProverClient::from_env(), consts::ELF);
+        let sp1_client = SP1ClientWrapperImpl::new(ProverClient::from_env());
 
         let provider = Arc::new(ProviderFactory::create_provider(
             anvil.keys()[0].clone(),

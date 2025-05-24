@@ -10,6 +10,10 @@ use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
 
 use crate::consts::{self, sp1_verifier::VerificationMode};
 
+use sp1_sdk::include_elf;
+
+pub const ELF: &[u8] = include_elf!("sp1-lido-accounting-zk-program");
+
 pub trait SP1ClientWrapper {
     fn vk(&self) -> &'_ SP1VerifyingKey;
     fn vk_bytes(&self) -> [u8; 32];
@@ -26,11 +30,11 @@ pub struct SP1ClientWrapperImpl {
 }
 
 impl SP1ClientWrapperImpl {
-    pub fn new(client: EnvProver, elf: &[u8]) -> Self {
-        let (pk, vk) = client.setup(elf);
+    pub fn new(client: EnvProver) -> Self {
+        let (pk, vk) = client.setup(ELF);
         Self {
             client,
-            elf: elf.to_owned(),
+            elf: ELF.to_owned(),
             pk,
             vk,
         }

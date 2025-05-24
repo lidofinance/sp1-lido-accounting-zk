@@ -23,11 +23,11 @@ pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(7643648);
 // This makes local prover impractical - network takes ~5-10 minutes to finish
 // #[cfg(not(feature = "test_network_prover"))]
 // lazy_static! {
-//     pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::local(), consts::ELF);
+//     pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::local());
 // }
 // #[cfg(feature = "test_network_prover")]
 lazy_static! {
-    pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::from_env(), consts::ELF);
+    pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::from_env());
 }
 
 lazy_static! {
