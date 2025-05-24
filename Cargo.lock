@@ -5439,6 +5439,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-lido-accounting-zk-dev-script"
+version = "0.1.0"
+dependencies = [
+ "alloy",
+ "alloy-primitives",
+ "alloy-rlp",
+ "anyhow",
+ "clap",
+ "dotenvy",
+ "eth_trie",
+ "hex",
+ "serde",
+ "serde_json",
+ "simple_logger",
+ "sp1-lido-accounting-zk-scripts",
+ "sp1-lido-accounting-zk-shared",
+ "tokio",
+ "tracing",
+ "tree_hash",
+ "typenum",
+]
+
+[[package]]
 name = "sp1-lido-accounting-zk-program"
 version = "0.1.0"
 dependencies = [
@@ -5450,7 +5473,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-lido-accounting-zk-script"
+name = "sp1-lido-accounting-zk-scripts"
 version = "0.1.0"
 dependencies = [
  "alloy",
@@ -5511,6 +5534,7 @@ dependencies = [
  "serde_derive",
  "sp1-lido-accounting-zk-shared-merkle-tree-leaves-derive",
  "ssz_types",
+ "thiserror 2.0.12",
  "tracing",
  "tree_hash",
  "tree_hash_derive",

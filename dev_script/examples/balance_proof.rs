@@ -1,4 +1,3 @@
-use std::env;
 use std::sync::Arc;
 
 use alloy_primitives::keccak256;
@@ -6,10 +5,10 @@ use alloy_rlp::Decodable;
 use eth_trie::MemoryDB;
 use eth_trie::{EthTrie, Trie};
 use simple_logger::SimpleLogger;
-use sp1_lido_accounting_scripts::beacon_state_reader::BeaconStateReaderEnum;
+
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
-    consts::{self, NetworkInfo},
+    consts::NetworkInfo,
     scripts,
 };
 use sp1_lido_accounting_zk_shared::eth_execution_layer::EthAccountRlpValue;
@@ -17,19 +16,17 @@ use sp1_lido_accounting_zk_shared::eth_execution_layer::EthAccountRlpValue;
 #[tokio::main]
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
-    let chain = env::var("EVM_CHAIN").expect("EVM_CHAIN env var not set");
-    let network = consts::read_network(&chain);
-    let reader = BeaconStateReaderEnum::new_from_env(&network);
-    let bs = reader
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+        .expect("Failed to initialize script runtime");
+    let network_config = script_runtime.network().get_config();
+
+    let bs = script_runtime
+        .bs_reader()
         .read_beacon_state(&StateId::Head)
         .await
         .expect("Failed to read bs");
 
     tracing::info!("Beacon slot: {}", bs.slot);
-    let network = consts::read_network(&chain);
-    let network_config = network.get_config();
-
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
 
     let withdrawal_vault_data = script_runtime
         .eth_client

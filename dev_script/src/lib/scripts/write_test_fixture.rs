@@ -1,9 +1,9 @@
-use crate::beacon_state_reader::{BeaconStateReader, StateId};
+use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
 
-use crate::consts::NetworkInfo;
-use crate::scripts::shared as shared_logic;
-use crate::sp1_client_wrapper::SP1ClientWrapper;
-use crate::{proof_storage, utils};
+use sp1_lido_accounting_scripts::consts::NetworkInfo;
+use sp1_lido_accounting_scripts::scripts::shared as shared_logic;
+use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapper;
+use sp1_lido_accounting_scripts::{proof_storage, utils};
 
 use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
 use std::path::{Path, PathBuf};
@@ -13,7 +13,7 @@ use alloy_primitives::Address;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
-use super::prelude::ScriptRuntime;
+use sp1_lido_accounting_scripts::scripts::prelude::ScriptRuntime;
 
 fn store_withdrawal_vault_data(data: &WithdrawalVaultData, proof_file: &Path) {
     utils::write_json(proof_file, &data).expect("failed to write fixture");
@@ -69,14 +69,23 @@ pub async fn run(
         .expect("Failed to generate proof");
     tracing::info!("Generated proof");
 
-    runtime.sp1_client.verify_proof(&proof).expect("Failed to verify proof");
+    runtime
+        .sp1_client
+        .verify_proof(&proof)
+        .expect("Failed to verify proof");
     tracing::info!("Verified proof");
 
-    shared_logic::verify_public_values(&proof.public_values, &public_values).expect("Failed to verify public inputs");
+    shared_logic::verify_public_values(&proof.public_values, &public_values)
+        .expect("Failed to verify public inputs");
     tracing::info!("Verified public values");
 
     for fixture_file in fixture_files {
-        proof_storage::store_proof_and_metadata(&proof, runtime.sp1_client.vk(), fixture_file.as_path());
+        proof_storage::store_proof_and_metadata(
+            &proof,
+            runtime.sp1_client.vk(),
+            fixture_file.as_path(),
+        )
+        .expect("Failed to store proof and metadata");
     }
 
     anyhow::Ok(())

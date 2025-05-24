@@ -1,12 +1,14 @@
-use crate::beacon_state_reader::{BeaconStateReader, StateId};
-use crate::consts::NetworkInfo;
-use crate::eth_client::{ContractDeployParametersRust, DefaultProvider, Sp1LidoAccountingReportContractWrapper};
-use crate::sp1_client_wrapper::SP1ClientWrapper;
-use crate::utils;
+use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
+use sp1_lido_accounting_scripts::consts::NetworkInfo;
+use sp1_lido_accounting_scripts::eth_client::{
+    ContractDeployParametersRust, Sp1LidoAccountingReportContractWrapper,
+};
+use sp1_lido_accounting_scripts::scripts::prelude::ScriptRuntime;
+use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapper;
+use sp1_lido_accounting_scripts::utils;
 
 use alloy::providers::WalletProvider;
 use alloy_primitives::Address;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
 
 use std::sync::Arc;
@@ -14,11 +16,6 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use tree_hash::TreeHash;
-
-use sp1_lido_accounting_zk_shared::{io::eth_io::LidoValidatorStateRust, lido::LidoValidatorState};
-
-use super::prelude::ScriptRuntime;
 
 pub enum Source {
     Network { slot: BeaconChainSlot },
@@ -31,37 +28,23 @@ async fn compute_from_network(
     network: &impl NetworkInfo,
     target_slot: BeaconChainSlot,
 ) -> anyhow::Result<ContractDeployParametersRust> {
-    let target_bs = bs_reader.read_beacon_state(&StateId::Slot(target_slot)).await?;
+    let target_bs = bs_reader
+        .read_beacon_state(&StateId::Slot(target_slot))
+        .await?;
 
-    Ok(prepare_deploy_params(client.vk_bytes(), &target_bs, network))
-}
-
-pub fn prepare_deploy_params(
-    vkey: [u8; 32],
-    target_bs: &BeaconState,
-    network: &impl NetworkInfo,
-) -> ContractDeployParametersRust {
-    let network_config = network.get_config();
-    let network_name = network.as_str();
-    let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
-    let lido_validator_state = LidoValidatorState::compute_from_beacon_state(target_bs, &lido_withdrawal_credentials);
-
-    ContractDeployParametersRust {
-        network: network_name.clone(),
-        verifier: network_config.verifier,
-        vkey,
-        withdrawal_credentials: lido_withdrawal_credentials.0,
-        withdrawal_vault_address: network_config.lido_withdrwawal_vault_address,
-        genesis_timestamp: network_config.genesis_block_timestamp,
-        initial_validator_state: LidoValidatorStateRust {
-            slot: lido_validator_state.slot,
-            merkle_root: lido_validator_state.tree_hash_root().0,
-        },
-    }
+    Ok(sp1_lido_accounting_scripts::deploy::prepare_deploy_params(
+        client.vk_bytes(),
+        &target_bs,
+        network,
+    ))
 }
 
 async fn read_from_file(slot: u64, file: &Path) -> anyhow::Result<ContractDeployParametersRust> {
-    tracing::info!("Reading deploy parameters for {} from {:?}", slot, file.as_os_str());
+    tracing::info!(
+        "Reading deploy parameters for {} from {:?}",
+        slot,
+        file.as_os_str()
+    );
     let deploy_params: ContractDeployParametersRust = utils::read_json(file)?;
     if deploy_params.initial_validator_state.slot.0 == slot {
         Ok(deploy_params)
@@ -92,7 +75,10 @@ async fn verify(contracts_dir: &Path, address: &Address, chain_id: u64) -> anyho
 
 pub enum Verification {
     Skip,
-    Verify { contracts_path: PathBuf, chain_id: u64 },
+    Verify {
+        contracts_path: PathBuf,
+        chain_id: u64,
+    },
 }
 
 pub async fn run(
@@ -107,18 +93,27 @@ pub async fn run(
         chain_id,
     } = verification
     {
-        panic!("Verification is incomplete yet");
+        panic!("Verification is not yet supported");
     }
     let deploy_params = match source {
         Source::Network { slot } => {
-            compute_from_network(&runtime.sp1_client, runtime.bs_reader(), runtime.network(), slot).await?
+            compute_from_network(
+                &runtime.sp1_client,
+                runtime.bs_reader(),
+                runtime.network(),
+                slot,
+            )
+            .await?
         }
         Source::File { slot, path } => read_from_file(slot, &path).await?,
     };
 
     if let Some(store_manifesto_file_str) = write_manifesto {
         let store_manifesto_file = PathBuf::from(store_manifesto_file_str);
-        tracing::debug!("Writing manifesto to {:?}", store_manifesto_file.as_os_str());
+        tracing::debug!(
+            "Writing manifesto to {:?}",
+            store_manifesto_file.as_os_str()
+        );
         if let Some(parent_folder) = store_manifesto_file.parent() {
             std::fs::create_dir_all(parent_folder).expect("Failed to create parent folder");
         }
@@ -139,10 +134,13 @@ pub async fn run(
         "Deploying as {}",
         hex::encode(runtime.provider.default_signer_address())
     );
-    let deployed = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&runtime.provider), &deploy_params)
-        .await
-        // .map_err(|e| anyhow::anyhow!("Failed to deploy {:?}", e))?;
-        .expect("Failed to deploy");
+    let deployed = Sp1LidoAccountingReportContractWrapper::deploy(
+        Arc::clone(&runtime.provider),
+        &deploy_params,
+    )
+    .await
+    // .map_err(|e| anyhow::anyhow!("Failed to deploy {:?}", e))?;
+    .expect("Failed to deploy");
     tracing::info!("Deployed contract to {}", deployed.address());
 
     match verification {

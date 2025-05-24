@@ -1,9 +1,10 @@
 use alloy::node_bindings::{Anvil, AnvilInstance};
 use sp1_lido_accounting_scripts::{
-    beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
+    beacon_state_reader::{BeaconStateReader, StateId},
     consts::{self, NetworkConfig, NetworkInfo, WrappedNetwork},
+    deploy::prepare_deploy_params,
     eth_client::{EthELClient, HashConsensusContractWrapper, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
-    scripts::{self},
+    scripts::{self, prelude::BeaconStateReaderEnum},
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 
@@ -38,10 +39,11 @@ impl IntegrationTestEnvironment {
     }
 
     pub async fn new(network: WrappedNetwork, deploy_slot: BeaconChainSlot) -> anyhow::Result<Self> {
-        let bs_reader = BeaconStateReaderEnum::new_from_env(&network);
+        let beacon_state_reader = BeaconStateReaderEnum::new_from_env(&network)
+            .map_err(|e| anyhow::anyhow!("Failed to create beacon state reader {e:?}"))?;
 
-        let target_slot = Self::finalized_slot(&bs_reader).await?;
-        let finalized_bs = Self::read_latest_bs_at_or_before(&bs_reader, target_slot, RETRIES).await?;
+        let target_slot = Self::finalized_slot(&beacon_state_reader).await?;
+        let finalized_bs = Self::read_latest_bs_at_or_before(&beacon_state_reader, target_slot, RETRIES).await?;
         let fork_url =
             env::var("INTEGRATION_TEST_FORK_URL").expect("INTEGRATION_TEST_FORK_URL env var must be specified");
         let fork_block_number = finalized_bs.latest_execution_payload_header.block_number + 2;
@@ -68,7 +70,7 @@ impl IntegrationTestEnvironment {
             .read_beacon_state(&StateId::Slot(deploy_slot))
             .await
             .map_err(test_utils::eyre_to_anyhow)?;
-        let deploy_params = scripts::deploy::prepare_deploy_params(sp1_client.vk_bytes(), &deploy_bs, &network);
+        let deploy_params = prepare_deploy_params(sp1_client.vk_bytes(), &deploy_bs, &network);
 
         tracing::info!("Deploying contract with parameters {:?}", deploy_params);
         let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&provider), &deploy_params)
@@ -86,7 +88,7 @@ impl IntegrationTestEnvironment {
             network,
             provider,
             sp1_client,
-            bs_reader,
+            beacon_state_reader,
             eth_client,
             contract,
             hash_consensus_contract,

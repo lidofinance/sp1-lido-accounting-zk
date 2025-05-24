@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "program",
     "script",
+    "dev_script",
     "shared",
     "macros/merkle_tree_field_leaves_derive"
 ]
@@ -74,6 +75,7 @@ sp1-zkvm = "=4.0.1"
 ### Non-upgradeable dependencies ###
 
 sp1-lido-accounting-zk-shared = { path = "shared" }
+sp1-lido-accounting-zk-scripts = { path = "script" }
 sp1-lido-accounting-zk-shared-merkle-tree-leaves-derive = { path = "macros/merkle_tree_field_leaves_derive" }
 
 

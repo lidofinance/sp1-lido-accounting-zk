@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+use sp1_lido_accounting_dev_scripts::scripts as dev_scripts;
 use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
 use sp1_lido_accounting_scripts::consts::NetworkInfo;
 use sp1_lido_accounting_scripts::scripts;
@@ -22,7 +23,8 @@ async fn main() {
     let args = ProveArgs::parse();
     tracing::debug!("Args: {:?}", args);
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+        .expect("Failed to initialize script runtime");
 
     let refslot = match args.target_ref_slot {
         Some(refslot) => ReferenceSlot(refslot),
@@ -67,7 +69,7 @@ async fn main() {
         .join("../script/tests/data/withdrawal_vault_account_proofs/")
         .join(withdrawal_vault_data_filename)];
 
-    scripts::write_test_fixture::run(
+    dev_scripts::write_test_fixture::run(
         &script_runtime,
         refslot,
         previous_slot,

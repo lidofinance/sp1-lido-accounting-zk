@@ -4,9 +4,9 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use sp1_lido_accounting_scripts::{
-    beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
+    beacon_state_reader::{BeaconStateReader, StateId},
     eth_client::{self, Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors},
-    scripts::shared as shared_logic,
+    scripts::{prelude::BeaconStateReaderEnum, shared as shared_logic},
     sp1_client_wrapper::SP1ClientWrapper,
 };
 

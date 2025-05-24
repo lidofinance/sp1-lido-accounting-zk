@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use sp1_lido_accounting_dev_scripts::scripts as dev_scripts;
 use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts};
 use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
 
@@ -39,7 +40,8 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
     let args = PreDeployArgs::parse();
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+        .expect("Failed to initialize script runtime");
 
     tracing::info!(
         "Running pre-deploy for network {:?}, slot: {}",
@@ -48,12 +50,12 @@ async fn main() {
     );
 
     let source = if let Some(path) = args.source {
-        scripts::deploy::Source::File {
+        dev_scripts::deploy::Source::File {
             slot: args.target_slot,
             path: PathBuf::from(path),
         }
     } else {
-        scripts::deploy::Source::Network {
+        dev_scripts::deploy::Source::Network {
             slot: BeaconChainSlot(args.target_slot),
         }
     };
@@ -62,15 +64,21 @@ async fn main() {
 
     let verification = if args.verify {
         let constracts_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/");
-        scripts::deploy::Verification::Verify {
+        dev_scripts::deploy::Verification::Verify {
             contracts_path: constracts_dir,
             chain_id: network_config.chain_id,
         }
     } else {
-        scripts::deploy::Verification::Skip
+        dev_scripts::deploy::Verification::Skip
     };
 
-    scripts::deploy::run(&script_runtime, source, args.store, args.dry_run, verification)
-        .await
-        .expect("Failed to run `deploy");
+    dev_scripts::deploy::run(
+        &script_runtime,
+        source,
+        args.store,
+        args.dry_run,
+        verification,
+    )
+    .await
+    .expect("Failed to run `deploy");
 }

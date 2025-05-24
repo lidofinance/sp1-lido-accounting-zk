@@ -1,4 +1,5 @@
 use clap::Parser;
+use sp1_lido_accounting_dev_scripts::scripts as dev_scripts;
 use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts, tracing::LoggingConfig};
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
@@ -17,9 +18,11 @@ async fn main() {
     let args = ExecuteArgs::parse();
     tracing::debug!("Args: {:?}", args);
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+        .expect("Failed to initialize script runtime");
 
-    let main_span = tracing::info_span!("main", network = script_runtime.network().as_str()).entered();
+    let main_span =
+        tracing::info_span!("main", network = script_runtime.network().as_str()).entered();
 
     tracing::info!(
         "Running for network {:?}, slot: {}, previous_slot: {:?}",
@@ -28,7 +31,7 @@ async fn main() {
         args.previous_ref_slot
     );
 
-    scripts::execute::run(
+    dev_scripts::execute::run(
         &script_runtime,
         ReferenceSlot(args.target_ref_slot),
         args.previous_ref_slot.map(ReferenceSlot),

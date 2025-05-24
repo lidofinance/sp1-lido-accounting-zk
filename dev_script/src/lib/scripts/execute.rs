@@ -1,14 +1,14 @@
-use crate::beacon_state_reader::{BeaconStateReader, StateId};
-use crate::consts::NetworkInfo;
-use crate::eth_client::ReportContract;
-use crate::scripts::shared as shared_logic;
-use crate::sp1_client_wrapper::SP1ClientWrapper;
+use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
+use sp1_lido_accounting_scripts::consts::NetworkInfo;
+use sp1_lido_accounting_scripts::eth_client::ReportContract;
+use sp1_lido_accounting_scripts::scripts::shared as shared_logic;
+use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapper;
 
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use tokio::try_join;
 
-use super::prelude::ScriptRuntime;
+use sp1_lido_accounting_scripts::scripts::prelude::ScriptRuntime;
 
 async fn get_previous_bc_slot(
     maybe_previous_ref_slot: Option<ReferenceSlot>,
@@ -29,13 +29,21 @@ pub async fn run(
 ) -> anyhow::Result<()> {
     let (actual_target_slot, actual_previous_slot) = try_join!(
         runtime.bs_reader().find_bc_slot_for_refslot(target_slot),
-        get_previous_bc_slot(maybe_previous_slot, runtime.bs_reader(), &runtime.report_contract),
+        get_previous_bc_slot(
+            maybe_previous_slot,
+            runtime.bs_reader(),
+            &runtime.report_contract
+        ),
     )?;
     let target_state_id = StateId::Slot(actual_target_slot);
     let old_state_id = StateId::Slot(actual_previous_slot);
     let ((target_bh, target_bs), (_old_bh, old_bs)) = try_join!(
-        runtime.bs_reader().read_beacon_state_and_header(&target_state_id),
-        runtime.bs_reader().read_beacon_state_and_header(&old_state_id)
+        runtime
+            .bs_reader()
+            .read_beacon_state_and_header(&target_state_id),
+        runtime
+            .bs_reader()
+            .read_beacon_state_and_header(&old_state_id)
     )?;
     let network_config = runtime.network().get_config();
 
@@ -69,7 +77,8 @@ pub async fn run(
     );
     tracing::debug!("Full execution report:\n{}", execution_report);
 
-    shared_logic::verify_public_values(&exec_public_values, &public_values).expect("Failed to verify public inputs");
+    shared_logic::verify_public_values(&exec_public_values, &public_values)
+        .expect("Failed to verify public inputs");
     tracing::info!("Successfully verified public values!");
     anyhow::Ok(())
 }
