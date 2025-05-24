@@ -14,12 +14,33 @@ use tree_hash::TreeHash;
 type MerkleHash = [u8; 32];
 type LeafIndex = usize;
 
-#[derive(Debug)]
-pub enum Error {
-    PreconditionError(String),
-    ProofError(rs_merkle::Error),
+#[derive(Debug, thiserror::Error)]
+pub enum SerdeError {
+    #[error("Failed to deserialize proof: {0:?}")]
     DeserializationError(rs_merkle::Error),
-    HashesMistmatch(String, Hash256, Hash256),
+}
+
+#[derive(derive_more::Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Total number of elements {elements} must be >= the number of leafs to prove {leaves}")]
+    TooManyElementsToProve { elements: usize, leaves: usize },
+    #[error("Number of indices {indices} != number of elements {elements}")]
+    IndicesAndElementsMismatch { indices: usize, elements: usize },
+    #[error("Non-unique indices")]
+    NonUniqueIndices,
+
+    #[error("Failed to verify proof: {0:?}")]
+    ProofError(#[from] rs_merkle::Error),
+
+    #[error(transparent)]
+    SerdeError(#[from] SerdeError),
+    #[error("Root constructed from proof ({actual:?}) != expected ({expected:?})")]
+    HashesMistmatch {
+        #[debug("0x{:?}", hex::encode(actual))]
+        actual: Hash256,
+        #[debug("0x{:?}", hex::encode(expected))]
+        expected: Hash256,
+    },
 }
 
 const ZEROHASH: [u8; 32] = [0u8; 32];
@@ -115,21 +136,19 @@ impl MerkleProofWrapper {
         leaves_count: usize,
     ) -> Result<(), Error> {
         if leaves_count < element_hashes.len() {
-            return Err(Error::PreconditionError(format!(
-                "Total number of elements {} must be >= the number of leafs to prove {}",
-                leaves_count,
-                element_hashes.len()
-            )));
+            return Err(Error::TooManyElementsToProve {
+                leaves: leaves_count,
+                elements: element_hashes.len(),
+            });
         }
         if indices.len() != element_hashes.len() {
-            return Err(Error::PreconditionError(format!(
-                "Number of leafs {} != number of indices {}",
-                indices.len(),
-                element_hashes.len()
-            )));
+            return Err(Error::IndicesAndElementsMismatch {
+                indices: indices.len(),
+                elements: element_hashes.len(),
+            });
         }
         if !indices.iter().all_unique() {
-            return Err(Error::PreconditionError("Indices must be unique".to_owned()));
+            return Err(Error::NonUniqueIndices);
         }
         Ok(())
     }
@@ -204,9 +223,8 @@ pub mod serde {
     use rs_merkle::{proof_serializers, MerkleProof};
 
     pub fn deserialize_proof(proof_bytes: &[u8]) -> Result<MerkleProofWrapper, Error> {
-        MerkleProof::deserialize::<proof_serializers::DirectHashesOrder>(proof_bytes)
-            .map_err(Error::DeserializationError)
-            .map(|proof| MerkleProofWrapper { proof })
+        let proof = MerkleProof::deserialize::<proof_serializers::DirectHashesOrder>(proof_bytes)?;
+        Ok(MerkleProofWrapper { proof })
     }
 
     pub fn serialize_proof(proof: MerkleProofWrapper) -> Vec<u8> {
@@ -219,12 +237,10 @@ pub fn verify_hashes(expected: &Hash256, actual: &Hash256) -> Result<(), Error> 
         return Ok(());
     }
 
-    let err_msg = format!(
-        "Root constructed from proof ({}) != actual ({})",
-        hex::encode(expected),
-        hex::encode(actual)
-    );
-    Err(Error::HashesMistmatch(err_msg, *actual, *expected))
+    Err(Error::HashesMistmatch {
+        actual: *actual,
+        expected: *expected,
+    })
 }
 
 pub trait StaticFieldProof<T: MerkleTreeFieldLeaves> {
