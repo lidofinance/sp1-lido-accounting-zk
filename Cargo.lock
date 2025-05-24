@@ -5483,6 +5483,7 @@ dependencies = [
  "alloy-sol-types",
  "anyhow",
  "clap",
+ "derive_more 2.0.1",
  "dotenvy",
  "eth_trie",
  "ethereum_serde_utils",

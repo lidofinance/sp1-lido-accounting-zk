@@ -60,7 +60,8 @@ async fn program_input_integration_test() -> Result<()> {
         &network_config.lido_withdrawal_credentials.into(),
         withdrawal_vault_data,
         true,
-    );
+    )
+    .expect("Failed to prepare program input");
 
     assert_eq!(public_values.report.lido_cl_balance, cl_balance_sum);
     assert_eq!(public_values.report.deposited_lido_validators, 6);

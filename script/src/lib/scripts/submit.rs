@@ -84,7 +84,7 @@ pub async fn run(
         &lido_withdrawal_credentials,
         withdrawal_vault_data,
         true,
-    );
+    )?;
 
     if flags.store_input {
         tracing::info!("Storing proof");

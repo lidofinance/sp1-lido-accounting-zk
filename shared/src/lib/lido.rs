@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::num::TryFromIntError;
 use std::ops::Range;
 
 use itertools::Itertools;
@@ -12,6 +13,29 @@ use crate::io::eth_io::{BeaconChainSlot, HaveEpoch, HaveSlotWithBlock};
 use crate::util::usize_to_u64;
 
 type ValidatorIndexList = VariableList<ValidatorIndex, eth_spec::ReducedValidatorRegistryLimit>;
+
+#[derive(derive_more::Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Invalid validator transition: {validator_index:?}, {old_status:?} => {new_status:?}")]
+    InvalidValidatorTransition {
+        validator_index: ValidatorIndex,
+        old_status: ValidatorStatus,
+        new_status: ValidatorStatus,
+    },
+    #[error("All added list is malformed first index expected to be {expected:?}, got {actual:?}")]
+    MalformedAllAddedList {
+        actual: ValidatorIndex,
+        expected: ValidatorIndex,
+    },
+    #[error("Passed non-Lido validator in delta")]
+    NonLidoValidatorInDelta {
+        index: ValidatorIndex,
+        #[debug("0x{:?}", hex::encode(withdrawal_credentials))]
+        withdrawal_credentials: Hash256,
+    },
+    #[error("Passed non-Lido validator in delta")]
+    U64ToUizeConversionError(#[from] TryFromIntError),
+}
 
 #[derive(PartialEq, Clone, Debug, Serialize, Deserialize, TreeHash)]
 pub struct LidoValidatorState {
@@ -51,7 +75,7 @@ impl LidoValidatorState {
         let mut exited: Vec<ValidatorIndex> = vec![];
 
         let epoch = slot.epoch();
-        let max_validator_index = usize_to_u64(validators.len()) - 1;
+        let validator_count: u64 = usize_to_u64(validators.len());
 
         for (idx, validator) in validators.iter().enumerate() {
             if !validator.is_lido(lido_withdrawal_credentials) {
@@ -70,7 +94,7 @@ impl LidoValidatorState {
         Self {
             slot,
             epoch,
-            max_validator_index,
+            max_validator_index: validator_count - 1,
             deposited_lido_validator_indices: deposited.into(),
             pending_deposit_lido_validator_indices: pending_deposit.into(),
             exited_lido_validator_indices: exited.into(),
@@ -87,9 +111,9 @@ impl LidoValidatorState {
         self.max_validator_index + 1
     }
 
-    pub fn indices_for_adjacent_delta(&self, added: usize) -> Range<ValidatorIndex> {
+    pub fn indices_for_adjacent_delta(&self, added: u64) -> Range<ValidatorIndex> {
         let first = self.index_of_first_new_validator();
-        first..(first + usize_to_u64(added))
+        first..(first + added)
     }
 
     pub fn compute_from_beacon_state(bs: &BeaconState, lido_withdrawal_credentials: &Hash256) -> Self {
@@ -101,7 +125,7 @@ impl LidoValidatorState {
         slot: BeaconChainSlot,
         validator_delta: &ValidatorDelta,
         lido_withdrawal_credentials: &Hash256,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let mut new_deposited = self.deposited_lido_validator_indices.to_vec().clone();
         // pending deposit is a bit special - we want to conveniently add and remove to it
         // and convert to sorted at the end. This list will generally be small (<10**3, roughly)
@@ -112,8 +136,13 @@ impl LidoValidatorState {
 
         let epoch = slot.epoch();
 
-        if !validator_delta.all_added.is_empty() {
-            assert!(validator_delta.all_added[0].index == self.index_of_first_new_validator());
+        if !validator_delta.all_added.is_empty()
+            && validator_delta.all_added[0].index != self.index_of_first_new_validator()
+        {
+            return Err(Error::MalformedAllAddedList {
+                actual: validator_delta.all_added[0].index,
+                expected: self.index_of_first_new_validator(),
+            });
         }
         for validator_with_index in &validator_delta.all_added {
             let validator = &validator_with_index.validator;
@@ -135,10 +164,12 @@ impl LidoValidatorState {
         for validator_with_index in &validator_delta.lido_changed {
             let validator = &validator_with_index.validator;
             // It is expected that the caller will filter out non-Lido validators, but worth double-checking
-            assert!(
-                validator.is_lido(lido_withdrawal_credentials),
-                "Passed non-lido validator"
-            );
+            if !validator.is_lido(lido_withdrawal_credentials) {
+                return Err(Error::NonLidoValidatorInDelta {
+                    index: validator_with_index.index,
+                    withdrawal_credentials: validator.withdrawal_credentials,
+                });
+            }
 
             let old_status = validator.status(self.epoch);
             let new_status = validator.status(epoch);
@@ -164,10 +195,11 @@ impl LidoValidatorState {
                 (ValidatorStatus::Exited, ValidatorStatus::Deposited)
                 | (ValidatorStatus::Exited, ValidatorStatus::FutureDeposit)
                 | (ValidatorStatus::Deposited, ValidatorStatus::FutureDeposit) => {
-                    panic!(
-                        "Invalid status transition for Validator {}: {:?} => {:?}",
-                        validator_with_index.index, &old_status, &new_status
-                    )
+                    return Err(Error::InvalidValidatorTransition {
+                        validator_index: validator_with_index.index,
+                        old_status,
+                        new_status,
+                    });
                 }
             }
         }
@@ -180,15 +212,17 @@ impl LidoValidatorState {
         let deposited_list: ValidatorIndexList = new_deposited.into();
         let pending_deposit_list: ValidatorIndexList = new_pending_deposit.into_iter().sorted().collect_vec().into();
         let exited_list: ValidatorIndexList = new_exited.into();
+        let added_validator_count: u64 = validator_delta.all_added.len().try_into()?;
 
-        Self {
+        let result = Self {
             slot,
             epoch,
-            max_validator_index: self.max_validator_index + usize_to_u64(validator_delta.all_added.len()),
+            max_validator_index: self.max_validator_index + added_validator_count,
             deposited_lido_validator_indices: deposited_list,
             pending_deposit_lido_validator_indices: pending_deposit_list,
             exited_lido_validator_indices: exited_list,
-        }
+        };
+        Ok(result)
     }
 }
 
@@ -249,12 +283,17 @@ mod tests {
     use proptest::prelude::*;
     use proptest_arbitrary_interop::arb;
 
+    // Helper function to reduce the number of search hits for `assert` in the production files
+    fn check_eq<T: PartialEq + std::fmt::Debug>(left: T, right: T) {
+        assert_eq!(left, right);
+    }
+
     proptest! {
         #[test]
         fn test_pending_validator_status_future_deposit(
             (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::pending_validator(epoch)))
         ) {
-            assert_eq!(validator.status(epoch), ValidatorStatus::FutureDeposit)
+            check_eq(validator.status(epoch), ValidatorStatus::FutureDeposit)
         }
     }
 
@@ -263,7 +302,7 @@ mod tests {
         fn test_deposited_validator_status_deposited(
             (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::deposited_validator(epoch)))
         ) {
-            assert_eq!(validator.status(epoch), ValidatorStatus::Deposited)
+            check_eq(validator.status(epoch), ValidatorStatus::Deposited)
         }
     }
 
@@ -272,7 +311,7 @@ mod tests {
         fn test_activate_validator_status_deposited(
             (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::activated_validator(epoch)))
         ) {
-            assert_eq!(validator.status(epoch), ValidatorStatus::Deposited)
+            check_eq(validator.status(epoch), ValidatorStatus::Deposited)
         }
     }
 
@@ -281,7 +320,7 @@ mod tests {
         fn test_withdrawable_validator_status_deposited(
             (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::withdrawable_validator(epoch)))
         ) {
-            assert_eq!(validator.status(epoch), ValidatorStatus::Deposited)
+            check_eq(validator.status(epoch), ValidatorStatus::Deposited)
         }
     }
 
@@ -290,7 +329,7 @@ mod tests {
         fn test_exited_validator_status_exited(
             (epoch, validator) in (arb::<Epoch>()).prop_flat_map(|epoch| (Just(epoch), eth_proptest::exited_validator(epoch)))
         ) {
-            assert_eq!(validator.status(epoch), ValidatorStatus::Exited)
+            check_eq(validator.status(epoch), ValidatorStatus::Exited)
         }
     }
 }

@@ -1,9 +1,12 @@
 use std::collections::HashSet;
 
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Epoch, ValidatorIndex, Validators};
+use derive_more;
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
+    BeaconState, BlsPublicKey, Epoch, ValidatorIndex, Validators,
+};
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch};
 use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex};
-use sp1_lido_accounting_zk_shared::util::u64_to_usize;
+use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
 
 #[derive(Debug, Clone)]
 pub struct ValidatorDeltaComputeBeaconStateProjection<'a> {
@@ -18,6 +21,18 @@ impl<'a> ValidatorDeltaComputeBeaconStateProjection<'a> {
     pub fn from_bs(bs: &'a BeaconState) -> Self {
         Self::new(BeaconChainSlot(bs.slot), &bs.validators)
     }
+}
+
+#[derive(derive_more::Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Validators at index {index} in old and new beacon state have different pubkeys {old:?} != {new:?}")]
+    ValidatorPubkeyMismatch {
+        index: ValidatorIndex,
+        #[debug("0x{:?}", hex::encode(old.to_vec()))]
+        old: BlsPublicKey,
+        #[debug("0x{:?}", hex::encode(new.to_vec()))]
+        new: BlsPublicKey,
+    },
 }
 
 pub struct ValidatorDeltaCompute<'a> {
@@ -55,7 +70,7 @@ impl<'a> ValidatorDeltaCompute<'a> {
         }
     }
 
-    fn compute_changed(&self) -> HashSet<ValidatorIndex> {
+    fn compute_changed(&self) -> Result<HashSet<ValidatorIndex>, Error> {
         let mut lido_changed_indices: HashSet<ValidatorIndex> = self
             .old_state
             .pending_deposit_lido_validator_indices
@@ -80,12 +95,12 @@ impl<'a> ValidatorDeltaCompute<'a> {
             let old_validator = &self.old_bs.validators[index_usize];
             let new_validator = &self.new_bs.validators[index_usize];
 
-            if !self.skip_verification {
-                assert!(
-                    old_validator.pubkey == new_validator.pubkey,
-                    "Validators at index {} in old and new beacon state have different pubkeys",
-                    index
-                );
+            if !self.skip_verification && old_validator.pubkey != new_validator.pubkey {
+                return Err(Error::ValidatorPubkeyMismatch {
+                    index: *index,
+                    old: old_validator.pubkey.clone(),
+                    new: new_validator.pubkey.clone(),
+                });
             }
             if check_epoch_based_change(
                 old_bs_epoch,
@@ -105,7 +120,7 @@ impl<'a> ValidatorDeltaCompute<'a> {
             }
         }
 
-        lido_changed_indices
+        Ok(lido_changed_indices)
     }
 
     fn read_validators(&self, indices: Vec<ValidatorIndex>) -> Vec<ValidatorWithIndex> {
@@ -123,7 +138,7 @@ impl<'a> ValidatorDeltaCompute<'a> {
             .collect()
     }
 
-    pub fn compute(&self) -> ValidatorDelta {
+    pub fn compute(&self) -> Result<ValidatorDelta, Error> {
         tracing::debug!(
             "Validator count: old {}, new {}",
             self.old_bs.validators.len(),
@@ -131,14 +146,17 @@ impl<'a> ValidatorDeltaCompute<'a> {
         );
 
         let added_count = self.new_bs.validators.len() - self.old_bs.validators.len();
-        let added = self.old_state.indices_for_adjacent_delta(added_count).collect();
-        let mut changed: Vec<u64> = self.compute_changed().into_iter().collect();
+        let added = self
+            .old_state
+            .indices_for_adjacent_delta(usize_to_u64(added_count))
+            .collect();
+        let mut changed: Vec<u64> = self.compute_changed()?.into_iter().collect();
         changed.sort(); // this is important - otherwise equality comparisons and hash computation won't work as expected
 
-        ValidatorDelta {
+        Ok(ValidatorDelta {
             all_added: self.read_validators(added),
             lido_changed: self.read_validators(changed),
-        }
+        })
     }
 }
 
@@ -170,7 +188,7 @@ mod test {
 
     fn random_pubkey() -> BlsPublicKey {
         let mut vals: [u8; 48] = [0; 48];
-        rand::thread_rng().fill(&mut vals);
+        rand::rng().fill(&mut vals);
         vals.to_vec().into()
     }
 
@@ -212,7 +230,7 @@ mod test {
             false,
         );
 
-        compute.compute()
+        compute.compute().expect("Failed to compute validator delta")
     }
 
     #[test]

@@ -86,8 +86,8 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
     }
 
     async fn find_bc_slot_for_refslot(&self, _target_slot: ReferenceSlot) -> anyhow::Result<BeaconChainSlot> {
-        // This is actually fatal - neither cli nor service cannot continue without changing env vars and restart,
-        // so panicing is fine here.
+        // Intentional panic - neither cli nor service cannot continue without changing env vars and restart,
+        // so panicing is necessary here.
         panic!(
             "File bs reader cannot be used to find beacon chain slot for reference slot - please use RPC or RPC cached"
         );

@@ -16,6 +16,7 @@ use sp1_lido_accounting_zk_shared::{
         eth_io::{BeaconChainSlot, HaveEpoch},
         program_io::WithdrawalVaultData,
     },
+    merkle_proof,
 };
 use test_utils::{env::IntegrationTestEnvironment, mark_as_refslot};
 use tree_hash::TreeHash;
@@ -186,7 +187,8 @@ impl<'a> TestExecutor<'a> {
             &lido_withdrawal_credentials,
             tampered_withdrawal_vault_data,
             false,
-        );
+        )
+        .expect("Failed to prepare program input");
         tracing::info!("Requesting proof");
         let try_proof = self.env.script_runtime.sp1_client.prove(program_input);
 

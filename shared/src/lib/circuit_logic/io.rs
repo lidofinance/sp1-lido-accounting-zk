@@ -54,6 +54,11 @@ mod tests {
     use alloy_sol_types::SolType;
     use hex_literal::hex;
 
+    // Helper function to reduce the number of search hits for `assert` in the production files
+    fn check_eq<T: PartialEq + std::fmt::Debug>(left: T, right: T) {
+        assert_eq!(left, right);
+    }
+
     fn get_data() -> (ReportData, PublicValuesRust) {
         let (ref_slot, bc_slot) = (ReferenceSlot(125), BeaconChainSlot(123));
         let credentials = hex!("010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f");
@@ -114,13 +119,13 @@ mod tests {
             public_values.metadata.new_state.slot,
             &public_values.metadata.new_state.merkle_root.into(),
         )
-        .expect("Failed to create public values");
+        .expect("Test: Failed to create public values");
 
         let public_values_rust: PublicValuesRust = public_values_solidity
             .try_into()
-            .expect("Failed to convert PublicValuesSolidity to PublicValuesRust");
+            .expect("Test: Failed to convert PublicValuesSolidity to PublicValuesRust");
 
-        assert_eq!(public_values, public_values_rust)
+        check_eq(public_values, public_values_rust)
     }
 
     #[test]
@@ -137,15 +142,15 @@ mod tests {
             public_values.metadata.new_state.slot,
             &public_values.metadata.new_state.merkle_root.into(),
         )
-        .expect("Failed to create public values");
+        .expect("Test: Failed to create public values");
 
         let abi_encoded = PublicValuesSolidity::abi_encode(&public_values_solidity);
         let decoded =
             PublicValuesSolidity::abi_decode(&abi_encoded, true).expect("Failed to decode PublicValuesSolidity");
         let public_values_rust: PublicValuesRust = decoded
             .try_into()
-            .expect("Failed to convert PublicValuesSolidity to PublicValuesRust");
+            .expect("Test: Failed to convert PublicValuesSolidity to PublicValuesRust");
 
-        assert_eq!(public_values, public_values_rust)
+        check_eq(public_values, public_values_rust)
     }
 }

@@ -1,9 +1,9 @@
-use crate::validator_delta::{ValidatorDeltaCompute, ValidatorDeltaComputeBeaconStateProjection};
+use crate::validator_delta::{self, ValidatorDeltaCompute, ValidatorDeltaComputeBeaconStateProjection};
 use alloy_sol_types::SolType;
 
 use sp1_sdk::SP1PublicValues;
 
-use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{InputVerifier, LogCycleTracker};
+use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{self, InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStateFields, Hash256};
 use sp1_lido_accounting_zk_shared::io::eth_io::{
@@ -13,13 +13,34 @@ use sp1_lido_accounting_zk_shared::io::eth_io::{
 use sp1_lido_accounting_zk_shared::io::program_io::{
     ExecutionPayloadHeaderData, ProgramInput, ValsAndBals, WithdrawalVaultData,
 };
-use sp1_lido_accounting_zk_shared::lido::LidoValidatorState;
+use sp1_lido_accounting_zk_shared::lido::{self, LidoValidatorState};
 use sp1_lido_accounting_zk_shared::merkle_proof::FieldProof;
 use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
 
 use anyhow::Result;
 
 use tree_hash::TreeHash;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Failed to compute validators delta: {0:?}")]
+    ValidatorDeltaComputeError(#[from] validator_delta::Error),
+
+    #[error("Validator states mismatch: {actual:?} != {expected:?}")]
+    ValidatorStateMismatch {
+        expected: LidoValidatorState,
+        actual: LidoValidatorState,
+    },
+
+    #[error("Failed to merge validator delta: {0:?}")]
+    MergeValidatorDeltaFailed(#[from] lido::Error),
+
+    #[error("State hash in porgram input {program_input} != computed state hash {computed}")]
+    ValidatorStateHashMismatch { computed: Hash256, program_input: Hash256 },
+
+    #[error(transparent)]
+    FailedToProveInput(#[from] input_verification::Error),
+}
 
 pub fn prepare_program_input(
     reference_slot: ReferenceSlot,
@@ -29,7 +50,7 @@ pub fn prepare_program_input(
     lido_withdrawal_credentials: &Hash256,
     lido_withdrawal_vault_data: WithdrawalVaultData,
     verify: bool,
-) -> (ProgramInput, PublicValuesRust) {
+) -> Result<(ProgramInput, PublicValuesRust), Error> {
     let beacon_block_hash = bh.tree_hash_root();
 
     tracing::info!(
@@ -90,7 +111,7 @@ pub fn prepare_program_input(
     tracing::debug!("Public values {public_values:?}");
 
     let validators_and_balances =
-        compute_validators_and_balances(bs, old_bs, &old_validator_state, lido_withdrawal_credentials, verify);
+        compute_validators_and_balances(bs, old_bs, &old_validator_state, lido_withdrawal_credentials, verify)?;
 
     let execution_header_data = ExecutionPayloadHeaderData::new(&bs.latest_execution_payload_header);
     tracing::info!("Obtained BeaconState.latest_execution_header.state_root proof");
@@ -121,7 +142,7 @@ pub fn prepare_program_input(
         .expect("Failed to verify input correctness");
     }
 
-    (program_input, public_values)
+    Ok((program_input, public_values))
 }
 
 // TODO: could be private, but used in input tampering tests
@@ -131,7 +152,7 @@ pub fn compute_validators_and_balances_test_public(
     old_validator_state: &LidoValidatorState,
     lido_withdrawal_credentials: &Hash256,
     verify: bool,
-) -> ValsAndBals {
+) -> Result<ValsAndBals, Error> {
     compute_validators_and_balances(bs, old_bs, old_validator_state, lido_withdrawal_credentials, verify)
 }
 
@@ -141,14 +162,14 @@ fn compute_validators_and_balances(
     old_validator_state: &LidoValidatorState,
     lido_withdrawal_credentials: &Hash256,
     verify: bool,
-) -> ValsAndBals {
+) -> Result<ValsAndBals, Error> {
     let validator_delta = ValidatorDeltaCompute::new(
         ValidatorDeltaComputeBeaconStateProjection::from_bs(old_bs),
         old_validator_state,
         ValidatorDeltaComputeBeaconStateProjection::from_bs(bs),
         !verify,
     )
-    .compute();
+    .compute()?;
     tracing::info!(
         "Computed validator delta. Added: {}, lido changed: {}",
         validator_delta.all_added.len(),
@@ -168,7 +189,7 @@ fn compute_validators_and_balances(
         bs.get_serialized_multiproof(&[BeaconStateFields::validators, BeaconStateFields::balances]);
     tracing::info!("Obtained validators and balances fields multiproof");
 
-    ValsAndBals {
+    Ok(ValsAndBals {
         validators_and_balances_proof,
         lido_withdrawal_credentials: *lido_withdrawal_credentials,
         total_validators: usize_to_u64(bs.validators.len()),
@@ -176,7 +197,7 @@ fn compute_validators_and_balances(
         added_validators_inclusion_proof: added_validators_proof,
         changed_validators_inclusion_proof: changed_validators_proof,
         balances: bs.balances.clone(),
-    }
+    })
 }
 
 fn verify_input_correctness(
@@ -185,21 +206,28 @@ fn verify_input_correctness(
     old_state: &LidoValidatorState,
     new_state: &LidoValidatorState,
     lido_withdrawal_credentials: &Hash256,
-) -> Result<()> {
+) -> Result<(), Error> {
     tracing::debug!("Verifying inputs");
     let cycle_tracker = LogCycleTracker {};
     let input_verifier = InputVerifier::new(&cycle_tracker);
-    input_verifier.prove_input(program_input);
+    input_verifier.prove_input(program_input)?;
     tracing::debug!("Inputs verified");
 
     tracing::debug!("Verifying old_state + validator_delta = new_state");
     let delta = &program_input.validators_and_balances.validators_delta;
-    let computed_new_state = old_state.merge_validator_delta(slot, delta, lido_withdrawal_credentials);
-    assert_eq!(computed_new_state, *new_state);
-    assert_eq!(
-        computed_new_state.tree_hash_root(),
-        program_input.new_lido_validator_state_hash
-    );
+    let computed_new_state = old_state.merge_validator_delta(slot, delta, lido_withdrawal_credentials)?;
+    if computed_new_state != *new_state {
+        return Err(Error::ValidatorStateMismatch {
+            expected: computed_new_state.clone(),
+            actual: new_state.clone(),
+        });
+    }
+    if computed_new_state.tree_hash_root() != program_input.new_lido_validator_state_hash {
+        return Err(Error::ValidatorStateHashMismatch {
+            computed: computed_new_state.tree_hash_root(),
+            program_input: program_input.new_lido_validator_state_hash,
+        });
+    }
     tracing::debug!("New state verified");
     Ok(())
 }
@@ -217,7 +245,13 @@ pub fn verify_public_values(public_values: &SP1PublicValues, expected_public_val
         "Computed hash: {}",
         hex::encode(public_values_rust.metadata.beacon_block_hash)
     );
-    assert!(public_values_rust == *expected_public_values);
+    if public_values_rust != *expected_public_values {
+        return Err(anyhow::anyhow!(
+            "Public values mismatch: expected {:?}, got {:?}",
+            expected_public_values,
+            public_values_rust
+        ));
+    }
     tracing::info!("Public values match!");
 
     Ok(())

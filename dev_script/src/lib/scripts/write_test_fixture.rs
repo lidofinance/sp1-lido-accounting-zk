@@ -61,7 +61,7 @@ pub async fn run(
         &lido_withdrawal_credentials,
         withdrawal_vault_data,
         true,
-    );
+    )?;
 
     let proof = runtime
         .sp1_client

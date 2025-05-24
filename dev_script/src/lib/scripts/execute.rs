@@ -66,7 +66,7 @@ pub async fn run(
         &lido_withdrawal_credentials,
         withdrawal_vault_data,
         true,
-    );
+    )?;
 
     tracing::info!("Executing program");
     let (exec_public_values, execution_report) = runtime.sp1_client.execute(program_input).unwrap();

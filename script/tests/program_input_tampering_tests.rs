@@ -103,7 +103,7 @@ impl TestExecutor {
             &lido_withdrawal_credentials,
             withdrawal_vault_data,
             false,
-        );
+        )?;
         Ok(program_input)
     }
 
@@ -240,7 +240,8 @@ fn update_program_input(
     let old_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, withdrawal_credentials);
     let new_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, withdrawal_credentials);
     let modified_vals_and_bals =
-        compute_validators_and_balances_test_public(&bs, &old_bs, &old_validator_state, withdrawal_credentials, false);
+        compute_validators_and_balances_test_public(&bs, &old_bs, &old_validator_state, withdrawal_credentials, false)
+            .expect("Failed to prepare program input");
 
     program_input.validators_and_balances = modified_vals_and_bals;
     program_input.old_lido_validator_state = old_validator_state;
@@ -344,7 +345,7 @@ async fn program_input_tampering_multi_shuffle_added_with_recompute() -> Result<
     let mut modified_new_indices: Vec<u64> = modified_all_added.iter().map(|v| v.index.to_owned()).collect();
     modified_deposited.append(&mut modified_new_indices);
 
-    let mut new_state = program_input.compute_new_state();
+    let mut new_state = program_input.compute_new_state()?;
     // Self-checks - old and new deposited indices should have the same elements
     assert!(equal_in_any_order(
         &new_state.deposited_lido_validator_indices,
@@ -396,7 +397,7 @@ async fn program_input_tampering_input_bc_slot_in_future_with_new_state_hash_upd
 
     let mut program_input = executor.prepare_actual_input(target_slot).await?;
 
-    let mut new_validator_state = program_input.compute_new_state();
+    let mut new_validator_state = program_input.compute_new_state()?;
 
     // self-check - to ensure the new_validator_state is computed correctly
     assert_eq!(
@@ -522,7 +523,7 @@ async fn program_input_tampering_vals_and_bals_wrong_withdrawal_credentials_empt
 
     program_input.validators_and_balances.lido_withdrawal_credentials = modified_credentials;
     program_input.validators_and_balances.validators_delta.lido_changed = vec![];
-    program_input.new_lido_validator_state_hash = program_input.compute_new_state().tree_hash_root();
+    program_input.new_lido_validator_state_hash = program_input.compute_new_state()?.tree_hash_root();
     let result = executor.run(program_input).await;
     // With these manipulations, it successfully generates the proof, but got rejected in the contract
     executor.assert_rejected(result)

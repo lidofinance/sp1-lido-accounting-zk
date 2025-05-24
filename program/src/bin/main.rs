@@ -31,11 +31,13 @@ pub fn main() {
 
     cycle_tracker.start_span("main.verify_inputs");
     let input_verifier = InputVerifier::new(&cycle_tracker);
-    input_verifier.prove_input(&input);
+    input_verifier.prove_input(&input).expect("Failed to verify input");
     cycle_tracker.end_span("main.verify_inputs");
 
     cycle_tracker.start_span("main.compute_new_state");
-    let new_state: LidoValidatorState = input.compute_new_state();
+    let new_state: LidoValidatorState = input
+        .compute_new_state()
+        .expect("Failed to compute new state from input");
     cycle_tracker.end_span("main.compute_new_state");
 
     cycle_tracker.start_span("main.compute_new_state.hash_root");

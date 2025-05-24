@@ -132,7 +132,8 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
             &lido_withdrawal_credentials,
             withdrawal_vault_data,
             false,
-        );
+        )
+        .expect("Failed to prepare program input");
         tracing::info!("Reading proof");
 
         let tampered_public_values = (self.tamper_public_values)(public_values);
