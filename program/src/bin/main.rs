@@ -67,7 +67,8 @@ pub fn main() {
         &old_state_hash_root,
         new_state.slot,
         &new_state_hash_root,
-    );
+    )
+    .expect("Failed to create public values");
     let bytes = PublicValuesSolidity::abi_encode(&public_values);
     sp1_zkvm::io::commit_slice(&bytes);
     cycle_tracker.end_span("main.commit_public_values");
