@@ -12,10 +12,12 @@ use anyhow::{self, Context};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
+#[derive(Debug, Default)]
 pub struct Flags {
     pub verify: bool,
     pub store_input: bool,
     pub store_proof: bool,
+    pub dry_run: bool,
 }
 
 pub async fn run(
@@ -28,7 +30,7 @@ pub async fn run(
         slot
     } else {
         tracing::debug!("Reading target slot from hash consensus contract");
-        let (refslot, processing_deadline_slot) = runtime.hash_consensus_contract.get_refslot().await?;
+        let (refslot, _processing_deadline_slot) = runtime.hash_consensus_contract.get_refslot().await?;
         refslot
     };
     let actual_previous_slot = if let Some(prev) = prev_slot {
@@ -90,6 +92,11 @@ pub async fn run(
         let input_path = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(input_file_name);
         utils::write_json(&input_path, &program_input).expect("failed to write fixture");
         tracing::info!("Successfully written input to {input_path:?}");
+    }
+
+    if flags.dry_run {
+        tracing::info!("Dry run mode enabled, skipping proof generation and verification");
+        return Ok(TxHash::default());
     }
 
     let proof = runtime

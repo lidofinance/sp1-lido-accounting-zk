@@ -17,6 +17,7 @@ const DEFAULT_FLAGS: scripts::submit::Flags = scripts::submit::Flags {
     verify: true,
     store_proof: false,
     store_input: false,
+    dry_run: false,
 };
 
 #[tokio::test]

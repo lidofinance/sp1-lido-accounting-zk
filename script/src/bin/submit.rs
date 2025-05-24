@@ -11,11 +11,13 @@ struct ProveArgs {
     target_ref_slot: Option<u64>,
     #[clap(long, required = false)]
     previous_ref_slot: Option<u64>,
-    #[clap(long, required = false)]
+    #[clap(long, required = false, default_value = "false")]
+    dry_run: bool,
+    #[clap(long, required = false, default_value = "false")]
     store_proof: bool,
-    #[clap(long, required = false)]
+    #[clap(long, required = false, default_value = "false")]
     store_input: bool,
-    #[clap(long, required = false)]
+    #[clap(long, required = false, default_value = "false")]
     local_verify: bool,
 }
 
@@ -35,6 +37,7 @@ async fn main() -> anyhow::Result<()> {
             verify: args.local_verify,
             store_proof: args.store_proof,
             store_input: args.store_input,
+            dry_run: args.dry_run,
         },
     )
     .await?;
