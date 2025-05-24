@@ -7,8 +7,8 @@ use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct ProveArgs {
-    #[clap(long, default_value = "5800000")]
-    target_ref_slot: u64,
+    #[clap(long, required = false)]
+    target_ref_slot: Option<u64>,
     #[clap(long, required = false)]
     previous_ref_slot: Option<u64>,
     #[clap(long, required = false)]
@@ -25,17 +25,12 @@ async fn main() -> anyhow::Result<()> {
     let args = ProveArgs::parse();
     tracing::debug!("Args: {:?}", args);
 
-    let (network, client, bs_reader) = scripts::prelude::initialize();
-    let (eth_client, contract) = scripts::prelude::initialize_eth();
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
 
     let tx_hash = scripts::submit::run(
-        &client,
-        &bs_reader,
-        &contract,
-        &eth_client,
-        ReferenceSlot(args.target_ref_slot),
+        &script_runtime,
+        args.target_ref_slot.map(ReferenceSlot),
         args.previous_ref_slot.map(ReferenceSlot),
-        network,
         scripts::submit::Flags {
             verify: args.local_verify,
             store_proof: args.store_proof,

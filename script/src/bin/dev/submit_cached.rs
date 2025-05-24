@@ -21,7 +21,7 @@ async fn main() {
     let chain = env::var("EVM_CHAIN").expect("Couldn't read EVM_CHAIN env var");
     let network = consts::read_network(&chain);
 
-    let (_eth_client, contract) = scripts::prelude::initialize_eth();
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
 
     let file_name = format!("proof_{}_{}.json", network.as_str(), args.target_slot);
     let proof_file =
@@ -30,7 +30,8 @@ async fn main() {
         proof_storage::read_proof_and_metadata(proof_file.as_path()).expect("failed to read cached proof");
 
     tracing::info!("Sending report");
-    let tx_hash = contract
+    let tx_hash = script_runtime
+        .report_contract
         .submit_report_data(stored_proof.proof, stored_proof.public_values.to_vec())
         .await
         .expect("Failed to submit report");

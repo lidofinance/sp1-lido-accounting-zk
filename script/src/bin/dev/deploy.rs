@@ -39,12 +39,11 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
     let args = PreDeployArgs::parse();
 
-    let (network, client, bs_reader) = scripts::prelude::initialize();
-    let provider = scripts::prelude::initialize_provider();
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
 
     tracing::info!(
         "Running pre-deploy for network {:?}, slot: {}",
-        network,
+        script_runtime.network().as_str(),
         args.target_slot
     );
 
@@ -59,7 +58,7 @@ async fn main() {
         }
     };
 
-    let network_config = network.get_config();
+    let network_config = script_runtime.network().get_config();
 
     let verification = if args.verify {
         let constracts_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../contracts/");
@@ -71,16 +70,7 @@ async fn main() {
         scripts::deploy::Verification::Skip
     };
 
-    scripts::deploy::run(
-        client,
-        bs_reader,
-        source,
-        provider,
-        network,
-        args.store,
-        args.dry_run,
-        verification,
-    )
-    .await
-    .expect("Failed to run `deploy");
+    scripts::deploy::run(&script_runtime, source, args.store, args.dry_run, verification)
+        .await
+        .expect("Failed to run `deploy");
 }

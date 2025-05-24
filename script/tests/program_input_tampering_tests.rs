@@ -108,7 +108,12 @@ impl TestExecutor {
     }
 
     pub async fn get_old_slot(&self) -> anyhow::Result<BeaconChainSlot> {
-        let res = self.env.contract.get_latest_validator_state_slot().await?;
+        let res = self
+            .env
+            .script_runtime
+            .report_contract
+            .get_latest_validator_state_slot()
+            .await?;
         Ok(res)
     }
 
@@ -118,7 +123,7 @@ impl TestExecutor {
     }
 
     pub async fn assert_fails_in_prover(&self, program_input: ProgramInput) -> anyhow::Result<()> {
-        let result = self.env.sp1_client.execute(program_input);
+        let result = self.env.script_runtime.sp1_client.execute(program_input);
         match result {
             Err(e) => {
                 tracing::info!("Failed to create proof - as expected: {:?}", e);
@@ -130,7 +135,7 @@ impl TestExecutor {
 
     pub async fn run(&self, program_input: ProgramInput) -> core::result::Result<(), TestError> {
         tracing::info!("Requesting proof");
-        let try_proof = self.env.sp1_client.prove(program_input);
+        let try_proof = self.env.script_runtime.sp1_client.prove(program_input);
 
         if let Err(e) = try_proof {
             return Err(TestError::ProofFailed(e));
@@ -142,7 +147,8 @@ impl TestExecutor {
         tracing::info!("Sending report");
         let result = self
             .env
-            .contract
+            .script_runtime
+            .report_contract
             .submit_report_data(proof.bytes(), proof.public_values.to_vec())
             .await?;
         Ok(())
@@ -300,7 +306,7 @@ async fn program_input_tampering_multi_vals_and_bals_modified_balance_with_recom
             .filter(|(_idx, val)| val.withdrawal_credentials == lido_credentials)
             .map(|(idx, _val)| idx)
             .collect();
-        let modify_idx = lido_validators.iter().choose(&mut rand::thread_rng()).expect("...");
+        let modify_idx = lido_validators.iter().choose(&mut rand::rng()).expect("...");
         bs.balances[*modify_idx] += 250;
         bs
     });
@@ -1205,7 +1211,8 @@ async fn program_input_tampering_withdrawal_vault_outdated_state() -> Result<()>
 
     program_input.withdrawal_vault_data = executor
         .env
-        .eth_el_client
+        .script_runtime
+        .eth_client
         .get_withdrawal_vault_data(
             withdrawal_vault_address,
             old_bs.latest_execution_payload_header.block_hash,
@@ -1226,7 +1233,8 @@ async fn program_input_tampering_withdrawal_vault_data_for_wrong_address() -> Re
 
     let updated_vault_data = executor
         .env
-        .eth_el_client
+        .script_runtime
+        .eth_client
         .get_withdrawal_vault_data(
             test_consts::ANY_RANDOM_ADDRESS.into(),
             bs.latest_execution_payload_header.block_hash,

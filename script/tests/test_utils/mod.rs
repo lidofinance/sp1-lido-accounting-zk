@@ -11,7 +11,6 @@ use sp1_sdk::ProverClient;
 
 pub mod env;
 pub mod files;
-pub mod tampering_bs;
 
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);
 pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(7643456);

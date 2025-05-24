@@ -29,8 +29,10 @@ async fn main() {
     let network = consts::read_network(&chain);
     let network_config = network.get_config();
 
-    let (eth_client, contract) = scripts::prelude::initialize_eth();
-    let withdrawal_vault_data = eth_client
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
+
+    let withdrawal_vault_data = script_runtime
+        .eth_client
         .get_withdrawal_vault_data(
             network_config.lido_withdrwawal_vault_address.into(),
             bs.latest_execution_payload_header.block_hash,

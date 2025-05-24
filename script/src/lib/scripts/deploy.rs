@@ -18,20 +18,22 @@ use tree_hash::TreeHash;
 
 use sp1_lido_accounting_zk_shared::{io::eth_io::LidoValidatorStateRust, lido::LidoValidatorState};
 
+use super::prelude::ScriptRuntime;
+
 pub enum Source {
     Network { slot: BeaconChainSlot },
     File { slot: u64, path: PathBuf },
 }
 
 async fn compute_from_network(
-    client: impl SP1ClientWrapper,
-    bs_reader: impl BeaconStateReader,
-    network: impl NetworkInfo,
+    client: &impl SP1ClientWrapper,
+    bs_reader: &impl BeaconStateReader,
+    network: &impl NetworkInfo,
     target_slot: BeaconChainSlot,
 ) -> anyhow::Result<ContractDeployParametersRust> {
     let target_bs = bs_reader.read_beacon_state(&StateId::Slot(target_slot)).await?;
 
-    Ok(prepare_deploy_params(client.vk_bytes(), &target_bs, &network))
+    Ok(prepare_deploy_params(client.vk_bytes(), &target_bs, network))
 }
 
 pub fn prepare_deploy_params(
@@ -94,11 +96,8 @@ pub enum Verification {
 }
 
 pub async fn run(
-    client: impl SP1ClientWrapper,
-    bs_reader: impl BeaconStateReader,
+    runtime: &ScriptRuntime,
     source: Source,
-    provider: DefaultProvider,
-    network: impl NetworkInfo,
     write_manifesto: Option<String>,
     dry_run: bool,
     verification: Verification,
@@ -111,7 +110,9 @@ pub async fn run(
         panic!("Verification is incomplete yet");
     }
     let deploy_params = match source {
-        Source::Network { slot } => compute_from_network(client, bs_reader, network, slot).await?,
+        Source::Network { slot } => {
+            compute_from_network(&runtime.sp1_client, runtime.bs_reader(), runtime.network(), slot).await?
+        }
         Source::File { slot, path } => read_from_file(slot, &path).await?,
     };
 
@@ -134,8 +135,11 @@ pub async fn run(
     }
 
     tracing::info!("Deploying contract");
-    tracing::debug!("Deploying as {}", hex::encode(provider.default_signer_address()));
-    let deployed = Sp1LidoAccountingReportContractWrapper::deploy(Arc::new(provider), &deploy_params)
+    tracing::debug!(
+        "Deploying as {}",
+        hex::encode(runtime.provider.default_signer_address())
+    );
+    let deployed = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&runtime.provider), &deploy_params)
         .await
         // .map_err(|e| anyhow::anyhow!("Failed to deploy {:?}", e))?;
         .expect("Failed to deploy");

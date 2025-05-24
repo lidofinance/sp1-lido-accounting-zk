@@ -22,13 +22,13 @@ async fn main() {
     let args = ProveArgs::parse();
     tracing::debug!("Args: {:?}", args);
 
-    let (network, client, bs_reader) = scripts::prelude::initialize();
-    let (eth_client, contract) = scripts::prelude::initialize_eth();
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
 
     let refslot = match args.target_ref_slot {
         Some(refslot) => ReferenceSlot(refslot),
         None => {
-            let bh = bs_reader
+            let bh = script_runtime
+                .bs_reader()
                 .read_beacon_block_header(&StateId::Finalized)
                 .await
                 .expect("Couldn't automatically determine target ref slot");
@@ -38,7 +38,8 @@ async fn main() {
     let previous_slot = match args.previous_ref_slot {
         Some(refslot) => ReferenceSlot(refslot),
         None => {
-            let last_state_slot = contract
+            let last_state_slot = script_runtime
+                .report_contract
                 .get_latest_validator_state_slot()
                 .await
                 .expect("Couldn't automatically determine previuous ref slot");
@@ -48,7 +49,7 @@ async fn main() {
 
     tracing::info!(
         "Running for network {:?}, slot: {}, previous_slot: {}",
-        network,
+        script_runtime.network().as_str(),
         refslot,
         previous_slot
     );
@@ -67,12 +68,9 @@ async fn main() {
         .join(withdrawal_vault_data_filename)];
 
     scripts::write_test_fixture::run(
-        &client,
-        &bs_reader,
-        &eth_client,
+        &script_runtime,
         refslot,
         previous_slot,
-        &network.get_config(),
         fixture_files,
         withdrawal_vault_fixture_files,
     )

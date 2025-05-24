@@ -24,6 +24,7 @@ use std::sync::Arc;
 use sp1_lido_accounting_zk_shared::io::eth_io::{LidoValidatorStateRust, ReportRust};
 use sp1_lido_accounting_zk_shared::io::serde_utils::serde_hex_as_string;
 use thiserror::Error;
+use HashConsensus::HashConsensusInstance;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
 
@@ -35,13 +36,15 @@ sol!(
     "../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
 );
 
-sol!(
-    #[allow(missing_docs)]
+sol! {
     #[sol(rpc)]
-    #[derive(Debug)]
-    ISP1Verifier,
-    "../contracts/out/ISP1Verifier.sol/ISP1Verifier.json",
-);
+    interface HashConsensus {
+        function getCurrentFrame() external view returns (
+            uint256 refSlot,
+            uint256 reportProcessingDeadlineSlot
+        );
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -232,16 +235,38 @@ where
     }
 }
 
+pub struct HashConsensusContractWrapper<P>
+where
+    P: alloy::providers::Provider<Ethereum>,
+{
+    contract: HashConsensusInstance<(), Arc<P>>,
+}
+
+impl<P> HashConsensusContractWrapper<P>
+where
+    P: alloy::providers::Provider<Ethereum>,
+{
+    pub fn new(provider: Arc<P>, contract_address: Address) -> Self {
+        let contract = HashConsensusInstance::new(contract_address, Arc::clone(&provider));
+        HashConsensusContractWrapper { contract }
+    }
+
+    pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), alloy::contract::Error> {
+        let result: HashConsensus::getCurrentFrameReturn = self.contract.getCurrentFrame().call().await?;
+        Ok((result.refSlot.into(), result.reportProcessingDeadlineSlot.into()))
+    }
+}
+
 pub struct ExecutionLayerClient<P>
 where
-    P: alloy::providers::Provider<Ethereum> + Clone,
+    P: alloy::providers::Provider<Ethereum>,
 {
     provider: Arc<P>,
 }
 
 impl<P> ExecutionLayerClient<P>
 where
-    P: alloy::providers::Provider<Ethereum> + Clone,
+    P: alloy::providers::Provider<Ethereum>,
 {
     pub fn new(provider: Arc<P>) -> Self {
         Self { provider }
@@ -300,7 +325,8 @@ pub type DefaultProvider = alloy::providers::fillers::FillProvider<
     alloy::providers::RootProvider,
 >;
 
-pub type Contract = Sp1LidoAccountingReportContractWrapper<DefaultProvider>;
+pub type ReportContract = Sp1LidoAccountingReportContractWrapper<DefaultProvider>;
+pub type HashConsensusContract = HashConsensusContractWrapper<DefaultProvider>;
 
 pub type EthELClient = ExecutionLayerClient<DefaultProvider>;
 pub struct ProviderFactory {}

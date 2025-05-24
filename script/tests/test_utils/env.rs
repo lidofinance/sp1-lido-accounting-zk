@@ -1,8 +1,8 @@
 use alloy::node_bindings::{Anvil, AnvilInstance};
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, BeaconStateReaderEnum, StateId},
-    consts::{NetworkConfig, NetworkInfo, WrappedNetwork},
-    eth_client::{Contract, EthELClient, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
+    consts::{self, NetworkConfig, NetworkInfo, WrappedNetwork},
+    eth_client::{EthELClient, HashConsensusContractWrapper, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
     scripts::{self},
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
@@ -15,6 +15,7 @@ use sp1_lido_accounting_zk_shared::{
         program_io::WithdrawalVaultData,
     },
 };
+use sp1_sdk::ProverClient;
 use std::{env, sync::Arc};
 use typenum::Unsigned;
 
@@ -27,11 +28,7 @@ pub struct IntegrationTestEnvironment {
     // so test env need to assume ownership of anvil instance even if it doesn't use it
     #[allow(dead_code)]
     pub anvil: AnvilInstance,
-    pub network: WrappedNetwork,
-    pub bs_reader: Arc<BeaconStateReaderEnum>,
-    pub eth_el_client: EthELClient,
-    pub contract: Contract,
-    pub sp1_client: &'static SP1ClientWrapperImpl,
+    pub script_runtime: scripts::prelude::ScriptRuntime,
     pub test_files: test_utils::files::TestFiles,
 }
 
@@ -58,11 +55,13 @@ impl IntegrationTestEnvironment {
             .fork_block_number(fork_block_number)
             .try_spawn()?;
 
-        let sp1_client = &test_utils::SP1_CLIENT;
+        let sp1_client = SP1ClientWrapperImpl::new(ProverClient::from_env(), consts::ELF);
 
-        let provider = ProviderFactory::create_provider(anvil.keys()[0].clone(), anvil.endpoint().parse()?);
-        let prov = Arc::new(provider);
-        let eth_client = EthELClient::new(Arc::clone(&prov));
+        let provider = Arc::new(ProviderFactory::create_provider(
+            anvil.keys()[0].clone(),
+            anvil.endpoint().parse()?,
+        ));
+        let eth_client = EthELClient::new(Arc::clone(&provider));
 
         let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
         let deploy_bs: BeaconState = test_files
@@ -72,19 +71,30 @@ impl IntegrationTestEnvironment {
         let deploy_params = scripts::deploy::prepare_deploy_params(sp1_client.vk_bytes(), &deploy_bs, &network);
 
         tracing::info!("Deploying contract with parameters {:?}", deploy_params);
-        let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&prov), &deploy_params)
+        let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&provider), &deploy_params)
             .await
             .map_err(test_utils::eyre_to_anyhow)?;
 
+        let hash_consensus_contract = HashConsensusContractWrapper::new(
+            Arc::clone(&provider),
+            network.get_config().lido_accounting_hash_consensus_contract.into(),
+        );
+
         tracing::info!("Deployed contract at {}", contract.address());
+
+        let script_runtime = scripts::prelude::ScriptRuntime::new(
+            network,
+            provider,
+            sp1_client,
+            bs_reader,
+            eth_client,
+            contract,
+            hash_consensus_contract,
+        );
 
         let instance = Self {
             anvil, // this needs to be here so that test executor assumes ownership of running anvil instance - otherwise it terminates right away
-            network,
-            bs_reader: Arc::new(bs_reader),
-            eth_el_client: eth_client,
-            contract,
-            sp1_client: &test_utils::SP1_CLIENT,
+            script_runtime,
             test_files: test_utils::files::TestFiles::new_from_manifest_dir(),
         };
 
@@ -92,20 +102,20 @@ impl IntegrationTestEnvironment {
     }
 
     pub fn network_config(&self) -> NetworkConfig {
-        self.network.get_config()
+        self.script_runtime.network().get_config()
     }
 
-    pub async fn finalized_slot(bs_reader: &BeaconStateReaderEnum) -> anyhow::Result<BeaconChainSlot> {
+    pub async fn finalized_slot(bs_reader: &impl BeaconStateReader) -> anyhow::Result<BeaconChainSlot> {
         let finalized_block_header = bs_reader.read_beacon_block_header(&StateId::Finalized).await?;
         Ok(finalized_block_header.bc_slot())
     }
 
     pub async fn get_finalized_slot(&self) -> anyhow::Result<BeaconChainSlot> {
-        Self::finalized_slot(&self.bs_reader).await
+        Self::finalized_slot(self.script_runtime.bs_reader()).await
     }
 
     pub async fn get_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
-        let bs = self.bs_reader.read_beacon_state(state_id).await?;
+        let bs = self.script_runtime.bs_reader().read_beacon_state(state_id).await?;
         Ok(bs)
     }
 
@@ -114,22 +124,23 @@ impl IntegrationTestEnvironment {
         let bs: BeaconState = self.get_beacon_state(state_id).await?;
         let execution_layer_block_hash = bs.latest_execution_payload_header.block_hash;
         let withdrawal_vault_data = self
-            .eth_el_client
+            .script_runtime
+            .eth_client
             .get_withdrawal_vault_data(address, execution_layer_block_hash)
             .await?;
         Ok(withdrawal_vault_data)
     }
 
-    pub fn clone_reader(&self) -> Arc<BeaconStateReaderEnum> {
-        Arc::clone(&self.bs_reader)
+    pub fn bs_reader(&self) -> &impl BeaconStateReader {
+        self.script_runtime.bs_reader()
     }
 
     pub async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
-        self.bs_reader.read_beacon_block_header(state_id).await
+        self.script_runtime.bs_reader().read_beacon_block_header(state_id).await
     }
 
     pub async fn read_beacon_state(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
-        self.bs_reader.read_beacon_state(state_id).await
+        self.script_runtime.bs_reader().read_beacon_state(state_id).await
     }
 
     pub async fn read_latest_bs_at_or_before(

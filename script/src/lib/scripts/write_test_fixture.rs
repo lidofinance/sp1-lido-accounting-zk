@@ -1,7 +1,6 @@
 use crate::beacon_state_reader::{BeaconStateReader, StateId};
 
-use crate::consts::NetworkConfig;
-use crate::eth_client::EthELClient;
+use crate::consts::NetworkInfo;
 use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 use crate::{proof_storage, utils};
@@ -14,20 +13,22 @@ use alloy_primitives::Address;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
+use super::prelude::ScriptRuntime;
+
 fn store_withdrawal_vault_data(data: &WithdrawalVaultData, proof_file: &Path) {
     utils::write_json(proof_file, &data).expect("failed to write fixture");
 }
 
 pub async fn run(
-    client: &impl SP1ClientWrapper,
-    bs_reader: &impl BeaconStateReader,
-    eth_client: &EthELClient,
+    runtime: &ScriptRuntime,
     target_slot: ReferenceSlot,
     previous_slot: ReferenceSlot,
-    network_config: &NetworkConfig,
     fixture_files: Vec<PathBuf>,
     withdrawal_vault_fixture_files: Vec<PathBuf>,
 ) -> anyhow::Result<()> {
+    let bs_reader = runtime.bs_reader();
+    let network_config = runtime.network().get_config();
+
     let (actual_target_slot, actual_previous_slot) = try_join!(
         bs_reader.find_bc_slot_for_refslot(target_slot),
         bs_reader.find_bc_slot_for_refslot(previous_slot)
@@ -43,7 +44,8 @@ pub async fn run(
 
     let lido_withdrawal_vault: Address = network_config.lido_withdrwawal_vault_address.into();
     let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
-    let withdrawal_vault_data = eth_client
+    let withdrawal_vault_data = runtime
+        .eth_client
         .get_withdrawal_vault_data(lido_withdrawal_vault, execution_layer_block_hash)
         .await?;
 
@@ -61,17 +63,20 @@ pub async fn run(
         true,
     );
 
-    let proof = client.prove(program_input).expect("Failed to generate proof");
+    let proof = runtime
+        .sp1_client
+        .prove(program_input)
+        .expect("Failed to generate proof");
     tracing::info!("Generated proof");
 
-    client.verify_proof(&proof).expect("Failed to verify proof");
+    runtime.sp1_client.verify_proof(&proof).expect("Failed to verify proof");
     tracing::info!("Verified proof");
 
     shared_logic::verify_public_values(&proof.public_values, &public_values).expect("Failed to verify public inputs");
     tracing::info!("Verified public values");
 
     for fixture_file in fixture_files {
-        proof_storage::store_proof_and_metadata(&proof, client.vk(), fixture_file.as_path());
+        proof_storage::store_proof_and_metadata(&proof, runtime.sp1_client.vk(), fixture_file.as_path());
     }
 
     anyhow::Ok(())

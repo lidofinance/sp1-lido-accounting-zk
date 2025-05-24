@@ -31,6 +31,7 @@ pub struct NetworkConfig {
     pub verifier: [u8; 20],
     pub lido_withdrawal_credentials: [u8; 32],
     pub lido_withdrwawal_vault_address: [u8; 20],
+    pub lido_accounting_hash_consensus_contract: [u8; 20],
 }
 
 pub trait NetworkInfo {
@@ -63,6 +64,7 @@ impl NetworkInfo for Network {
                 verifier: sp1_verifier::VERIFIER_ADDRESS,
                 lido_withdrawal_credentials: lido_credentials::MAINNET,
                 lido_withdrwawal_vault_address: lido_withdrawal_vault::MAINNET,
+                lido_accounting_hash_consensus_contract: lido_accounting_hash_consensus_contract::MAINNET,
             },
             Self::Sepolia => NetworkConfig {
                 chain_id: 11155111,
@@ -70,6 +72,7 @@ impl NetworkInfo for Network {
                 verifier: sp1_verifier::VERIFIER_ADDRESS,
                 lido_withdrawal_credentials: lido_credentials::SEPOLIA,
                 lido_withdrwawal_vault_address: lido_withdrawal_vault::SEPOLIA,
+                lido_accounting_hash_consensus_contract: lido_accounting_hash_consensus_contract::SEPOLIA,
             },
             Self::Holesky => NetworkConfig {
                 chain_id: 17000,
@@ -77,6 +80,7 @@ impl NetworkInfo for Network {
                 verifier: sp1_verifier::VERIFIER_ADDRESS,
                 lido_withdrawal_credentials: lido_credentials::HOLESKY,
                 lido_withdrwawal_vault_address: lido_withdrawal_vault::HOLESKY,
+                lido_accounting_hash_consensus_contract: lido_accounting_hash_consensus_contract::HOLESKY,
             },
         }
     }
@@ -120,6 +124,13 @@ pub mod lido_withdrawal_vault {
     pub const MAINNET: [u8; 20] = hex!("b9d7934878b5fb9610b3fe8a5e441e8fad7e293f");
     pub const SEPOLIA: [u8; 20] = hex!("De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76");
     pub const HOLESKY: [u8; 20] = hex!("F0179dEC45a37423EAD4FaD5fCb136197872EAd9");
+}
+
+pub mod lido_accounting_hash_consensus_contract {
+    use hex_literal::hex;
+    pub const MAINNET: [u8; 20] = hex!("D624B08C83bAECF0807Dd2c6880C3154a5F0B288");
+    pub const SEPOLIA: [u8; 20] = hex!("758D8c3CE794b3Dfe3b3A3482B7eD33de2109D95");
+    pub const HOLESKY: [u8; 20] = hex!("a067FC95c22D51c3bC35fd4BE37414Ee8cc890d2");
 }
 
 pub fn read_network(val: &str) -> WrappedNetwork {

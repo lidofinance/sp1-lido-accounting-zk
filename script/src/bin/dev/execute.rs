@@ -17,26 +17,21 @@ async fn main() {
     let args = ExecuteArgs::parse();
     tracing::debug!("Args: {:?}", args);
 
-    let (network, client, bs_reader) = scripts::prelude::initialize();
-    let (eth_client, contract) = scripts::prelude::initialize_eth();
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
 
-    let main_span = tracing::info_span!("main", network = network.as_str()).entered();
+    let main_span = tracing::info_span!("main", network = script_runtime.network().as_str()).entered();
 
     tracing::info!(
         "Running for network {:?}, slot: {}, previous_slot: {:?}",
-        network,
+        script_runtime.network().as_str(),
         args.target_ref_slot,
         args.previous_ref_slot
     );
 
     scripts::execute::run(
-        &client,
-        &bs_reader,
-        &contract,
-        &eth_client,
+        &script_runtime,
         ReferenceSlot(args.target_ref_slot),
         args.previous_ref_slot.map(ReferenceSlot),
-        &network.get_config(),
     )
     .await
     .expect("Failed to run `execute");

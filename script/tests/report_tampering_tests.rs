@@ -90,18 +90,30 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         let reference_slot = stored_proof.report.reference_slot;
         let bc_slot = stored_proof.metadata.bc_slot;
 
-        let previous_slot = self.env.contract.get_latest_validator_state_slot().await?;
+        let previous_slot = self
+            .env
+            .script_runtime
+            .report_contract
+            .get_latest_validator_state_slot()
+            .await?;
 
         let target_bh = self
             .env
-            .bs_reader
+            .script_runtime
+            .bs_reader()
             .read_beacon_block_header(&StateId::Slot(bc_slot))
             .await?;
-        let target_bs = self.env.bs_reader.read_beacon_state(&StateId::Slot(bc_slot)).await?;
+        let target_bs = self
+            .env
+            .script_runtime
+            .bs_reader()
+            .read_beacon_state(&StateId::Slot(bc_slot))
+            .await?;
         // Should read old state from untampered reader, so the old state compute will match
         let old_bs = self
             .env
-            .bs_reader
+            .script_runtime
+            .bs_reader()
             .read_beacon_state(&StateId::Slot(previous_slot))
             .await?;
         tracing::info!("Preparing program input");
@@ -131,7 +143,8 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         tracing::info!("Sending report");
         let result = self
             .env
-            .contract
+            .script_runtime
+            .report_contract
             .submit_report_data(stored_proof.proof, public_values_bytes)
             .await?;
 

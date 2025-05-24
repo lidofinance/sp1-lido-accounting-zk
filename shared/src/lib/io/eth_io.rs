@@ -68,6 +68,12 @@ impl fmt::Display for ReferenceSlot {
     }
 }
 
+impl From<alloy_primitives::U256> for ReferenceSlot {
+    fn from(value: alloy_primitives::U256) -> Self {
+        ReferenceSlot(conversions::uint256_to_u64(value))
+    }
+}
+
 impl From<ReferenceSlot> for alloy_primitives::U256 {
     fn from(value: ReferenceSlot) -> Self {
         conversions::u64_to_uint256(value.0)
