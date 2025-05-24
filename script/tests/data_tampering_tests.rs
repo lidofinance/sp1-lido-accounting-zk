@@ -16,7 +16,6 @@ use sp1_lido_accounting_zk_shared::{
         eth_io::{BeaconChainSlot, HaveEpoch},
         program_io::WithdrawalVaultData,
     },
-    merkle_proof,
 };
 use test_utils::{env::IntegrationTestEnvironment, mark_as_refslot};
 use tree_hash::TreeHash;

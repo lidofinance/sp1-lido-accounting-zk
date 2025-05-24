@@ -15,7 +15,7 @@ pub mod files;
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);
 pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(7643456);
 
-pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(7643648);
+pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(7696704);
 
 // TODO: Enable local prover if/when it becomes feasible.
 // In short, local proving with groth16 seems to not really work at the moment -
