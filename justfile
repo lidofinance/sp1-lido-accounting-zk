@@ -79,7 +79,9 @@ test_program:
 test_script:
     # building scripts starts multiple builds in parallel and often OOMs
     # -j 5 limits the concurrency for building (but not running) and avoids that
-    cargo test -j 5
+    # --test-threads 5 limits concurrecny for running tests (sometimes it gets excited and runs too
+    # many in parallel, consuming all the memory and grinding to a halt)
+    cargo test -j 5 -- --test-threads=5
 
 [working-directory: 'script']
 integration_test:
