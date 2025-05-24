@@ -53,5 +53,3 @@ dotenvy.workspace = true
 lazy_static.workspace = true
 rand.workspace = true
 
-[features]
-synthetic = []

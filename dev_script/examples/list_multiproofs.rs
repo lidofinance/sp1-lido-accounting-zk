@@ -3,10 +3,11 @@ use sp1_lido_accounting_zk_shared::{io::eth_io::BeaconChainSlot, lido::LidoValid
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
+use sp1_lido_accounting_dev_scripts::synthetic::{
+    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
+};
 use sp1_lido_accounting_scripts::beacon_state_reader::{
-    file::FileBasedBeaconStateReader,
-    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
-    BeaconStateReader, StateId,
+    file::FileBasedBeaconStateReader, BeaconStateReader, StateId,
 };
 use sp1_lido_accounting_scripts::consts;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
@@ -17,9 +18,14 @@ use simple_logger::SimpleLogger;
 #[tokio::main]
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
-    let file_store = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
-    let creator = SyntheticBeaconStateCreator::new(&file_store, false, true);
-    let reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&file_store);
+    let env = std::env::var("EVM_CHAIN").expect("EVM_CHAIN not set");
+    let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../temp/")
+        .join(env);
+    let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
+        .expect("Failed to create synthetic beacon state creator");
+    let reader: FileBasedBeaconStateReader =
+        FileBasedBeaconStateReader::new(&ssz_folder).expect("Failed to create beacon state reader");
     let withdrawal_creds: Hash256 = consts::lido_credentials::MAINNET.into();
     let old_slot = 100;
     let new_slot = 200;
@@ -60,13 +66,15 @@ async fn main() {
         .read_beacon_state(&StateId::Slot(BeaconChainSlot(old_slot)))
         .await
         .expect("Failed to read beacon state");
-    let lido_state1 = LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
+    let lido_state1 =
+        LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
 
     let beacon_state2 = reader
         .read_beacon_state(&StateId::Slot(BeaconChainSlot(new_slot)))
         .await
         .expect("Failed to read beacon state");
-    let lido_state2 = LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
+    let lido_state2 =
+        LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
 
     let highest_validator_index1: usize = lido_state1
         .max_validator_index

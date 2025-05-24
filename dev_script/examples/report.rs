@@ -3,10 +3,12 @@ use serde_json::Value;
 use sp1_lido_accounting_scripts::beacon_state_reader::StateId;
 use sp1_lido_accounting_scripts::consts;
 
+use sp1_lido_accounting_dev_scripts::synthetic::{
+    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
+};
+
 use sp1_lido_accounting_scripts::beacon_state_reader::{
-    file::FileBasedBeaconStateReader,
-    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
-    BeaconStateReader,
+    file::FileBasedBeaconStateReader, BeaconStateReader,
 };
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch, ReferenceSlot};
 use std::path::PathBuf;
@@ -27,15 +29,23 @@ fn verify_report(report: &ReportData, manifesto: &Value) {
     assert_eq!(report.epoch, manifesto["report"]["epoch"].as_u64().unwrap());
     assert_eq!(
         report.lido_withdrawal_credentials,
-        hex_str_to_h256(manifesto["report"]["lido_withdrawal_credentials"].as_str().unwrap())
+        hex_str_to_h256(
+            manifesto["report"]["lido_withdrawal_credentials"]
+                .as_str()
+                .unwrap()
+        )
     );
     assert_eq!(
         report.deposited_lido_validators,
-        manifesto["report"]["lido_deposited_validators"].as_u64().unwrap()
+        manifesto["report"]["lido_deposited_validators"]
+            .as_u64()
+            .unwrap()
     );
     assert_eq!(
         report.exited_lido_validators,
-        manifesto["report"]["lido_exited_validators"].as_u64().unwrap()
+        manifesto["report"]["lido_exited_validators"]
+            .as_u64()
+            .unwrap()
     );
     assert_eq!(
         report.lido_cl_balance,
@@ -48,8 +58,10 @@ async fn main() {
     SimpleLogger::new().env().init().unwrap();
     let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
     let withdrawal_creds: Hash256 = consts::lido_credentials::MAINNET.into();
-    let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true);
-    let reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&ssz_folder);
+    let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
+        .expect("Failed to create synthetic beacon state creator");
+    let reader: FileBasedBeaconStateReader =
+        FileBasedBeaconStateReader::new(&ssz_folder).expect("Failed to create beacon state reader");
 
     let old_slot = BeaconChainSlot(9760032);
     let new_slot = old_slot + 216000; // (30 * 24 * 60 * 60 / 12) slots per month
@@ -83,7 +95,9 @@ async fn main() {
     let generation_spec = GenerationSpec {
         slot: new_slot.0,
         non_lido_validators: new_non_lido_validators_a_month,
-        deposited_lido_validators: new_lido_validators_a_month - created_but_not_deposited - new_exited_lido_validators,
+        deposited_lido_validators: new_lido_validators_a_month
+            - created_but_not_deposited
+            - new_exited_lido_validators,
         exited_lido_validators: new_exited_lido_validators,
         pending_deposit_lido_validators: created_but_not_deposited,
         balances_generation_mode: BalanceGenerationMode::FIXED,

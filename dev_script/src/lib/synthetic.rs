@@ -1,11 +1,10 @@
-use anyhow::Result;
 use std::env;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use super::file::FileBasedBeaconChainStore;
-use crate::utils::read_untyped_json;
+use sp1_lido_accounting_scripts::beacon_state_reader::file::FileBasedBeaconChainStore;
+use sp1_lido_accounting_scripts::utils::read_untyped_json;
 
 pub enum BalanceGenerationMode {
     RANDOM,
@@ -42,12 +41,16 @@ pub struct GenerationSpec {
 }
 
 impl SyntheticBeaconStateCreator {
-    pub fn new(ssz_store_location: &Path, with_check: bool, suppress_generator_output: bool) -> Self {
-        Self {
-            file_store: FileBasedBeaconChainStore::new(ssz_store_location),
+    pub fn new(
+        ssz_store_location: &Path,
+        with_check: bool,
+        suppress_generator_output: bool,
+    ) -> Result<Self, sp1_lido_accounting_scripts::beacon_state_reader::Error> {
+        Ok(Self {
+            file_store: FileBasedBeaconChainStore::new(ssz_store_location)?,
             with_check,
             suppress_generator_output,
-        }
+        })
     }
 
     fn synth_gen_folder(&self) -> PathBuf {
@@ -56,7 +59,10 @@ impl SyntheticBeaconStateCreator {
 
     fn get_python(&self) -> PathBuf {
         let folder = self.synth_gen_folder();
-        let failed_to_run_err = format!("Failed to execute poetry in {}", &folder.as_os_str().to_str().unwrap());
+        let failed_to_run_err = format!(
+            "Failed to execute poetry in {}",
+            &folder.as_os_str().to_str().unwrap()
+        );
         let poerty_run = Command::new("poetry")
             .current_dir(&folder)
             .args(["env", "info", "-e"])
@@ -90,7 +96,7 @@ impl SyntheticBeaconStateCreator {
         let mut command = Command::new(python);
         command
             .arg(script.as_os_str().to_str().unwrap())
-            .args(["--file", &file_path.as_os_str().to_str().unwrap()])
+            .args(["--file", file_path.as_os_str().to_str().unwrap()])
             .args([
                 "--non_lido_validators",
                 &generation_spec.non_lido_validators.to_string(),
@@ -107,7 +113,10 @@ impl SyntheticBeaconStateCreator {
                 "--pending_deposit_lido_validators",
                 &generation_spec.pending_deposit_lido_validators.to_string(),
             ])
-            .args(["--balances_mode", generation_spec.balances_generation_mode.to_cmdline()])
+            .args([
+                "--balances_mode",
+                generation_spec.balances_generation_mode.to_cmdline(),
+            ])
             .args(["--slot", &generation_spec.slot.to_string()]);
         if self.with_check {
             command.arg("--check");
@@ -116,29 +125,39 @@ impl SyntheticBeaconStateCreator {
             command.arg("--shuffle");
         }
         if let Some(base_slot) = generation_spec.base_slot {
-            let old_beacon_state_file = self.file_store.get_beacon_state_path(&base_slot.to_string());
+            let old_beacon_state_file = self
+                .file_store
+                .get_beacon_state_path(&base_slot.to_string());
             assert!(
                 self.exists(&old_beacon_state_file),
                 "Beacon state for base slot {} was not found at {:?}",
                 base_slot,
                 old_beacon_state_file
             );
-            command.args(["--start_from", old_beacon_state_file.as_os_str().to_str().unwrap()]);
+            command.args([
+                "--start_from",
+                old_beacon_state_file.as_os_str().to_str().unwrap(),
+            ]);
         }
         if self.suppress_generator_output {
             command.stdout(Stdio::null());
         }
 
         tracing::debug!("Built command {:?}", command);
-        command.status().expect("Failed to execute beacon state generator");
+        command
+            .status()
+            .expect("Failed to execute beacon state generator");
     }
 
-    pub async fn read_manifesto(&self, slot: u64) -> Result<serde_json::Value> {
+    pub async fn read_manifesto(&self, slot: u64) -> anyhow::Result<serde_json::Value> {
         self.read_manifesto_from_file(&self.create_manifesto_file_name(slot))
             .await
     }
 
-    async fn read_manifesto_from_file(&self, file_path: &Path) -> Result<serde_json::Value> {
+    async fn read_manifesto_from_file(
+        &self,
+        file_path: &Path,
+    ) -> anyhow::Result<serde_json::Value> {
         tracing::info!("Reading manifesto from file {:?}", file_path);
         let res = read_untyped_json(file_path)?;
         Ok(res)
@@ -151,7 +170,9 @@ impl SyntheticBeaconStateCreator {
             FileBasedBeaconChainStore::delete(&beacon_state_file)?;
         }
 
-        let beacon_block_header_file = self.file_store.get_beacon_block_header_path(&slot.to_string());
+        let beacon_block_header_file = self
+            .file_store
+            .get_beacon_block_header_path(&slot.to_string());
         if self.exists(&beacon_block_header_file) {
             tracing::debug!("Evicting beacon block state file");
             FileBasedBeaconChainStore::delete(&beacon_block_header_file)?;
@@ -163,13 +184,16 @@ impl SyntheticBeaconStateCreator {
         FileBasedBeaconChainStore::exists(path)
     }
 
-    pub async fn create_beacon_state(&self, generation_spec: GenerationSpec) -> Result<()> {
+    pub async fn create_beacon_state(&self, generation_spec: GenerationSpec) -> anyhow::Result<()> {
         if generation_spec.overwrite {
             self.evict_cache(generation_spec.slot)?;
         }
-        let beacon_state_file = self.file_store.get_beacon_state_path(&generation_spec.slot.to_string());
+        let beacon_state_file = self
+            .file_store
+            .get_beacon_state_path(&generation_spec.slot.to_string());
         if !self.exists(&beacon_state_file) {
-            self.generate_beacon_state(&beacon_state_file, generation_spec).await;
+            self.generate_beacon_state(&beacon_state_file, generation_spec)
+                .await;
         }
         Ok(())
     }

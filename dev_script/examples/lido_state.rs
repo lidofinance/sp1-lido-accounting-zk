@@ -1,10 +1,12 @@
 use hex::FromHex;
 use serde_json::Value;
 
+use sp1_lido_accounting_dev_scripts::synthetic::{
+    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
+};
+
 use sp1_lido_accounting_scripts::beacon_state_reader::{
-    file::FileBasedBeaconStateReader,
-    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
-    BeaconStateReader, StateId,
+    file::FileBasedBeaconStateReader, BeaconStateReader, StateId,
 };
 use sp1_lido_accounting_scripts::consts::lido_credentials;
 use sp1_lido_accounting_zk_shared::{
@@ -31,15 +33,21 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
     assert_eq!(state.epoch, manifesto["report"]["epoch"].as_u64().unwrap());
     assert_eq!(
         usize_to_u64(state.deposited_lido_validator_indices.len()),
-        manifesto["report"]["lido_deposited_validators"].as_u64().unwrap()
+        manifesto["report"]["lido_deposited_validators"]
+            .as_u64()
+            .unwrap()
     );
     assert_eq!(
         usize_to_u64(state.exited_lido_validator_indices.len()),
-        manifesto["report"]["lido_exited_validators"].as_u64().unwrap()
+        manifesto["report"]["lido_exited_validators"]
+            .as_u64()
+            .unwrap()
     );
     assert_eq!(
         usize_to_u64(state.pending_deposit_lido_validator_indices.len()),
-        manifesto["report"]["lido_pending_deposit_validators"].as_u64().unwrap()
+        manifesto["report"]["lido_pending_deposit_validators"]
+            .as_u64()
+            .unwrap()
     );
     assert_eq!(
         state.max_validator_index,
@@ -49,10 +57,12 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
     let epoch = beacon_state.epoch();
     let withdrawal_creds: Hash256 = lido_credentials::MAINNET.into();
 
-    let deposited_hash_set: HashSet<u64> = HashSet::from_iter(state.deposited_lido_validator_indices.clone());
+    let deposited_hash_set: HashSet<u64> =
+        HashSet::from_iter(state.deposited_lido_validator_indices.clone());
     let pending_deposit_hash_set: HashSet<u64> =
         HashSet::from_iter(state.pending_deposit_lido_validator_indices.clone());
-    let exited_hash_set: HashSet<u64> = HashSet::from_iter(state.exited_lido_validator_indices.clone());
+    let exited_hash_set: HashSet<u64> =
+        HashSet::from_iter(state.exited_lido_validator_indices.clone());
 
     for (idx, validator) in beacon_state.validators.iter().enumerate() {
         let validator_index = usize_to_u64(idx);
@@ -79,8 +89,10 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
     let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
-    let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true);
-    let reader = FileBasedBeaconStateReader::new(&ssz_folder);
+    let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
+        .expect("Failed to create synthetic beacon state creator");
+    let reader =
+        FileBasedBeaconStateReader::new(&ssz_folder).expect("Failed to create beacon state reader");
 
     // Step 1. obtain SSZ-serialized beacon state
     let slot = 123456;
@@ -114,10 +126,15 @@ async fn main() {
         .read_manifesto(slot)
         .await
         .expect("Failed to read manifesto json");
-    let lido_withdrawal_creds = hex_str_to_h256(manifesto["report"]["lido_withdrawal_credentials"].as_str().unwrap());
+    let lido_withdrawal_creds = hex_str_to_h256(
+        manifesto["report"]["lido_withdrawal_credentials"]
+            .as_str()
+            .unwrap(),
+    );
 
     // Step 3: Compute lido state
-    let lido_state = LidoValidatorState::compute_from_beacon_state(&beacon_state, &lido_withdrawal_creds);
+    let lido_state =
+        LidoValidatorState::compute_from_beacon_state(&beacon_state, &lido_withdrawal_creds);
 
     // Step 4: verify state
     verify_state(&beacon_state, &lido_state, &manifesto);

@@ -92,3 +92,7 @@ typenum.workspace = true
 dotenvy.workspace = true
 eth_trie.workspace = true
 simple_logger.workspace = true
+
+
+[features]
+synthetic = []

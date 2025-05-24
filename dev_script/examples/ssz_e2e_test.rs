@@ -3,12 +3,16 @@ use serde_json::Value;
 use std::path::PathBuf;
 use tree_hash::TreeHash;
 
-use sp1_lido_accounting_scripts::beacon_state_reader::{
-    file::FileBasedBeaconStateReader,
-    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
-    BeaconStateReader, StateId,
+use sp1_lido_accounting_dev_scripts::synthetic::{
+    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
 };
-use sp1_lido_accounting_zk_shared::{eth_consensus_layer::BeaconBlockHeaderFields, merkle_proof::FieldProof};
+
+use sp1_lido_accounting_scripts::beacon_state_reader::{
+    file::FileBasedBeaconStateReader, BeaconStateReader, StateId,
+};
+use sp1_lido_accounting_zk_shared::{
+    eth_consensus_layer::BeaconBlockHeaderFields, merkle_proof::FieldProof,
+};
 use sp1_lido_accounting_zk_shared::{
     eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStateFields, Hash256},
     io::eth_io::BeaconChainSlot,
@@ -53,7 +57,11 @@ fn verify_bs_parts(beacon_state: &BeaconState, manifesto: &Value) {
     );
     assert_eq!(
         beacon_state.genesis_validators_root.tree_hash_root(),
-        hex_str_to_h256(manifesto["parts"]["genesis_validators_root"].as_str().unwrap()),
+        hex_str_to_h256(
+            manifesto["parts"]["genesis_validators_root"]
+                .as_str()
+                .unwrap()
+        ),
         "Field genesis_validators_root mismatch"
     );
     assert_eq!(
@@ -123,12 +131,20 @@ fn verify_bs_parts(beacon_state: &BeaconState, manifesto: &Value) {
     );
     assert_eq!(
         beacon_state.previous_epoch_participation.tree_hash_root(),
-        hex_str_to_h256(manifesto["parts"]["previous_epoch_participation"].as_str().unwrap()),
+        hex_str_to_h256(
+            manifesto["parts"]["previous_epoch_participation"]
+                .as_str()
+                .unwrap()
+        ),
         "Field previous_epoch_participation mismatch"
     );
     assert_eq!(
         beacon_state.current_epoch_participation.tree_hash_root(),
-        hex_str_to_h256(manifesto["parts"]["current_epoch_participation"].as_str().unwrap()),
+        hex_str_to_h256(
+            manifesto["parts"]["current_epoch_participation"]
+                .as_str()
+                .unwrap()
+        ),
         "Field current_epoch_participation mismatch"
     );
     assert_eq!(
@@ -138,12 +154,20 @@ fn verify_bs_parts(beacon_state: &BeaconState, manifesto: &Value) {
     );
     assert_eq!(
         beacon_state.previous_justified_checkpoint.tree_hash_root(),
-        hex_str_to_h256(manifesto["parts"]["previous_justified_checkpoint"].as_str().unwrap()),
+        hex_str_to_h256(
+            manifesto["parts"]["previous_justified_checkpoint"]
+                .as_str()
+                .unwrap()
+        ),
         "Field previous_justified_checkpoint mismatch"
     );
     assert_eq!(
         beacon_state.current_justified_checkpoint.tree_hash_root(),
-        hex_str_to_h256(manifesto["parts"]["current_justified_checkpoint"].as_str().unwrap()),
+        hex_str_to_h256(
+            manifesto["parts"]["current_justified_checkpoint"]
+                .as_str()
+                .unwrap()
+        ),
         "Field current_justified_checkpoint mismatch"
     );
     assert_eq!(
@@ -158,7 +182,11 @@ fn verify_bs_parts(beacon_state: &BeaconState, manifesto: &Value) {
     );
     assert_eq!(
         beacon_state.current_sync_committee.tree_hash_root(),
-        hex_str_to_h256(manifesto["parts"]["current_sync_committee"].as_str().unwrap()),
+        hex_str_to_h256(
+            manifesto["parts"]["current_sync_committee"]
+                .as_str()
+                .unwrap()
+        ),
         "Field current_sync_committee mismatch"
     );
     assert_eq!(
@@ -167,18 +195,34 @@ fn verify_bs_parts(beacon_state: &BeaconState, manifesto: &Value) {
         "Field next_sync_committee mismatch"
     );
     assert_eq!(
-        beacon_state.latest_execution_payload_header.tree_hash_root(),
-        hex_str_to_h256(manifesto["parts"]["latest_execution_payload_header"].as_str().unwrap()),
+        beacon_state
+            .latest_execution_payload_header
+            .tree_hash_root(),
+        hex_str_to_h256(
+            manifesto["parts"]["latest_execution_payload_header"]
+                .as_str()
+                .unwrap()
+        ),
         "Field latest_execution_payload_header mismatch"
     );
     assert_eq!(
         beacon_state.next_withdrawal_index.tree_hash_root(),
-        hex_str_to_h256(manifesto["parts"]["next_withdrawal_index"].as_str().unwrap()),
+        hex_str_to_h256(
+            manifesto["parts"]["next_withdrawal_index"]
+                .as_str()
+                .unwrap()
+        ),
         "Field next_withdrawal_index mismatch"
     );
     assert_eq!(
-        beacon_state.next_withdrawal_validator_index.tree_hash_root(),
-        hex_str_to_h256(manifesto["parts"]["next_withdrawal_validator_index"].as_str().unwrap()),
+        beacon_state
+            .next_withdrawal_validator_index
+            .tree_hash_root(),
+        hex_str_to_h256(
+            manifesto["parts"]["next_withdrawal_validator_index"]
+                .as_str()
+                .unwrap()
+        ),
         "Field next_withdrawal_validator_index mismatch"
     );
     assert_eq!(
@@ -193,9 +237,14 @@ async fn main() {
     SimpleLogger::new().env().init().unwrap();
     // Step 1. obtain SSZ-serialized beacon state
     // For now using a "synthetic" generator based on reference implementation (py-ssz)
-    let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
-    let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true);
-    let reader = FileBasedBeaconStateReader::new(&ssz_folder);
+    let env = std::env::var("EVM_CHAIN").expect("EVM_CHAIN not set");
+    let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../temp/")
+        .join(env);
+    let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
+        .expect("Failed to create synthetic beacon state creator");
+    let reader =
+        FileBasedBeaconStateReader::new(&ssz_folder).expect("Failed to create beacon state reader");
 
     let slot = 1000000;
     let generation_spec = GenerationSpec {
@@ -212,7 +261,9 @@ async fn main() {
 
     let slot = BeaconChainSlot(1000000);
 
-    creator.evict_cache(slot.0).expect("Failed to evict cached data");
+    creator
+        .evict_cache(slot.0)
+        .expect("Failed to evict cached data");
     creator
         .create_beacon_state(generation_spec)
         .await
@@ -246,11 +297,19 @@ async fn main() {
         .read_manifesto(slot.0)
         .await
         .expect("Failed to read manifesto json");
-    let manifesto_bs_merkle: Hash256 = hex_str_to_h256(manifesto["beacon_state"]["hash"].as_str().unwrap());
-    let manifesto_bh_merkle: Hash256 = hex_str_to_h256(manifesto["beacon_block_header"]["hash"].as_str().unwrap());
+    let manifesto_bs_merkle: Hash256 =
+        hex_str_to_h256(manifesto["beacon_state"]["hash"].as_str().unwrap());
+    let manifesto_bh_merkle: Hash256 =
+        hex_str_to_h256(manifesto["beacon_block_header"]["hash"].as_str().unwrap());
     tracing::debug!("Beacon state merkle (computed): {}", hex::encode(bs_merkle));
-    tracing::debug!("Beacon state merkle (manifest): {}", hex::encode(manifesto_bs_merkle));
-    tracing::debug!("Beacon block header merkle (computed): {}", hex::encode(bh_merkle));
+    tracing::debug!(
+        "Beacon state merkle (manifest): {}",
+        hex::encode(manifesto_bs_merkle)
+    );
+    tracing::debug!(
+        "Beacon block header merkle (computed): {}",
+        hex::encode(bh_merkle)
+    );
     tracing::debug!(
         "Beacon block header merkle (manifest): {}",
         hex::encode(manifesto_bh_merkle)
@@ -272,14 +331,18 @@ async fn main() {
     let bs_indices = [BeaconStateFields::validators, BeaconStateFields::balances];
 
     let bs_proof = beacon_state.get_members_multiproof(&bs_indices);
-    tracing::debug!("BeaconState proof hashes: {:?}", bs_proof.proof_hashes_hex());
+    tracing::debug!(
+        "BeaconState proof hashes: {:?}",
+        bs_proof.proof_hashes_hex()
+    );
 
     // Step 4.2: verify multiproof
     let bs_leaves: Vec<Hash256> = vec![
         beacon_state.validators.tree_hash_root(),
         beacon_state.balances.tree_hash_root(),
     ];
-    let verification_result = beacon_state.verify_instance(&bs_proof, &bs_indices, bs_leaves.as_slice());
+    let verification_result =
+        beacon_state.verify_instance(&bs_proof, &bs_indices, bs_leaves.as_slice());
     match verification_result {
         Ok(()) => tracing::info!("BeaconState Verification succeeded"),
         Err(error) => tracing::error!("Verification failed: {:?}", error),
@@ -290,11 +353,15 @@ async fn main() {
     let bh_indices = [BeaconBlockHeaderFields::state_root];
 
     let bh_proof = beacon_block_header.get_members_multiproof(&bh_indices);
-    tracing::debug!("BeaconBlockHeader proof hashes: {:?}", bh_proof.proof_hashes_hex());
+    tracing::debug!(
+        "BeaconBlockHeader proof hashes: {:?}",
+        bh_proof.proof_hashes_hex()
+    );
 
     // Step 5.2: verify multiproof
     let bh_leaves = vec![bs_merkle];
-    let verification_result = beacon_block_header.verify_instance(&bh_proof, &bh_indices, bh_leaves.as_slice());
+    let verification_result =
+        beacon_block_header.verify_instance(&bh_proof, &bh_indices, bh_leaves.as_slice());
     match verification_result {
         Ok(()) => tracing::info!("BeaconBlockHeader Verification succeeded"),
         Err(error) => tracing::error!("Verification failed: {:?}", error),
