@@ -34,7 +34,7 @@ sol!(
     #[sol(rpc)]
     #[derive(Debug)]
     Sp1LidoAccountingReportContract,
-    "../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
+    "../../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
 );
 
 sol! {

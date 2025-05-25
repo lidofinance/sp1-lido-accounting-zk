@@ -16,6 +16,7 @@ pgo-data.profdata
 **/proof-with-io.json
 
 # Env
+envs
 .env
 .env.network.*
 

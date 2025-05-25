@@ -88,7 +88,7 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
 #[tokio::main]
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
-    let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
+    let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../temp");
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
         .expect("Failed to create synthetic beacon state creator");
     let reader =

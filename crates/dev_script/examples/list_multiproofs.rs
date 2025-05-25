@@ -20,7 +20,7 @@ async fn main() {
     SimpleLogger::new().env().init().unwrap();
     let env = std::env::var("EVM_CHAIN").expect("EVM_CHAIN not set");
     let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../temp/")
+        .join("../../temp/")
         .join(env);
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
         .expect("Failed to create synthetic beacon state creator");

@@ -25,7 +25,7 @@ fn build_contract_abi(path: &str) {
 
 fn main() {
     print!("Running custom build commands");
-    build_contract_abi("../contracts");
+    build_contract_abi("../../contracts");
     build_program("../program");
     print!("Custom build successful");
 }

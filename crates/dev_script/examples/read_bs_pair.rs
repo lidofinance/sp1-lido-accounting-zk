@@ -23,7 +23,7 @@ async fn main() {
         env::var("BEACON_STATE_RPC").expect("Failed to read BEACON_STATE_RPC env var");
     let env = std::env::var("EVM_CHAIN").expect("EVM_CHAIN not set");
     let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../temp/")
+        .join("../../temp/")
         .join(env);
 
     let bs_reader =

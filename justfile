@@ -71,15 +71,15 @@ read_validators target_slot:
 test_contracts:
     forge test
 
-[working-directory: 'shared']
+[working-directory: 'crates/shared']
 test_shared:
     cargo test
 
-[working-directory: 'program']
+[working-directory: 'crates/program']
 test_program:
     cargo test
 
-[working-directory: 'script']
+[working-directory: 'crates/script']
 test_script:
     # building scripts starts multiple builds in parallel and often OOMs
     # -j 5 limits the concurrency for building (but not running) and avoids that
@@ -87,7 +87,7 @@ test_script:
     # many in parallel, consuming all the memory and grinding to a halt)
     RUST_LOG=infor cargo test -j 5 -- --test-threads=5 --nocapture
 
-[working-directory: 'script']
+[working-directory: 'crates/script']
 integration_test:
     cargo test -j 5 --include-ignored
 
@@ -96,5 +96,5 @@ test: test_contracts test_shared test_program test_script
 update_meta:
     cargo license --color never > metadata/deps_licenses.txt
     solidity-code-metrics contracts/src/*.sol  > metadata/solidity_report.md
-    scc --by-file --format-multi "wide:metadata/audit_sloc.txt,json:metadata/audit_sloc.json" contracts/src program/src/ shared/src/lib macros/**/src/
+    scc --by-file --format-multi "wide:metadata/audit_sloc.txt,json:metadata/audit_sloc.json" contracts/src crates/program/src/ crates/shared/src/lib crates/macros/**/src/
     scc --by-file --format-multi "wide:metadata/total_sloc.txt,json:metadata/total_sloc.json" ./
