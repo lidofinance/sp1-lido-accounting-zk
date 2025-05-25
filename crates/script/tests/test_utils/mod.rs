@@ -10,6 +10,7 @@ use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use sp1_sdk::ProverClient;
 
 pub mod env;
+pub mod eth_consensus_layer_gen;
 pub mod files;
 
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);

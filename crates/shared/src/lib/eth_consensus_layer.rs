@@ -33,15 +33,15 @@ pub type SlotsPerEpoch = eth_spec::SlotsPerEpoch;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct Fork {
-    previous_version: Version,
-    current_version: Version,
-    epoch: Epoch,
+    pub previous_version: Version,
+    pub current_version: Version,
+    pub epoch: Epoch,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct Checkpoint {
-    epoch: Epoch,
-    root: Root,
+    pub epoch: Epoch,
+    pub root: Root,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]
@@ -90,16 +90,16 @@ pub struct AttestationData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct PendingAttestation {
-    aggregation_bits: BitList<eth_spec::MaxValidatorsPerCommittee>,
-    data: AttestationData,
-    inclusion_delay: Slot,
-    proposer_index: CommitteeIndex,
+    pub aggregation_bits: BitList<eth_spec::MaxValidatorsPerCommittee>,
+    pub data: AttestationData,
+    pub inclusion_delay: Slot,
+    pub proposer_index: CommitteeIndex,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct SyncCommittee {
-    pubkeys: FixedVector<BlsPublicKey, eth_spec::SyncCommitteeSize>,
-    aggregate_pubkey: BlsPublicKey,
+    pub pubkeys: FixedVector<BlsPublicKey, eth_spec::SyncCommitteeSize>,
+    pub aggregate_pubkey: BlsPublicKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]
@@ -131,33 +131,34 @@ pub struct ExecutionPayloadHeader {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct HistoricalSummary {
-    block_summary_root: Root,
-    state_summary_root: Root,
+    pub block_summary_root: Root,
+    pub state_summary_root: Root,
 }
 
 pub type Validators = VariableList<Validator, eth_spec::ValidatorRegistryLimit>;
 pub type Balances = VariableList<Gwei, eth_spec::ValidatorRegistryLimit>;
+pub type JustificationBits = BitVector<eth_spec::JustificationBitsLength>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct PendingDeposit {
-    pubkey: BlsPublicKey,
-    withdrawal_credentials: WithdrawalCredentials,
-    amount: Gwei,
-    signature: BlsSignature,
-    slot: Slot,
+    pub pubkey: BlsPublicKey,
+    pub withdrawal_credentials: WithdrawalCredentials,
+    pub amount: Gwei,
+    pub signature: BlsSignature,
+    pub slot: Slot,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct PendingPartialWithdrawal {
-    validator_index: ValidatorIndex,
-    amount: Gwei,
-    withdrawable_epoch: Epoch,
+    pub validator_index: ValidatorIndex,
+    pub amount: Gwei,
+    pub withdrawable_epoch: Epoch,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct PendingConsolidation {
-    source_index: ValidatorIndex,
-    target_index: ValidatorIndex,
+    pub source_index: ValidatorIndex,
+    pub target_index: ValidatorIndex,
 }
 
 // Simplified https://github.com/sigp/lighthouse/blob/master/consensus/types/src/beacon_state.rs#L212
@@ -201,7 +202,7 @@ pub struct BeaconState {
     pub current_epoch_participation: VariableList<ParticipationFlags, eth_spec::ValidatorRegistryLimit>,
 
     // Finality
-    pub justification_bits: BitVector<eth_spec::JustificationBitsLength>,
+    pub justification_bits: JustificationBits,
     pub previous_justified_checkpoint: Checkpoint,
     pub current_justified_checkpoint: Checkpoint,
     pub finalized_checkpoint: Checkpoint,
