@@ -1,5 +1,5 @@
 use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
-use sp1_lido_accounting_scripts::consts::NetworkInfo;
+
 use sp1_lido_accounting_scripts::eth_client::{
     ContractDeployParametersRust, Sp1LidoAccountingReportContractWrapper,
 };
@@ -23,19 +23,21 @@ pub enum Source {
 }
 
 async fn compute_from_network(
-    client: &impl SP1ClientWrapper,
-    bs_reader: &impl BeaconStateReader,
-    network: &impl NetworkInfo,
+    runtime: &ScriptRuntime,
     target_slot: BeaconChainSlot,
 ) -> anyhow::Result<ContractDeployParametersRust> {
-    let target_bs = bs_reader
+    let target_bs = runtime
+        .bs_reader()
         .read_beacon_state(&StateId::Slot(target_slot))
         .await?;
 
     Ok(sp1_lido_accounting_scripts::deploy::prepare_deploy_params(
-        client.vk_bytes(),
+        runtime.sp1_infra.sp1_client.vk_bytes(),
         &target_bs,
-        network,
+        runtime.network(),
+        runtime.sp1_settings.verifier_address,
+        runtime.lido_settings.withdrawal_vault_address,
+        runtime.lido_settings.withdrawal_credentials,
     ))
 }
 
@@ -96,15 +98,7 @@ pub async fn run(
         panic!("Verification is not yet supported");
     }
     let deploy_params = match source {
-        Source::Network { slot } => {
-            compute_from_network(
-                &runtime.sp1_client,
-                runtime.bs_reader(),
-                runtime.network(),
-                slot,
-            )
-            .await?
-        }
+        Source::Network { slot } => compute_from_network(runtime, slot).await?,
         Source::File { slot, path } => read_from_file(slot, &path).await?,
     };
 
@@ -132,10 +126,10 @@ pub async fn run(
     tracing::info!("Deploying contract");
     tracing::debug!(
         "Deploying as {}",
-        hex::encode(runtime.provider.default_signer_address())
+        hex::encode(runtime.eth_infra.provider.default_signer_address())
     );
     let deployed = Sp1LidoAccountingReportContractWrapper::deploy(
-        Arc::clone(&runtime.provider),
+        Arc::clone(&runtime.eth_infra.provider),
         &deploy_params,
     )
     .await

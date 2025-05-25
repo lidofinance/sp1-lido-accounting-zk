@@ -1,6 +1,7 @@
-use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
+use sp1_lido_accounting_scripts::beacon_state_reader::{
+    BeaconStateReader, RefSlotResolver, StateId,
+};
 
-use sp1_lido_accounting_scripts::consts::NetworkInfo;
 use sp1_lido_accounting_scripts::scripts::shared as shared_logic;
 use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapper;
 use sp1_lido_accounting_scripts::{proof_storage, utils};
@@ -27,24 +28,26 @@ pub async fn run(
     withdrawal_vault_fixture_files: Vec<PathBuf>,
 ) -> anyhow::Result<()> {
     let bs_reader = runtime.bs_reader();
-    let network_config = runtime.network().get_config();
+    let ref_slot_resolver = runtime.ref_slot_resolver();
 
     let (actual_target_slot, actual_previous_slot) = try_join!(
-        bs_reader.find_bc_slot_for_refslot(target_slot),
-        bs_reader.find_bc_slot_for_refslot(previous_slot)
+        ref_slot_resolver.find_bc_slot_for_refslot(target_slot),
+        ref_slot_resolver.find_bc_slot_for_refslot(previous_slot)
     )?;
     let target_state_id = StateId::Slot(actual_target_slot);
     let previous_state_id = StateId::Slot(actual_previous_slot);
-    let ((target_bh, target_bs), (_old_bh, old_bs)) = try_join!(
-        bs_reader.read_beacon_state_and_header(&target_state_id),
-        bs_reader.read_beacon_state_and_header(&previous_state_id)
+    let (target_bh, target_bs, old_bs) = try_join!(
+        bs_reader.read_beacon_block_header(&target_state_id),
+        bs_reader.read_beacon_state(&target_state_id),
+        bs_reader.read_beacon_state(&previous_state_id)
     )?;
 
-    let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
+    let lido_withdrawal_credentials: Hash256 = runtime.lido_settings.withdrawal_credentials;
 
-    let lido_withdrawal_vault: Address = network_config.lido_withdrwawal_vault_address.into();
+    let lido_withdrawal_vault: Address = runtime.lido_settings.withdrawal_vault_address;
     let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
     let withdrawal_vault_data = runtime
+        .eth_infra
         .eth_client
         .get_withdrawal_vault_data(lido_withdrawal_vault, execution_layer_block_hash)
         .await?;
@@ -64,12 +67,14 @@ pub async fn run(
     )?;
 
     let proof = runtime
+        .sp1_infra
         .sp1_client
         .prove(program_input)
         .expect("Failed to generate proof");
     tracing::info!("Generated proof");
 
     runtime
+        .sp1_infra
         .sp1_client
         .verify_proof(&proof)
         .expect("Failed to verify proof");
@@ -82,7 +87,7 @@ pub async fn run(
     for fixture_file in fixture_files {
         proof_storage::store_proof_and_metadata(
             &proof,
-            runtime.sp1_client.vk(),
+            runtime.sp1_infra.sp1_client.vk(),
             fixture_file.as_path(),
         )
         .expect("Failed to store proof and metadata");

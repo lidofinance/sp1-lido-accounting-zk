@@ -55,7 +55,7 @@ async fn submission_success() -> Result<()> {
         &env.script_runtime,
         Some(mark_as_refslot(finalized_slot)),
         None, // alternatively Some(deploy_slot) should do the same
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .expect("Failed to execute script");
@@ -75,7 +75,7 @@ async fn two_submission_success() -> Result<()> {
         &env.script_runtime,
         Some(mark_as_refslot(finalized_slot)),
         None, // alternatively Some(deploy_slot) should do the same
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to perform deploy -> intermediate update")?;
@@ -84,7 +84,7 @@ async fn two_submission_success() -> Result<()> {
         &env.script_runtime,
         Some(mark_as_refslot(finalized_slot)),
         None, // alternatively Some(deploy_slot) should do the same
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to perform intermediate -> finalized update")?;
@@ -105,7 +105,7 @@ async fn non_latest_state_success() -> Result<()> {
         &env.script_runtime,
         Some(mark_as_refslot(intermediate_slot)),
         Some(mark_as_refslot(deploy_slot)),
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to run perform deploy -> intermediate update")?;
@@ -114,7 +114,7 @@ async fn non_latest_state_success() -> Result<()> {
         &env.script_runtime,
         Some(mark_as_refslot(finalized_slot)),
         Some(mark_as_refslot(deploy_slot)),
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to perform deploy -> finalized update")?;
@@ -134,7 +134,7 @@ async fn resubmit_success() -> Result<()> {
         &env.script_runtime,
         Some(mark_as_refslot(finalized_slot)),
         Some(mark_as_refslot(deploy_slot)),
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to run perform initial deploy -> finalized update")?;
@@ -143,7 +143,7 @@ async fn resubmit_success() -> Result<()> {
         &env.script_runtime,
         Some(mark_as_refslot(finalized_slot)),
         Some(mark_as_refslot(deploy_slot)),
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to run perform repeated deploy -> finalized update")?;

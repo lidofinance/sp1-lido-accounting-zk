@@ -1,3 +1,4 @@
+use sp1_lido_accounting_dev_scripts::lido;
 use sp1_lido_accounting_zk_shared::{io::eth_io::BeaconChainSlot, lido::LidoValidatorState};
 
 use std::path::PathBuf;
@@ -26,7 +27,7 @@ async fn main() {
         .expect("Failed to create synthetic beacon state creator");
     let reader: FileBasedBeaconStateReader =
         FileBasedBeaconStateReader::new(&ssz_folder).expect("Failed to create beacon state reader");
-    let withdrawal_creds: Hash256 = consts::lido_credentials::MAINNET.into();
+    let withdrawal_creds: Hash256 = lido::withdrawal_credentials::MAINNET.into();
     let old_slot = 100;
     let new_slot = 200;
     let base_state_spec = GenerationSpec {

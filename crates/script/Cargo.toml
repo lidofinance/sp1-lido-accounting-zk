@@ -29,6 +29,7 @@ eyre.workspace = true
 hex.workspace = true
 hex-literal.workspace = true
 k256.workspace = true
+lazy_static.workspace=true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

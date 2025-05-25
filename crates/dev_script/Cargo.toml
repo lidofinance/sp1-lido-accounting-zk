@@ -75,6 +75,7 @@ alloy.workspace = true
 alloy-primitives.workspace = true
 anyhow.workspace = true
 hex.workspace = true
+hex-literal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

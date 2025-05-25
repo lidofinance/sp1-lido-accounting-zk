@@ -1,7 +1,7 @@
 use hex::FromHex;
 use serde_json::Value;
+use sp1_lido_accounting_dev_scripts::lido;
 use sp1_lido_accounting_scripts::beacon_state_reader::StateId;
-use sp1_lido_accounting_scripts::consts;
 
 use sp1_lido_accounting_dev_scripts::synthetic::{
     BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
@@ -57,7 +57,7 @@ fn verify_report(report: &ReportData, manifesto: &Value) {
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
     let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../temp");
-    let withdrawal_creds: Hash256 = consts::lido_credentials::MAINNET.into();
+    let withdrawal_creds: Hash256 = lido::withdrawal_credentials::MAINNET.into();
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
         .expect("Failed to create synthetic beacon state creator");
     let reader: FileBasedBeaconStateReader =

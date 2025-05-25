@@ -6,7 +6,7 @@ use sp1_lido_accounting_scripts::{
     eth_client,
     proof_storage::StoredProof,
     scripts::shared as shared_logic,
-    sp1_client_wrapper::SP1ClientWrapper,
+    sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 
 use hex_literal::hex;
@@ -17,7 +17,7 @@ use sp1_lido_accounting_zk_shared::{
         program_io::WithdrawalVaultData,
     },
 };
-use sp1_sdk::HashableKey;
+use sp1_sdk::{HashableKey, ProverClient};
 use test_utils::env::IntegrationTestEnvironment;
 use thiserror::Error;
 
@@ -84,7 +84,7 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
 
     async fn run_test(&self) -> TestExecutorResult {
         sp1_sdk::utils::setup_logger();
-        let lido_withdrawal_credentials: Hash256 = self.env.network_config().lido_withdrawal_credentials.into();
+        let lido_withdrawal_credentials: Hash256 = self.env.script_runtime.lido_settings.withdrawal_credentials.into();
         let stored_proof = self.get_stored_proof()?;
 
         let reference_slot = stored_proof.report.reference_slot;
@@ -93,6 +93,7 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         let previous_slot = self
             .env
             .script_runtime
+            .lido_infra
             .report_contract
             .get_latest_validator_state_slot()
             .await?;
@@ -147,6 +148,7 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         let result = self
             .env
             .script_runtime
+            .lido_infra
             .report_contract
             .submit_report_data(stored_proof.proof, public_values_bytes)
             .await?;
@@ -218,9 +220,10 @@ fn assert_rejects(result: TestExecutorResult) -> Result<()> {
 
 #[test]
 fn check_vkey_matches() -> Result<()> {
+    let sp1_client = SP1ClientWrapperImpl::new(ProverClient::from_env());
     let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
     let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;
-    assert_eq!(test_utils::SP1_CLIENT.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
+    assert_eq!(sp1_client.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
     Ok(())
 }
 

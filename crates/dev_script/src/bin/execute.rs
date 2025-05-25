@@ -1,6 +1,6 @@
 use clap::Parser;
 use sp1_lido_accounting_dev_scripts::scripts as dev_scripts;
-use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts, tracing::LoggingConfig};
+use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts, tracing as tracing_config};
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
 #[derive(Parser, Debug)]
@@ -14,7 +14,7 @@ struct ExecuteArgs {
 
 #[tokio::main]
 async fn main() {
-    sp1_lido_accounting_scripts::tracing::setup_logger(LoggingConfig::default().use_json(true));
+    tracing_config::setup_logger(tracing_config::LoggingConfig::default().use_json(true));
     let args = ExecuteArgs::parse();
     tracing::debug!("Args: {:?}", args);
 

@@ -7,7 +7,6 @@ use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
     BeaconStateFields, BeaconStatePrecomputedHashes, Epoch, Hash256, Validator,
 };
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
-use sp1_sdk::ProverClient;
 
 pub mod env;
 pub mod files;
@@ -16,23 +15,6 @@ pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);
 pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(7643456);
 
 pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(7700384);
-
-// TODO: Enable local prover if/when it becomes feasible.
-// In short, local proving with groth16 seems to not really work at the moment -
-// get stuck at generating proof with ~100% CPU utilization for ~40 minutes.
-// This makes local prover impractical - network takes ~5-10 minutes to finish
-// #[cfg(not(feature = "test_network_prover"))]
-// lazy_static! {
-//     pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::local());
-// }
-// #[cfg(feature = "test_network_prover")]
-lazy_static! {
-    pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::from_env());
-}
-
-lazy_static! {
-    pub static ref LIDO_CREDS: Hash256 = NETWORK.get_config().lido_withdrawal_credentials.into();
-}
 
 pub fn eyre_to_anyhow(err: eyre::Error) -> anyhow::Error {
     anyhow!("Eyre error: {:#?}", err)

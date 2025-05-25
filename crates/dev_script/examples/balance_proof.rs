@@ -8,7 +8,6 @@ use simple_logger::SimpleLogger;
 
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
-    consts::NetworkInfo,
     scripts,
 };
 use sp1_lido_accounting_zk_shared::eth_execution_layer::EthAccountRlpValue;
@@ -18,7 +17,6 @@ async fn main() {
     SimpleLogger::new().env().init().unwrap();
     let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
         .expect("Failed to initialize script runtime");
-    let network_config = script_runtime.network().get_config();
 
     let bs = script_runtime
         .bs_reader()
@@ -29,15 +27,16 @@ async fn main() {
     tracing::info!("Beacon slot: {}", bs.slot);
 
     let withdrawal_vault_data = script_runtime
+        .eth_infra
         .eth_client
         .get_withdrawal_vault_data(
-            network_config.lido_withdrwawal_vault_address.into(),
+            script_runtime.lido_settings.withdrawal_vault_address,
             bs.latest_execution_payload_header.block_hash,
         )
         .await
         .expect("Failed to load balance proof");
 
-    let key = keccak256(network_config.lido_withdrwawal_vault_address);
+    let key = keccak256(script_runtime.lido_settings.withdrawal_vault_address);
 
     tracing::info!("Balance: {}", withdrawal_vault_data.balance);
     let trie = EthTrie::new(Arc::new(MemoryDB::new(true)));

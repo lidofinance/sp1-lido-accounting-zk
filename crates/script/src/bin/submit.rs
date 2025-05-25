@@ -29,16 +29,18 @@ async fn main() -> anyhow::Result<()> {
 
     let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
 
+    let flags = scripts::submit::Flags {
+        verify: args.local_verify,
+        store_proof: args.store_proof,
+        store_input: args.store_input,
+        dry_run: args.dry_run,
+    };
+
     let tx_hash = scripts::submit::run(
         &script_runtime,
         args.target_ref_slot.map(ReferenceSlot),
         args.previous_ref_slot.map(ReferenceSlot),
-        scripts::submit::Flags {
-            verify: args.local_verify,
-            store_proof: args.store_proof,
-            store_input: args.store_input,
-            dry_run: args.dry_run,
-        },
+        &flags,
     )
     .await?;
     tracing::info!("Report transaction complete {}", hex::encode(tx_hash));

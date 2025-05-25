@@ -41,6 +41,7 @@ async fn main() {
         Some(refslot) => ReferenceSlot(refslot),
         None => {
             let last_state_slot = script_runtime
+                .lido_infra
                 .report_contract
                 .get_latest_validator_state_slot()
                 .await

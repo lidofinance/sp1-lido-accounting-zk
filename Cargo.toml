@@ -1,9 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/dev_script",
     "crates/program",
     "crates/script",
-    "crates/dev_script",
+    "crates/service",
     "crates/shared",
     "crates/macros/merkle_tree_field_leaves_derive"
 ]

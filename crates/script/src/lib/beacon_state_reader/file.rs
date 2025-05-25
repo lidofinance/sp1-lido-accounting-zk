@@ -1,5 +1,4 @@
 use crate::utils::{read_binary, read_json};
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use ssz::{Decode, Encode};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -83,14 +82,6 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
         tracing::info!("Reading BeaconBlockHeader from file {:?}", &beacon_block_header_path);
         let res: BeaconBlockHeader = read_json(&beacon_block_header_path)?;
         Ok(res)
-    }
-
-    async fn find_bc_slot_for_refslot(&self, _target_slot: ReferenceSlot) -> anyhow::Result<BeaconChainSlot> {
-        // Intentional panic - neither cli nor service cannot continue without changing env vars and restart,
-        // so panicing is necessary here.
-        panic!(
-            "File bs reader cannot be used to find beacon chain slot for reference slot - please use RPC or RPC cached"
-        );
     }
 }
 

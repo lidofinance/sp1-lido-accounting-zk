@@ -8,8 +8,6 @@ use sp1_sdk::{
 use anyhow::Result;
 use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
 
-use crate::consts::{self, sp1_verifier::VerificationMode};
-
 use sp1_sdk::include_elf;
 
 pub const ELF: &[u8] = include_elf!("sp1-lido-accounting-zk-program");
@@ -65,11 +63,7 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
     fn prove(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues> {
         let sp1_stdin = self.write_sp1_stdin(&input);
         let prove_spec = self.client.prove(&self.pk, &sp1_stdin);
-        let prove_mode = match consts::sp1_verifier::VERIFICATION_MODE {
-            VerificationMode::Groth16 => prove_spec.groth16(),
-            VerificationMode::Plonk => prove_spec.plonk(),
-        };
-        prove_mode.run()
+        prove_spec.plonk().run()
     }
 
     fn verify_proof(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {

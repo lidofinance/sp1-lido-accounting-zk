@@ -1,14 +1,14 @@
 use hex::FromHex;
 use serde_json::Value;
 
-use sp1_lido_accounting_dev_scripts::synthetic::{
-    BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
+use sp1_lido_accounting_dev_scripts::{
+    lido,
+    synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
 };
 
 use sp1_lido_accounting_scripts::beacon_state_reader::{
     file::FileBasedBeaconStateReader, BeaconStateReader, StateId,
 };
-use sp1_lido_accounting_scripts::consts::lido_credentials;
 use sp1_lido_accounting_zk_shared::{
     io::eth_io::{BeaconChainSlot, HaveEpoch},
     lido::LidoValidatorState,
@@ -55,7 +55,7 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
     );
 
     let epoch = beacon_state.epoch();
-    let withdrawal_creds: Hash256 = lido_credentials::MAINNET.into();
+    let withdrawal_creds: Hash256 = lido::withdrawal_credentials::MAINNET.into();
 
     let deposited_hash_set: HashSet<u64> =
         HashSet::from_iter(state.deposited_lido_validator_indices.clone());

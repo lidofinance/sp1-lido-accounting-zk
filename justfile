@@ -21,9 +21,18 @@ submit target_slot previous_slot='0': build
 execute target_slot previous_slot='0': build
     ./target/release/execute {{local_verify_cmd}} --target-ref-slot {{target_slot}} {{ if previous_slot != "0" { "--previous-ref-slot "+previous_slot } else { "" } }}
 
+run_service: build
+    ./target/release/service
+
+service_report_def:
+    curl -X POST -d '{}' 127.0.0.1:8080/run-report
+
+service_report target_slot='null' previous_slot='null':
+    curl -X POST -d '{"previous_ref_slot": {{previous_slot}}, "target_ref_slot": {{target_slot}}}' 127.0.0.1:8080/run-report
+
 # Deploy
 run_anvil:
-    RUST_LOG=info anvil --fork-url $FORK_URL
+    anvil --fork-url $FORK_URL
 
 write_manifesto target_slot: build
     ./target/release/deploy --target-slot {{target_slot}} --store "data/deploy/${EVM_CHAIN}-deploy.json" --dry-run

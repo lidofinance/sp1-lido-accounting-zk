@@ -1,13 +1,19 @@
 use alloy::node_bindings::{Anvil, AnvilInstance};
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
-    consts::{self, NetworkConfig, NetworkInfo, WrappedNetwork},
+    consts::{NetworkConfig, NetworkInfo, WrappedNetwork},
     deploy::prepare_deploy_params,
     eth_client::{EthELClient, HashConsensusContractWrapper, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
-    scripts::{self, prelude::BeaconStateReaderEnum},
+    scripts::{
+        self,
+        prelude::{
+            BeaconStateReaderEnum, EthInfrastructure, LidoInfrastructure, LidoSettings, Sp1Infrastructure, Sp1Settings,
+        },
+    },
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 
+use hex_literal::hex;
 use sp1_lido_accounting_zk_shared::{
     eth_consensus_layer::{BeaconBlockHeader, BeaconState},
     eth_spec,
@@ -70,28 +76,63 @@ impl IntegrationTestEnvironment {
             .read_beacon_state(&StateId::Slot(deploy_slot))
             .await
             .map_err(test_utils::eyre_to_anyhow)?;
-        let deploy_params = prepare_deploy_params(sp1_client.vk_bytes(), &deploy_bs, &network);
+
+        let verifier_address = env::var("VERIFIER_ADDRESS")
+            .expect("VERIFIER_ADDRESS not set")
+            .parse()
+            .expect("Failed to parse VERIFIER_ADDRES to Address");
+
+        let hash_consensus_address = env::var("HASH_CONSENSUS_ADDRESS")
+            .expect("HASH_CONSENSUS_ADDRESS not set")
+            .parse()
+            .expect("Failed to parse HASH_CONSENSUS_ADDRESS to Address");
+
+        let sp1_settings = Sp1Settings { verifier_address };
+
+        // Sepolia values
+        let withdrawal_vault_address = hex!("De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76").into();
+        let withdrawal_credentials = hex!("010000000000000000000000De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76").into();
+
+        let deploy_params = prepare_deploy_params(
+            sp1_client.vk_bytes(),
+            &deploy_bs,
+            &network,
+            sp1_settings.verifier_address,
+            withdrawal_vault_address,
+            withdrawal_credentials,
+        );
 
         tracing::info!("Deploying contract with parameters {:?}", deploy_params);
-        let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&provider), &deploy_params)
+        let report_contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&provider), &deploy_params)
             .await
             .map_err(test_utils::eyre_to_anyhow)?;
 
-        let hash_consensus_contract = HashConsensusContractWrapper::new(
-            Arc::clone(&provider),
-            network.get_config().lido_accounting_hash_consensus_contract.into(),
-        );
+        let hash_consensus_contract = HashConsensusContractWrapper::new(Arc::clone(&provider), hash_consensus_address);
 
-        tracing::info!("Deployed contract at {}", contract.address());
+        let lido_settings = LidoSettings {
+            contract_address: report_contract.address().to_owned(),
+            withdrawal_vault_address,
+            withdrawal_credentials,
+            hash_consensus_address,
+        };
+
+        tracing::info!("Deployed contract at {}", report_contract.address());
 
         let script_runtime = scripts::prelude::ScriptRuntime::new(
-            network,
-            provider,
-            sp1_client,
-            beacon_state_reader,
-            eth_client,
-            contract,
-            hash_consensus_contract,
+            EthInfrastructure {
+                network,
+                provider,
+                eth_client,
+                beacon_state_reader,
+            },
+            Sp1Infrastructure { sp1_client },
+            LidoInfrastructure {
+                report_contract,
+                hash_consensus_contract,
+            },
+            lido_settings,
+            sp1_settings,
+            None,
         );
 
         let instance = Self {
@@ -122,11 +163,12 @@ impl IntegrationTestEnvironment {
     }
 
     pub async fn get_balance_proof(&self, state_id: &StateId) -> anyhow::Result<WithdrawalVaultData> {
-        let address = self.network_config().lido_withdrwawal_vault_address.into();
+        let address = self.script_runtime.lido_settings.withdrawal_vault_address.into();
         let bs: BeaconState = self.get_beacon_state(state_id).await?;
         let execution_layer_block_hash = bs.latest_execution_payload_header.block_hash;
         let withdrawal_vault_data = self
             .script_runtime
+            .eth_infra
             .eth_client
             .get_withdrawal_vault_data(address, execution_layer_block_hash)
             .await?;

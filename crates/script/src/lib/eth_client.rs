@@ -14,6 +14,7 @@ use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
+use tracing::Level;
 
 use core::clone::Clone;
 use core::fmt;
@@ -260,6 +261,11 @@ where
     }
 
     pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), Error> {
+        tracing::event!(
+            Level::INFO,
+            address = hex::encode(self.contract.address()),
+            "Reading current refslot from HashConsensus"
+        );
         let result: HashConsensus::getCurrentFrameReturn = self.contract.getCurrentFrame().call().await?;
         Ok((
             result.refSlot.try_into()?,
@@ -370,7 +376,7 @@ impl ProviderFactory {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{consts, utils};
+    use crate::utils;
 
     use super::*;
     use hex_literal::hex;
@@ -382,7 +388,7 @@ mod tests {
             verifier: hex!("e00a3cbfc45241b33c0a44c78e26168cbc55ec63"),
             vkey: hex!("00a13852b52626b0cc77128e2935361ed27c3ba6e97ffa92a9faaa62f0720643"),
             withdrawal_credentials: hex!("010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76"),
-            withdrawal_vault_address: consts::lido_withdrawal_vault::SEPOLIA,
+            withdrawal_vault_address: hex!("De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76"),
             genesis_timestamp: 1655733600,
             initial_validator_state: LidoValidatorStateRust {
                 slot: BeaconChainSlot(7643456),

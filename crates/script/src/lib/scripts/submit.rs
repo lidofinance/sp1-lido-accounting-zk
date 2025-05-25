@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::beacon_state_reader::{BeaconStateReader, StateId};
+use crate::beacon_state_reader::{BeaconStateReader, RefSlotResolver, StateId};
 use crate::consts::NetworkInfo;
 use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
@@ -24,38 +24,44 @@ pub async fn run(
     runtime: &ScriptRuntime,
     target_slot: Option<ReferenceSlot>,
     prev_slot: Option<ReferenceSlot>,
-    flags: Flags,
+    flags: &Flags,
 ) -> anyhow::Result<TxHash> {
     let target_slot = if let Some(slot) = target_slot {
         slot
     } else {
         tracing::debug!("Reading target slot from hash consensus contract");
-        let (refslot, _processing_deadline_slot) = runtime.hash_consensus_contract.get_refslot().await?;
+        let (refslot, _processing_deadline_slot) = runtime.lido_infra.hash_consensus_contract.get_refslot().await?;
         refslot
     };
     let actual_previous_slot = if let Some(prev) = prev_slot {
         tracing::debug!("Finding bc slot for previous report refslot {}", prev);
-        runtime.bs_reader().find_bc_slot_for_refslot(prev).await?
+        runtime.ref_slot_resolver().find_bc_slot_for_refslot(prev).await?
     } else {
         tracing::debug!("Reading latest report slot from contract");
-        runtime.report_contract.get_latest_validator_state_slot().await?
+        runtime
+            .lido_infra
+            .report_contract
+            .get_latest_validator_state_slot()
+            .await?
     };
-    let actual_target_slot = runtime.bs_reader().find_bc_slot_for_refslot(target_slot).await?;
+    let actual_target_slot = runtime
+        .ref_slot_resolver()
+        .find_bc_slot_for_refslot(target_slot)
+        .await?;
 
-    let network = runtime.network();
+    let network = runtime.network().as_str();
 
     tracing::info!(
         "Submitting report for network {:?}, target: (ref={:?}, actual={:?}), previous: (ref={:?}, actual={:?})",
-        network.as_str(),
+        network,
         target_slot,
         actual_target_slot,
         prev_slot,
         actual_previous_slot
     );
 
-    let network_config = network.get_config();
-    let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
-    let lido_withdrawal_vault: Address = network_config.lido_withdrwawal_vault_address.into();
+    let lido_withdrawal_credentials: Hash256 = runtime.lido_settings.withdrawal_credentials;
+    let lido_withdrawal_vault: Address = runtime.lido_settings.withdrawal_vault_address;
 
     let target_bh = runtime
         .bs_reader()
@@ -72,6 +78,7 @@ pub async fn run(
 
     let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
     let withdrawal_vault_data = runtime
+        .eth_infra
         .eth_client
         .get_withdrawal_vault_data(lido_withdrawal_vault, execution_layer_block_hash)
         .await?;
@@ -88,7 +95,7 @@ pub async fn run(
 
     if flags.store_input {
         tracing::info!("Storing proof");
-        let input_file_name = format!("input_{}_{}.json", network.as_str(), target_slot);
+        let input_file_name = format!("input_{}_{}.json", network, target_slot);
         let input_path = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(input_file_name);
         utils::write_json(&input_path, &program_input).expect("failed to write fixture");
         tracing::info!("Successfully written input to {input_path:?}");
@@ -100,6 +107,7 @@ pub async fn run(
     }
 
     let proof = runtime
+        .sp1_infra
         .sp1_client
         .prove(program_input)
         .context("Failed to generate proof")?;
@@ -107,10 +115,10 @@ pub async fn run(
 
     if flags.store_proof {
         tracing::info!("Storing proof");
-        let file_name = format!("proof_{}_{}.json", network.as_str(), target_slot);
+        let file_name = format!("proof_{}_{}.json", network, target_slot);
         let proof_file = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(file_name);
         let store_result =
-            proof_storage::store_proof_and_metadata(&proof, runtime.sp1_client.vk(), proof_file.as_path());
+            proof_storage::store_proof_and_metadata(&proof, runtime.sp1_infra.sp1_client.vk(), proof_file.as_path());
         if let Err(e) = store_result {
             tracing::warn!("Failed to store proof: {:?}", e);
         }
@@ -122,6 +130,7 @@ pub async fn run(
         tracing::info!("Verified public values");
 
         runtime
+            .sp1_infra
             .sp1_client
             .verify_proof(&proof)
             .context("Failed to verify proof")?;
@@ -130,9 +139,9 @@ pub async fn run(
 
     tracing::info!("Sending report");
     let tx_hash = runtime
+        .lido_infra
         .report_contract
         .submit_report_data(proof.bytes(), proof.public_values.to_vec())
-        .await
-        .context("Failed to submit report")?;
+        .await?;
     Ok(tx_hash)
 }

@@ -31,6 +31,7 @@ async fn main() {
 
     tracing::info!("Sending report");
     let tx_hash = script_runtime
+        .lido_infra
         .report_contract
         .submit_report_data(stored_proof.proof, stored_proof.public_values.to_vec())
         .await

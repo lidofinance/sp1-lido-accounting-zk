@@ -1,9 +1,10 @@
-use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
-use sp1_lido_accounting_scripts::consts::NetworkInfo;
+use sp1_lido_accounting_scripts::beacon_state_reader::{
+    BeaconStateReader, RefSlotResolver, StateId,
+};
 use sp1_lido_accounting_scripts::eth_client::ReportContract;
 use sp1_lido_accounting_scripts::scripts::shared as shared_logic;
-use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapper;
 
+use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapper;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use tokio::try_join;
@@ -12,11 +13,11 @@ use sp1_lido_accounting_scripts::scripts::prelude::ScriptRuntime;
 
 async fn get_previous_bc_slot(
     maybe_previous_ref_slot: Option<ReferenceSlot>,
-    bs_reader: &impl BeaconStateReader,
+    ref_slot_resolver: &impl RefSlotResolver,
     contract: &ReportContract,
 ) -> anyhow::Result<BeaconChainSlot> {
     let result = match maybe_previous_ref_slot {
-        Some(prev) => bs_reader.find_bc_slot_for_refslot(prev).await?,
+        Some(prev) => ref_slot_resolver.find_bc_slot_for_refslot(prev).await?,
         None => contract.get_latest_validator_state_slot().await?,
     };
     Ok(result)
@@ -28,32 +29,33 @@ pub async fn run(
     maybe_previous_slot: Option<ReferenceSlot>,
 ) -> anyhow::Result<()> {
     let (actual_target_slot, actual_previous_slot) = try_join!(
-        runtime.bs_reader().find_bc_slot_for_refslot(target_slot),
+        runtime
+            .ref_slot_resolver()
+            .find_bc_slot_for_refslot(target_slot),
         get_previous_bc_slot(
             maybe_previous_slot,
-            runtime.bs_reader(),
-            &runtime.report_contract
+            runtime.ref_slot_resolver(),
+            &runtime.lido_infra.report_contract
         ),
     )?;
     let target_state_id = StateId::Slot(actual_target_slot);
     let old_state_id = StateId::Slot(actual_previous_slot);
-    let ((target_bh, target_bs), (_old_bh, old_bs)) = try_join!(
+    let (target_bh, target_bs, old_bs) = try_join!(
         runtime
             .bs_reader()
-            .read_beacon_state_and_header(&target_state_id),
-        runtime
-            .bs_reader()
-            .read_beacon_state_and_header(&old_state_id)
+            .read_beacon_block_header(&target_state_id),
+        runtime.bs_reader().read_beacon_state(&target_state_id),
+        runtime.bs_reader().read_beacon_state(&old_state_id)
     )?;
-    let network_config = runtime.network().get_config();
 
-    let lido_withdrawal_credentials: Hash256 = network_config.lido_withdrawal_credentials.into();
+    let lido_withdrawal_credentials: Hash256 = runtime.lido_settings.withdrawal_credentials;
 
     let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
     let withdrawal_vault_data = runtime
+        .eth_infra
         .eth_client
         .get_withdrawal_vault_data(
-            network_config.lido_withdrwawal_vault_address.into(),
+            runtime.lido_settings.withdrawal_vault_address,
             execution_layer_block_hash,
         )
         .await?;
@@ -69,7 +71,8 @@ pub async fn run(
     )?;
 
     tracing::info!("Executing program");
-    let (exec_public_values, execution_report) = runtime.sp1_client.execute(program_input).unwrap();
+    let (exec_public_values, execution_report) =
+        runtime.sp1_infra.sp1_client.execute(program_input).unwrap();
 
     tracing::info!(
         "Executed program with {} cycles",
