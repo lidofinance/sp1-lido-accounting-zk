@@ -64,7 +64,7 @@ impl TestFiles {
         file_reader
             .read_beacon_state(state_id)
             .await
-            .map_err(|err| eyre!("Failed to read beacon state {:#?}", err))
+            .map_err(|err| eyre!("Failed to read beacon state {:?} {:#?}", state_id, err))
     }
 
     pub async fn read_beacon_block_header(&self, state_id: &StateId) -> Result<BeaconBlockHeader> {
@@ -72,7 +72,7 @@ impl TestFiles {
         file_reader
             .read_beacon_block_header(state_id)
             .await
-            .map_err(|err| eyre!("Failed to read beacon block header {:#?}", err))
+            .map_err(|err| eyre!("Failed to read beacon block header {:?} {:#?}", state_id, err))
     }
 
     pub async fn read_withdrawal_vault_data(&self, state_id: &StateId) -> Result<WithdrawalVaultData> {

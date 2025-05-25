@@ -1,7 +1,7 @@
 mod test_utils;
 
 use sp1_lido_accounting_scripts::{
-    beacon_state_reader::StateId, consts::NetworkInfo, scripts::shared::prepare_program_input,
+    beacon_state_reader::StateId, consts::NetworkInfo, scripts::shared::prepare_program_input, tracing,
 };
 use test_utils::{files::TestFiles, mark_as_refslot, DEPLOY_SLOT, REPORT_COMPUTE_SLOT};
 use thiserror::Error;
@@ -30,6 +30,7 @@ type Result<T> = std::result::Result<T, TestError>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_integration_test() -> Result<()> {
+    tracing::setup_logger(tracing::LoggingConfig::default());
     let test_files = TestFiles::new_from_manifest_dir();
 
     let network = &test_utils::NETWORK;
@@ -47,7 +48,7 @@ async fn program_input_integration_test() -> Result<()> {
     let lido_validator_ids = [1973, 1974, 1975, 1976, 1977, 1978];
     let balances: Vec<u64> = lido_validator_ids.iter().map(|idx| new_bs.balances[*idx]).collect();
     let cl_balance_sum: u64 = balances.iter().sum();
-    assert_eq!(cl_balance_sum, 96000686270);
+    assert_eq!(cl_balance_sum, 96000491967);
 
     let withdrawal_vault_data = test_files.read_withdrawal_vault_data(&report_state_id).await?;
     let expected_wv_balance = withdrawal_vault_data.balance;

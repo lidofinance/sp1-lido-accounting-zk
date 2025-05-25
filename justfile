@@ -59,6 +59,10 @@ download_header target_slot:
 
 download_bs target_slot format="ssz": (download_state target_slot) (download_header target_slot)
 
+add_test_bs target_slot format="ssz": (download_bs target_slot) (download_bs target_slot)
+    cp temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}_header.json script/tests/data/beacon_states/bs_{{target_slot}}_header.json
+    cp temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }} script/tests/data/beacon_states/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
+
 read_validators target_slot:
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validators > temp/vals_bals/$EVM_CHAIN/validators_{{target_slot}}.json
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validator_balances > temp/vals_bals/$EVM_CHAIN/balances_{{target_slot}}.json
@@ -81,7 +85,7 @@ test_script:
     # -j 5 limits the concurrency for building (but not running) and avoids that
     # --test-threads 5 limits concurrecny for running tests (sometimes it gets excited and runs too
     # many in parallel, consuming all the memory and grinding to a halt)
-    cargo test -j 5 -- --test-threads=5
+    RUST_LOG=infor cargo test -j 5 -- --test-threads=5 --nocapture
 
 [working-directory: 'script']
 integration_test:

@@ -13,7 +13,7 @@ pub enum Error {
     IoError(#[from] std::io::Error),
 }
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum StateId {
     Head,
     Genesis,
