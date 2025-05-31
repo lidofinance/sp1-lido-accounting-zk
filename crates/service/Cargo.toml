@@ -10,6 +10,7 @@ test = false
 
 [dependencies]
 axum = "0.8.4"
+anyhow.workspace = true
 hex.workspace=true
 prometheus = "0.14"
 tokio.workspace = true
@@ -19,3 +20,6 @@ serde_json.workspace = true
 sp1-lido-accounting-zk-scripts.workspace = true
 sp1-lido-accounting-zk-shared.workspace = true
 axum-macros = "0.5.0"
+cron = "0.15"
+chrono = { version = "0.4", features = ["clock"] }
+chrono-tz = "0.10.3"

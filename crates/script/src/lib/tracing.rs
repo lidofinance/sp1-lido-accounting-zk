@@ -18,6 +18,7 @@ pub struct LoggingConfig {
     apply_sp1_suppressions: bool,
     use_json: bool,
     is_test: bool,
+    with_thread_names: bool,
 }
 
 impl LoggingConfig {
@@ -29,6 +30,10 @@ impl LoggingConfig {
         self.is_test = value;
         self
     }
+    pub fn with_thread_names(mut self, value: bool) -> Self {
+        self.with_thread_names = value;
+        self
+    }
 }
 
 impl Default for LoggingConfig {
@@ -37,6 +42,7 @@ impl Default for LoggingConfig {
             apply_sp1_suppressions: true,
             use_json: false,
             is_test: cfg!(test),
+            with_thread_names: false,
         }
     }
 }
@@ -48,19 +54,18 @@ pub fn setup_logger(config: LoggingConfig) {
             env_filter = append_sp1_directives(env_filter);
         }
 
+        let common_layer = tracing_subscriber::fmt::layer()
+            .with_target(false)
+            .with_thread_names(config.with_thread_names);
+
         let fmt_layer = if config.use_json {
-            tracing_subscriber::fmt::layer()
-                .json()
-                .flatten_event(true)
-                .with_target(false)
-                .with_span_list(false)
-                .boxed()
+            common_layer.json().with_span_list(false).flatten_event(true).boxed()
         } else {
-            tracing_subscriber::fmt::layer().compact().boxed()
+            common_layer.compact().boxed()
         };
 
         let test_layer = if config.is_test {
-            Some(tracing_subscriber::fmt::layer().with_test_writer())
+            Some(tracing_subscriber::fmt::layer().compact().with_test_writer())
         } else {
             None
         };
