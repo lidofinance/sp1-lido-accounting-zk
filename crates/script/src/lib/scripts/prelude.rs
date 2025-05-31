@@ -158,6 +158,7 @@ pub mod env_vars {
     #[derive(Debug, Clone)]
     pub struct EnvVars {
         pub evm_chain: EnvVarValue<String>,
+        pub evm_chain_id: EnvVarValue<String>,
         pub bs_reader_mode: EnvVarValue<String>,
         pub execution_layer_rpc: EnvVarValue<String>,
         pub consensus_layer_rpc: EnvVarValue<String>,
@@ -202,6 +203,7 @@ pub mod env_vars {
         pub fn init_from_env() -> Self {
             Self {
                 evm_chain: Self::required("EVM_CHAIN", false),
+                evm_chain_id: Self::required("EVM_CHAIN_ID", false),
                 bs_reader_mode: Self::required("BS_READER_MODE", false),
                 execution_layer_rpc: Self::required("EXECUTION_LAYER_RPC", false),
                 consensus_layer_rpc: Self::required("CONSENSUS_LAYER_RPC", false),

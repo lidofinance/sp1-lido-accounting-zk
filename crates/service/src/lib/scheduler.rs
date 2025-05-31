@@ -4,6 +4,7 @@ use sp1_lido_accounting_scripts::utils::read_env;
 use std::{env, sync::Arc, thread};
 use tokio::sync::Mutex;
 use tokio::time::Duration;
+use tracing::Span;
 
 use crate::common::run_submit;
 use crate::common::AppState;
@@ -36,12 +37,12 @@ async fn submit_report(state: Arc<Mutex<AppState>>) {
     }
 }
 
-pub fn launch(state: Arc<Mutex<AppState>>) {
+pub fn launch(state: Arc<Mutex<AppState>>, parent_span: Span) -> Option<thread::JoinHandle<()>> {
     let enabled = read_env("INTERNAL_SCHEDULER", false);
 
     if !enabled {
         tracing::info!("Scheduler disabled");
-        return;
+        return None;
     }
 
     tracing::debug!("Scheduler enabled, reading schedule expression");
@@ -68,11 +69,13 @@ pub fn launch(state: Arc<Mutex<AppState>>) {
     );
 
     // Spawn scheduler thread
-    thread::Builder::new()
-        .name("scheduler-thread".into())
+    let join_handle = thread::Builder::new()
+        .name("scheduler".into())
         .spawn(move || {
+            let _enter = parent_span.enter();
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(scheduler_loop(state, schedule, tz));
         })
         .unwrap();
+    Some(join_handle)
 }

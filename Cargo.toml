@@ -27,6 +27,7 @@ eyre = "0.6.12"
 hex = "0.4.3"
 hex-literal = "0.4.1" # 1.0 requires edition2024 that's stabilized on rust 1.83, but sp1 only works with 1.82 at the moment
 itertools = "0.14.0"
+json-subscriber = "0.2.4"
 k256 = "0.13.3"
 lazy_static = "1.5"
 log = "0.4.27"

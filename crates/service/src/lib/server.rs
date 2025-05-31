@@ -3,15 +3,17 @@ use axum::{
     http::StatusCode,
     response::Response,
     routing::{get, post},
-    Router,
+    Extension, Router,
 };
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
 
 use sp1_lido_accounting_scripts::utils::read_env;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
-use std::{any::type_name_of_val, net::SocketAddr, sync::Arc};
+use std::{any::type_name_of_val, net::SocketAddr, sync::Arc, thread};
 use tokio::sync::Mutex;
+use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use tracing::Span;
 
 use crate::common::{run_submit, AppState};
 
@@ -21,12 +23,23 @@ struct RunReportParams {
     previous_ref_slot: Option<u64>,
 }
 
-pub async fn launch(state: Arc<Mutex<AppState>>) {
+pub fn launch(state: Arc<Mutex<AppState>>, parent_span: Span) -> thread::JoinHandle<()> {
+    thread::Builder::new()
+        .name("server".into())
+        .spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(run_server(state, parent_span));
+        })
+        .unwrap()
+}
+
+async fn run_server(state: Arc<Mutex<AppState>>, parent_span: Span) {
     // Build routes
     let app = Router::new()
         .route("/health", get(health))
         .route("/metrics", get(metrics))
         .route("/run-report", post(run_report_handler))
+        .layer(Extension(parent_span.clone()))
         .with_state(state);
 
     let addr = read_env(
@@ -63,7 +76,9 @@ enum RunReportResponse {
 async fn run_report_handler(
     state_extractor: axum::extract::State<Arc<Mutex<AppState>>>,
     Query(params): Query<RunReportParams>,
+    Extension(parent_span): Extension<Span>,
 ) -> (axum::http::StatusCode, axum::Json<RunReportResponse>) {
+    let _entered = parent_span.enter();
     let state = state_extractor.lock().await;
     state.metric_reporters.run_report_counter.inc();
 

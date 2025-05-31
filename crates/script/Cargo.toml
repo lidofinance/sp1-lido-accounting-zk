@@ -28,6 +28,7 @@ eth_trie.workspace = true
 eyre.workspace = true
 hex.workspace = true
 hex-literal.workspace = true
+json-subscriber.workspace = true
 k256.workspace = true
 lazy_static.workspace=true
 reqwest.workspace = true

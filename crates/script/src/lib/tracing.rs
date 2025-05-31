@@ -1,7 +1,9 @@
 use std::sync::Once;
 
 use derive_more::FromStr;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer, Registry};
+use json_subscriber;
+use tracing_subscriber::{layer::Layer, registry::Registry, util::SubscriberInitExt};
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 
 static INIT: Once = Once::new();
 
@@ -61,13 +63,20 @@ pub fn setup_logger(config: LoggingConfig) {
             env_filter = append_sp1_directives(env_filter);
         }
 
-        let common_layer = tracing_subscriber::fmt::layer()
-            .with_target(false)
-            .with_thread_names(config.with_thread_names);
-
         let fmt_layer = match config.format {
-            LogFormat::Json => common_layer.json().with_span_list(false).flatten_event(true).boxed(),
-            LogFormat::Plain => common_layer.compact().boxed(),
+            LogFormat::Json => json_subscriber::layer()
+                .with_target(false)
+                .with_thread_names(config.with_thread_names)
+                .with_current_span(false)
+                .with_span_list(false)
+                .flatten_span_list_on_top_level(true)
+                .flatten_event(true)
+                .boxed(),
+            LogFormat::Plain => tracing_subscriber::fmt::layer()
+                .compact()
+                .with_target(false)
+                .with_thread_names(config.with_thread_names)
+                .boxed(),
         };
 
         let test_layer = if config.is_test {

@@ -44,7 +44,7 @@ write_manifesto target_slot: build
 # These implicitly depends on run_anvil, but we don't want to start anvil each time - it should be running
 [working-directory: 'contracts']
 deploy:
-    forge script --chain $CHAIN_ID script/Deploy.s.sol:Deploy --rpc-url $EXECUTION_LAYER_RPC --broadcast {{verify_contract_cmd}}
+    forge script --chain $EVM_CHAIN_ID script/Deploy.s.sol:Deploy --rpc-url $EXECUTION_LAYER_RPC --broadcast {{verify_contract_cmd}}
 
 read_last_report_slot:
     cast call $CONTRACT_ADDRESS "getLatestLidoValidatorStateSlot()(uint256)"

@@ -1,6 +1,8 @@
 use common::{setup_prometheus, AppState};
 
-use sp1_lido_accounting_scripts::{scripts, tracing as tracing_config, utils::read_env};
+use sp1_lido_accounting_scripts::{
+    consts::NetworkInfo, scripts, tracing as tracing_config, utils::read_env,
+};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -35,10 +37,32 @@ pub async fn service_main() {
             dry_run,
         },
     };
+
+    let env_vars = state.script_runtime.env_vars.as_ref();
+
+    // Everything on this span will be appended to all messages
+    let main_span = tracing::info_span!(
+        "span:main",
+        chain = env_vars.map(|v| v.evm_chain.value.clone()),
+        chain_id = env_vars.map(|v| v.evm_chain_id.value.clone()),
+        prover = env_vars.map(|v| v.sp1_prover.value.clone()),
+        dry_run = dry_run,
+    );
+    let scheduler_span = main_span.clone();
+    let service_span = main_span.clone();
+
+    let _entered = main_span.entered();
+
     state.log_config();
 
     let shared_state = Arc::new(Mutex::new(state));
 
-    scheduler::launch(Arc::clone(&shared_state));
-    server::launch(Arc::clone(&shared_state)).await;
+    let maybe_scheduler_thread = scheduler::launch(Arc::clone(&shared_state), scheduler_span);
+    let server_thread = server::launch(Arc::clone(&shared_state), service_span);
+
+    if let Some(scheduler_thread) = maybe_scheduler_thread {
+        scheduler_thread.join().unwrap();
+    }
+    server_thread.join().unwrap();
+    _entered.exit();
 }
