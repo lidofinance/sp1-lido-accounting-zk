@@ -1,11 +1,12 @@
 use chrono::Utc;
 use cron::Schedule;
+use sp1_lido_accounting_scripts::utils::read_env;
 use std::{env, sync::Arc, thread};
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 
 use crate::common::run_submit;
-use crate::{common::AppState, read_env};
+use crate::common::AppState;
 
 async fn scheduler_loop(state: Arc<Mutex<AppState>>, schedule: Schedule, timezone: chrono_tz::Tz) {
     let upcoming = schedule.upcoming(timezone);

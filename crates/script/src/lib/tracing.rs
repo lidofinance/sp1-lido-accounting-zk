@@ -1,8 +1,15 @@
 use std::sync::Once;
 
+use derive_more::FromStr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer, Registry};
 
 static INIT: Once = Once::new();
+
+#[derive(PartialEq, FromStr)]
+pub enum LogFormat {
+    Plain,
+    Json,
+}
 
 fn append_sp1_directives(env_filter: EnvFilter) -> EnvFilter {
     env_filter
@@ -16,14 +23,14 @@ fn append_sp1_directives(env_filter: EnvFilter) -> EnvFilter {
 
 pub struct LoggingConfig {
     apply_sp1_suppressions: bool,
-    use_json: bool,
+    format: LogFormat,
     is_test: bool,
     with_thread_names: bool,
 }
 
 impl LoggingConfig {
-    pub fn use_json(mut self, value: bool) -> Self {
-        self.use_json = value;
+    pub fn use_format(mut self, value: LogFormat) -> Self {
+        self.format = value;
         self
     }
     pub fn is_test(mut self, value: bool) -> Self {
@@ -40,7 +47,7 @@ impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
             apply_sp1_suppressions: true,
-            use_json: false,
+            format: LogFormat::Plain,
             is_test: cfg!(test),
             with_thread_names: false,
         }
@@ -58,10 +65,9 @@ pub fn setup_logger(config: LoggingConfig) {
             .with_target(false)
             .with_thread_names(config.with_thread_names);
 
-        let fmt_layer = if config.use_json {
-            common_layer.json().with_span_list(false).flatten_event(true).boxed()
-        } else {
-            common_layer.compact().boxed()
+        let fmt_layer = match config.format {
+            LogFormat::Json => common_layer.json().with_span_list(false).flatten_event(true).boxed(),
+            LogFormat::Plain => common_layer.compact().boxed(),
         };
 
         let test_layer = if config.is_test {

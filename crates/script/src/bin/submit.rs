@@ -1,5 +1,7 @@
 use clap::Parser;
 use sp1_lido_accounting_scripts::scripts;
+use sp1_lido_accounting_scripts::tracing as tracing_config;
+use sp1_lido_accounting_scripts::utils::read_env;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
 // cargo run --bin submit --release -- --target-slot 5982336 --store --local-verify
@@ -19,7 +21,13 @@ struct ProveArgs {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    sp1_sdk::utils::setup_logger();
+    // logging setup
+    tracing_config::setup_logger(
+        tracing_config::LoggingConfig::default()
+            .with_thread_names(true)
+            .use_format(read_env("LOG_FORMAT", tracing_config::LogFormat::Plain)),
+    );
+
     let args = ProveArgs::parse();
     tracing::debug!("Args: {:?}", args);
 

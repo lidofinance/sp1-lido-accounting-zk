@@ -1,51 +1,20 @@
 use common::{setup_prometheus, AppState};
 
-use sp1_lido_accounting_scripts::{scripts, tracing as tracing_config};
-use std::{str::FromStr, sync::Arc};
+use sp1_lido_accounting_scripts::{scripts, tracing as tracing_config, utils::read_env};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 mod common;
 mod scheduler;
 mod server;
 
-#[derive(PartialEq)]
-enum LogFormat {
-    Plain,
-    Json,
-}
-
-impl FromStr for LogFormat {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "plain" => Ok(LogFormat::Plain),
-            "json" => Ok(LogFormat::Json),
-            _ => Err(()),
-        }
-    }
-}
-
-fn read_env<T: FromStr>(env_var: &str, default: T) -> T {
-    if let Ok(str) = std::env::var(env_var) {
-        if let Ok(value) = T::from_str(&str) {
-            value
-        } else {
-            default
-        }
-    } else {
-        default
-    }
-}
-
 pub async fn service_main() {
-    let log_format = read_env("LOG_FORMAT", LogFormat::Plain);
-
-    let log_config = tracing_config::LoggingConfig::default()
-        .with_thread_names(true)
-        .use_json(log_format == LogFormat::Json);
     // logging setup
-    tracing_config::setup_logger(log_config);
+    tracing_config::setup_logger(
+        tracing_config::LoggingConfig::default()
+            .with_thread_names(true)
+            .use_format(read_env("LOG_FORMAT", tracing_config::LogFormat::Plain)),
+    );
 
     // Prometheus setup
     let (registry, metric_reporters) = setup_prometheus();
