@@ -8,6 +8,10 @@ name = "service"
 path = "src/bin/service.rs"
 test = false
 
+[lib]
+name="sp1_lido_accounting_service_lib"
+path="src/lib/lib.rs"
+
 [dependencies]
 axum = "0.8.4"
 anyhow.workspace = true
