@@ -25,13 +25,13 @@ run_service: build
     ./target/release/service
 
 service_report_def:
-    curl -X POST -d '{}' 127.0.0.1:8080/run-report
+    curl -X POST -d '{}' $SERVICE_BIND_TO_ADDR/run-report
 
 service_report target_slot='null' previous_slot='null':
-    curl -X POST -d '{"previous_ref_slot": {{previous_slot}}, "target_ref_slot": {{target_slot}}}' 127.0.0.1:8080/run-report
+    curl -X POST -d '{"previous_ref_slot": {{previous_slot}}, "target_ref_slot": {{target_slot}}}' $SERVICE_BIND_TO_ADDR/run-report
 
 service_stats:
-    curl -X GET 127.0.0.1:8080/metrics
+    curl -X GET $SERVICE_BIND_TO_ADDR/metrics
 
 # Deploy
 run_anvil:

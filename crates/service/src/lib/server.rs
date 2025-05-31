@@ -8,6 +8,7 @@ use axum::{
 use prometheus::{Encoder, TextEncoder};
 use serde::{Deserialize, Serialize};
 
+use sp1_lido_accounting_scripts::utils::read_env;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 use std::{any::type_name_of_val, net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex;
@@ -28,7 +29,10 @@ pub async fn launch(state: Arc<Mutex<AppState>>) {
         .route("/run-report", post(run_report_handler))
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let addr = read_env(
+        "SERVICE_BIND_TO_ADDR",
+        SocketAddr::from(([0, 0, 0, 0], 8080)),
+    );
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     tracing::info!("Starting service at {:?}", addr);
     axum::serve(listener, app).await.unwrap();
