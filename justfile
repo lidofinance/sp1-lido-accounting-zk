@@ -30,6 +30,9 @@ service_report_def:
 service_report target_slot='null' previous_slot='null':
     curl -X POST -d '{"previous_ref_slot": {{previous_slot}}, "target_ref_slot": {{target_slot}}}' 127.0.0.1:8080/run-report
 
+service_stats:
+    curl -X GET 127.0.0.1:8080/metrics
+
 # Deploy
 run_anvil:
     anvil --fork-url $FORK_URL
