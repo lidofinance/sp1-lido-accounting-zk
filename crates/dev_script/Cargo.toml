@@ -15,6 +15,11 @@ name = "execute"
 path = "src/bin/execute.rs"
 test = false
 
+[[bin]]
+name = "store_report"
+path = "src/bin/store_report.rs"
+test = false
+
 
 [[bin]]
 name = "submit_cached"

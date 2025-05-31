@@ -1,4 +1,5 @@
 use clap::Parser;
+use sp1_lido_accounting_dev_scripts::scripts as dev_scripts;
 use sp1_lido_accounting_scripts::scripts;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
@@ -11,10 +12,6 @@ struct ProveArgs {
     target_ref_slot: Option<u64>,
     #[clap(long, required = false)]
     previous_ref_slot: Option<u64>,
-    #[clap(long, required = false, default_value = "false")]
-    dry_run: bool,
-    #[clap(long, required = false, default_value = "false")]
-    local_verify: bool,
 }
 
 #[tokio::main]
@@ -23,20 +20,15 @@ async fn main() -> anyhow::Result<()> {
     let args = ProveArgs::parse();
     tracing::debug!("Args: {:?}", args);
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
+    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+        .expect("Failed to initialize script runtime");
 
-    let flags = scripts::submit::Flags {
-        verify: args.local_verify,
-        dry_run: args.dry_run,
-    };
-
-    let tx_hash = scripts::submit::run(
+    dev_scripts::store_report::run(
         &script_runtime,
         args.target_ref_slot.map(ReferenceSlot),
         args.previous_ref_slot.map(ReferenceSlot),
-        &flags,
     )
     .await?;
-    tracing::info!("Report transaction complete {}", hex::encode(tx_hash));
+
     Ok(())
 }

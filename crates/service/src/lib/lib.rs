@@ -63,8 +63,6 @@ pub async fn service_main() {
         script_runtime,
         submit_flags: scripts::submit::Flags {
             verify: false,
-            store_proof: false,
-            store_input: false,
             dry_run,
         },
     };

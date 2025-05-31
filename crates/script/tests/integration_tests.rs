@@ -15,8 +15,6 @@ use typenum::Unsigned;
 
 const DEFAULT_FLAGS: scripts::submit::Flags = scripts::submit::Flags {
     verify: true,
-    store_proof: false,
-    store_input: false,
     dry_run: false,
 };
 
@@ -73,7 +71,7 @@ async fn two_submission_success() -> Result<()> {
 
     scripts::submit::run(
         &env.script_runtime,
-        Some(mark_as_refslot(finalized_slot)),
+        Some(mark_as_refslot(intermediate_slot)),
         None, // alternatively Some(deploy_slot) should do the same
         &DEFAULT_FLAGS,
     )
