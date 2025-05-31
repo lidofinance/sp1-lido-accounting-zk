@@ -123,6 +123,32 @@ impl ReqwestBeaconStateReader {
         anyhow!("{}: {:#?}", label, e)
     }
 
+    async fn get_beacon_header_response(&self, state_id: &StateId) -> anyhow::Result<BeaconHeaderResponse> {
+        let url = format!(
+            "{}/eth/v1/beacon/headers/{}",
+            self.consensus_layer_base_uri,
+            state_id.as_str()
+        );
+        let response = self
+            .client
+            .get(url.clone())
+            .header(ACCEPT, "application/json")
+            .send()
+            .await
+            .map_err(|e| Self::map_err(&format!("Failed to make request {url}"), e))?;
+
+        let res = response
+            .error_for_status()
+            .map_err(|e| Self::map_err("Unsuccessful status code", e))?
+            .json::<BeaconHeaderResponse>()
+            .await
+            .map_err(|e| anyhow::anyhow!("Couldn't parse json {:#?}", e))?;
+
+        tracing::debug!("Read BeaconBlockHeader {:?}", res.data.header.message);
+
+        Ok(res)
+    }
+
     async fn read_bs(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
         tracing::info!("Loading beacon state for {}", state_id.as_str());
         let url = format!(
@@ -161,29 +187,8 @@ impl ReqwestBeaconStateReader {
     }
 
     async fn read_beacon_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
-        let url = format!(
-            "{}/eth/v1/beacon/headers/{}",
-            self.consensus_layer_base_uri,
-            state_id.as_str()
-        );
         tracing::info!("Loading beacon header for {}", state_id.as_str());
-
-        let response = self
-            .client
-            .get(url.clone())
-            .header(ACCEPT, "application/json")
-            .send()
-            .await
-            .map_err(|e| Self::map_err(&format!("Failed to make request {url}"), e))?;
-
-        let res = response
-            .error_for_status()
-            .map_err(|e| Self::map_err("Unsuccessful status code", e))?
-            .json::<BeaconHeaderResponse>()
-            .await
-            .map_err(|e| anyhow::anyhow!("Couldn't parse json {:#?}", e))?;
-
-        tracing::debug!("Read BeaconBlockHeader {:?}", res.data.header.message);
+        let res = self.get_beacon_header_response(state_id).await?;
 
         res.data.header.message.try_into().map_err(|e: ConvertionError| {
             anyhow::anyhow!(
@@ -242,6 +247,11 @@ impl BeaconStateReader for ReqwestBeaconStateReader {
 impl RefSlotResolver for ReqwestBeaconStateReader {
     async fn find_bc_slot_for_refslot(&self, target_slot: ReferenceSlot) -> anyhow::Result<BeaconChainSlot> {
         self.find_bc_slot_for_refslot(target_slot).await
+    }
+
+    async fn is_finalized_slot(&self, target_slot: BeaconChainSlot) -> anyhow::Result<bool> {
+        let header = self.get_beacon_header_response(&StateId::Slot(target_slot)).await?;
+        Ok(header.finalized)
     }
 }
 
@@ -307,6 +317,10 @@ impl BeaconStateReader for CachedReqwestBeaconStateReader {
 impl RefSlotResolver for CachedReqwestBeaconStateReader {
     async fn find_bc_slot_for_refslot(&self, target_slot: ReferenceSlot) -> anyhow::Result<BeaconChainSlot> {
         self.rpc_reader.find_bc_slot_for_refslot(target_slot).await
+    }
+
+    async fn is_finalized_slot(&self, target_slot: BeaconChainSlot) -> anyhow::Result<bool> {
+        self.rpc_reader.is_finalized_slot(target_slot).await
     }
 }
 

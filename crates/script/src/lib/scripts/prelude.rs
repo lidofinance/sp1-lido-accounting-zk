@@ -115,6 +115,19 @@ impl RefSlotResolver for BeaconStateReaderEnum {
             Self::RPCCached(reader) => reader.find_bc_slot_for_refslot(target_slot).await,
         }
     }
+
+    async fn is_finalized_slot(
+        &self,
+        target_slot: sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot,
+    ) -> anyhow::Result<bool> {
+        match self {
+            Self::File(_) => {
+                panic!("File-based BS reader does not support checking slot finality")
+            }
+            Self::RPC(reader) => reader.is_finalized_slot(target_slot).await,
+            Self::RPCCached(reader) => reader.is_finalized_slot(target_slot).await,
+        }
+    }
 }
 
 pub mod env_vars {

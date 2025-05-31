@@ -58,4 +58,6 @@ pub trait RefSlotResolver {
         &self,
         target_slot: ReferenceSlot,
     ) -> impl Future<Output = anyhow::Result<BeaconChainSlot>> + Send;
+
+    fn is_finalized_slot(&self, target_slot: BeaconChainSlot) -> impl Future<Output = anyhow::Result<bool>> + Send;
 }

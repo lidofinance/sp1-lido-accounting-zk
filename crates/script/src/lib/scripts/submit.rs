@@ -44,6 +44,20 @@ pub async fn run(
         .find_bc_slot_for_refslot(target_slot)
         .await?;
 
+    let is_finalized = runtime
+        .ref_slot_resolver()
+        .is_finalized_slot(actual_target_slot)
+        .await?;
+
+    if !is_finalized {
+        tracing::error!(
+            "Target slot {actual_target_slot} resolved for reference slot {target_slot} is not yet finalized."
+        );
+        return Err(anyhow::anyhow!(
+            "Target slot {actual_target_slot} is not yet finalized - aborting"
+        ));
+    }
+
     let network = runtime.network().as_str();
 
     tracing::info!(
