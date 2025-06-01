@@ -60,6 +60,25 @@ pub async fn service_main() {
 
     state.log_config_full();
 
+    state
+        .metric_reporters
+        .metadata
+        .network_chain
+        .with_label_values(&[&env_vars_ref.evm_chain.value])
+        .set(1.0);
+    state
+        .metric_reporters
+        .metadata
+        .app_build_info
+        .with_label_values(&[
+            env!("CARGO_PKG_VERSION"),
+            env!("VERGEN_GIT_SHA"),
+            env!("VERGEN_GIT_BRANCH"),
+            env!("VERGEN_BUILD_TIMESTAMP"),
+            env!("VERGEN_CARGO_TARGET_TRIPLE"),
+        ])
+        .set(1.0);
+
     let shared_state = Arc::new(Mutex::new(state));
 
     let maybe_scheduler_thread = scheduler::launch(Arc::clone(&shared_state), scheduler_span);

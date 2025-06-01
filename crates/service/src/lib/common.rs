@@ -35,7 +35,9 @@ impl AppState {
 }
 
 pub mod prometheus_metrics {
-    use prometheus::{Counter, Gauge, Histogram, HistogramOpts, IntCounter, Opts, Registry};
+    use prometheus::{
+        Counter, Gauge, GaugeVec, Histogram, HistogramOpts, IntCounter, Opts, Registry,
+    };
 
     pub struct Metrics {
         pub metadata: Metadata,
@@ -45,8 +47,8 @@ pub mod prometheus_metrics {
     }
 
     pub struct Metadata {
-        pub network_chain: Gauge,
-        pub app_build_info: Gauge,
+        pub network_chain: GaugeVec,
+        pub app_build_info: GaugeVec,
 
         pub run_report_counter: IntCounter,
         pub scheduler_report_counter: IntCounter,
@@ -112,6 +114,19 @@ pub mod prometheus_metrics {
         gauge
     }
 
+    fn register_gauge_vec(
+        registry: &Registry,
+        namespace: &str,
+        name: &str,
+        help: &str,
+        labels: &[&str],
+    ) -> GaugeVec {
+        let opts = Opts::new(name, help).namespace(namespace.to_string());
+        let gauge = GaugeVec::new(opts, labels).unwrap();
+        registry.register(Box::new(gauge.clone())).unwrap();
+        gauge
+    }
+
     fn register_histogram(
         registry: &Registry,
         namespace: &str,
@@ -128,17 +143,25 @@ pub mod prometheus_metrics {
         let registry = Registry::new();
 
         let metadata = Metadata {
-            network_chain: register_gauge(
+            network_chain: register_gauge_vec(
                 &registry,
                 namespace,
                 "network_chain",
                 "Network Chain ID",
+                &["chain_name"],
             ),
-            app_build_info: register_gauge(
+            app_build_info: register_gauge_vec(
                 &registry,
                 namespace,
                 "app_build_info",
                 "Application Build Info",
+                &[
+                    "version",
+                    "git_sha",
+                    "git_branch",
+                    "build_timestamp",
+                    "target",
+                ],
             ),
 
             run_report_counter: register_int_counter(
