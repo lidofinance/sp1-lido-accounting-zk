@@ -1,7 +1,8 @@
 use std::{num::ParseIntError, path::Path, time::Duration};
 
 use anyhow::anyhow;
-use reqwest::{header::ACCEPT, Client, ClientBuilder};
+use clap::builder::Str;
+use reqwest::{header::ACCEPT, Client, ClientBuilder, Response};
 use serde::{Deserialize, Serialize};
 
 use sp1_lido_accounting_zk_shared::{
@@ -122,8 +123,29 @@ impl ReqwestBeaconStateReader {
         Ok(res)
     }
 
-    fn map_err(label: &str, e: reqwest::Error) -> anyhow::Error {
-        anyhow!("{}: {:#?}", label, e)
+    fn map_err<E: std::fmt::Debug>(label: &str, state_id: &StateId, err: E) -> anyhow::Error {
+        let msg = format!("{}: {:#?}", label, err);
+        tracing::debug!(state_id=?state_id, msg);
+        anyhow!(msg)
+    }
+
+    async fn send_request(&self, url: String, accept_header: &str, state_id: &StateId) -> anyhow::Result<Response> {
+        tracing::debug!(state_id=?state_id, "Sending request to: {url}");
+        let err_msg = format!("Failed to make request {url}");
+        self.client
+            .get(url)
+            .header(ACCEPT, accept_header)
+            .send()
+            .await
+            .inspect(|resp| {
+                tracing::debug!(
+                    state_id=?state_id,
+                    "Received response with status {} and content length {}",
+                    resp.status(),
+                    resp.content_length().map(|v| v.to_string()).unwrap_or("[unknown]".to_string())
+                )
+            })
+            .map_err(|e| Self::map_err(&err_msg, state_id, e))
     }
 
     async fn get_beacon_header_response(&self, state_id: &StateId) -> anyhow::Result<BeaconHeaderResponse> {
@@ -132,20 +154,14 @@ impl ReqwestBeaconStateReader {
             self.consensus_layer_base_uri,
             state_id.as_str()
         );
-        let response = self
-            .client
-            .get(url.clone())
-            .header(ACCEPT, "application/json")
-            .send()
-            .await
-            .map_err(|e| Self::map_err(&format!("Failed to make request {url}"), e))?;
+        let response = self.send_request(url, "application/json", state_id).await?;
 
         let res = response
             .error_for_status()
-            .map_err(|e| Self::map_err("Unsuccessful status code", e))?
+            .map_err(|err| Self::map_err("Unsuccessful status code", state_id, err))?
             .json::<BeaconHeaderResponse>()
             .await
-            .map_err(|e| anyhow::anyhow!("Couldn't parse json {:#?}", e))?;
+            .map_err(|err| Self::map_err("Couldn't parse json", state_id, err))?;
 
         tracing::debug!("Read BeaconBlockHeader {:?}", res.data.header.message);
 
@@ -153,52 +169,41 @@ impl ReqwestBeaconStateReader {
     }
 
     async fn read_bs(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
-        tracing::info!("Loading beacon state for {}", state_id.as_str());
+        tracing::info!("Loading BeaconState for {}", state_id.as_str());
         let url = format!(
             "{}/eth/v2/debug/beacon/states/{}",
             self.beacon_state_base_uri,
             state_id.as_str()
         );
-        tracing::debug!("Url: {url}");
-        let response = self
-            .client
-            .get(url.clone())
-            .header(ACCEPT, "application/octet-stream")
-            .send()
-            .await
-            .map_err(|e| Self::map_err(&format!("Failed to make request {url}"), e))?;
-
-        tracing::debug!(
-            "Received response with status {} and content length {}",
-            response.status(),
-            response
-                .content_length()
-                .map(|v| v.to_string())
-                .unwrap_or("unknown".to_string())
-        );
+        let response = self.send_request(url, "application/octet-stream", state_id).await?;
 
         let bytes = response
             .error_for_status()
-            .map_err(|e| Self::map_err("Unsuccessful status code", e))?
+            .map_err(|err| Self::map_err("Unsuccessful status code", state_id, err))?
             .bytes()
             .await
-            .map_err(|e| Self::map_err("Failed to get response body", e))?;
+            .map_err(|err| Self::map_err("Failed to get response body", state_id, err))?;
 
-        tracing::info!("Received response for {} - {} bytes", state_id.as_str(), bytes.len());
         BeaconState::from_ssz_bytes(&bytes)
-            .map_err(|decode_err| anyhow::anyhow!("Couldn't decode ssz {:#?}", decode_err))
+            .inspect(
+                |bs| tracing::info!(state_id=?state_id, slot=bs.slot, "Read BeaconState {} for {state_id:?}", bs.slot),
+            )
+            .map_err(|decode_err| Self::map_err("Couldn't decode BeaconState ssz", state_id, decode_err))
     }
 
     async fn read_beacon_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
-        tracing::info!("Loading beacon header for {}", state_id.as_str());
+        tracing::info!("Loading beacon header for {state_id:?}");
         let res = self.get_beacon_header_response(state_id).await?;
 
-        res.data.header.message.try_into().map_err(|e: ConvertionError| {
-            anyhow::anyhow!(
-                "Failed to convert Beacon API response DTO to BeaconBlockHeader {:#?}",
-                e
-            )
-        })
+        res.data.header.message.try_into()
+            .inspect(|bh: &BeaconBlockHeader| tracing::debug!(state_id=?state_id, slot=bh.slot, "Loaded BeaconBlockHeader {} for state {state_id:?}", bh.slot))
+            .map_err(|err: ConvertionError| {
+                Self::map_err(
+                    "Failed to convert Beacon API response DTO to BeaconBlockHeader",
+                    state_id,
+                    err,
+                )
+            })
     }
 
     async fn find_bc_slot_for_refslot(&self, target_slot: ReferenceSlot) -> anyhow::Result<BeaconChainSlot> {
@@ -206,8 +211,8 @@ impl ReqwestBeaconStateReader {
         let mut attempt_count: u32 = 0;
         let max_lookback_slot = target_slot.0 - u64::from(MAX_REFERENCE_LOOKBACK_ATTEMPTS);
         tracing::info!(
-        "Finding non-empty slot for reference slot {target_slot} searching from {target_slot} to {max_lookback_slot}"
-    );
+            "Finding non-empty slot for reference slot {target_slot} searching from {target_slot} to {max_lookback_slot}"
+        );
         loop {
             tracing::debug!("Checking slot {attempt_slot}");
             let maybe_header = self
