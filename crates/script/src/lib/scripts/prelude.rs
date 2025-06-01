@@ -12,7 +12,7 @@ use crate::eth_client::{
 };
 use alloy::primitives::Address;
 
-use std::env::{self, VarError};
+use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
@@ -24,7 +24,7 @@ const DEFAULT_DRY_RUN: bool = true; // Fail close
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Failed to read env var {0:?}")]
-    FailedToReadEnvVar(VarError),
+    FailedToReadEnvVar(#[from] std::env::VarError),
 
     #[error("Failed to read network from env var: {0:?}")]
     FailedToParseNetwork(#[from] consts::NetworkParseError),
@@ -32,17 +32,11 @@ pub enum Error {
     #[error("Failed to create beacon state reader: {0:?}")]
     FailedToCreateBeaconState(#[from] beacon_state_reader::InitializationError),
 
-    #[error("Failed to parse URL {0}")]
-    FailedToParseUrl(String),
-
     #[error("Setting {name}: unknown value {value}")]
     UnknownSetting { name: String, value: String },
-}
 
-impl From<VarError> for Error {
-    fn from(err: VarError) -> Self {
-        Error::FailedToReadEnvVar(err)
-    }
+    #[error("Failed to create EL provider")]
+    ELProviderError(#[from] crate::eth_client::ProviderError),
 }
 
 pub enum BeaconStateReaderEnum {
@@ -318,9 +312,11 @@ impl ScriptRuntime {
             .parse()
             .expect("Failed to parse VERIFIER_ADDRESS into Address");
 
+        let provider = ProviderFactory::create_provider_decode_key(private_key, endpoint)?;
+
         let sp1_client = SP1ClientWrapperImpl::new(ProverClient::from_env());
         let beacon_state_reader = BeaconStateReaderEnum::new_from_env(&network)?;
-        let provider = Arc::new(ProviderFactory::create_provider_decode_key(private_key, endpoint));
+        let provider = Arc::new(provider);
         let report_contract = Sp1LidoAccountingReportContractWrapper::new(Arc::clone(&provider), contract_address);
         let hash_consensus_contract = HashConsensusContractWrapper::new(Arc::clone(&provider), hash_consensus_address);
         let eth_client = ExecutionLayerClient::new(Arc::clone(&provider));

@@ -26,41 +26,17 @@ const STORED_PROOF_FILE_NAME: &str = "fixture.json";
 #[derive(Debug, Error)]
 enum ExecutorError {
     #[error("Contract rejected: {0:#?}")]
-    Contract(eth_client::Error),
+    Contract(#[from] eth_client::ContractError),
     #[error("Failed to launch anvil: {0:#?}")]
-    AnvilLaunch(alloy::node_bindings::NodeError),
+    AnvilLaunch(#[from] alloy::node_bindings::NodeError),
     #[error("Eyre error: {0:#?}")]
-    Eyre(eyre::Error),
+    Eyre(#[from] eyre::Error),
     #[error("Anyhow error: {0:#?}")]
-    Anyhow(anyhow::Error),
+    Anyhow(#[from] anyhow::Error),
 }
 
 type Result<T> = std::result::Result<T, ExecutorError>;
 type TestExecutorResult = Result<alloy_primitives::TxHash>;
-
-impl From<eth_client::Error> for ExecutorError {
-    fn from(value: eth_client::Error) -> Self {
-        ExecutorError::Contract(value)
-    }
-}
-
-impl From<alloy::node_bindings::NodeError> for ExecutorError {
-    fn from(value: alloy::node_bindings::NodeError) -> Self {
-        ExecutorError::AnvilLaunch(value)
-    }
-}
-
-impl From<eyre::Error> for ExecutorError {
-    fn from(value: eyre::Error) -> Self {
-        ExecutorError::Eyre(value)
-    }
-}
-
-impl From<anyhow::Error> for ExecutorError {
-    fn from(value: anyhow::Error) -> Self {
-        ExecutorError::Anyhow(value)
-    }
-}
 
 struct TestExecutor<M: Fn(PublicValuesRust) -> PublicValuesRust> {
     env: IntegrationTestEnvironment,
@@ -205,11 +181,11 @@ fn wrap_metadata_mapper(
 
 fn assert_rejects(result: TestExecutorResult) -> Result<()> {
     match result {
-        Err(ExecutorError::Contract(eth_client::Error::Rejection(err))) => {
+        Err(ExecutorError::Contract(eth_client::ContractError::Rejection(err))) => {
             tracing::info!("As expected, contract rejected {:#?}", err);
             Ok(())
         }
-        Err(ExecutorError::Contract(eth_client::Error::CustomRejection(err))) => {
+        Err(ExecutorError::Contract(eth_client::ContractError::CustomRejection(err))) => {
             tracing::info!("As expected, verifier rejected {:#?}", err);
             Ok(())
         }

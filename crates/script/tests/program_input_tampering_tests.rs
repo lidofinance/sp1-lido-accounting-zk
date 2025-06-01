@@ -44,7 +44,7 @@ mod test_consts {
 #[derive(Debug)]
 enum TestError {
     ContractRejected(Sp1LidoAccountingReportContractErrors),
-    OtherRejection(eth_client::Error),
+    OtherRejection(eth_client::ContractError),
     ProofFailed(anyhow::Error),
     Other(anyhow::Error),
 }
@@ -55,10 +55,10 @@ impl From<anyhow::Error> for TestError {
     }
 }
 
-impl From<eth_client::Error> for TestError {
-    fn from(value: eth_client::Error) -> Self {
+impl From<eth_client::ContractError> for TestError {
+    fn from(value: eth_client::ContractError) -> Self {
         match value {
-            eth_client::Error::Rejection(e) => TestError::ContractRejected(e),
+            eth_client::ContractError::Rejection(e) => TestError::ContractRejected(e),
             other => TestError::OtherRejection(other),
         }
     }

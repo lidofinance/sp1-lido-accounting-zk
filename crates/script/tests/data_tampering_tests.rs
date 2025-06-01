@@ -20,13 +20,12 @@ use sp1_lido_accounting_zk_shared::{
 use test_utils::{env::IntegrationTestEnvironment, mark_as_refslot};
 use tree_hash::TreeHash;
 
-type BeaconStateMutator = dyn Fn(BeaconState) -> BeaconState;
 type WithdrawalVaultDataMutator = dyn Fn(WithdrawalVaultData) -> WithdrawalVaultData;
 
 #[derive(Debug)]
 enum TestError {
     ContractRejected(Sp1LidoAccountingReportContractErrors),
-    OtherRejection(eth_client::Error),
+    OtherRejection(eth_client::ContractError),
     ProofFailed(anyhow::Error),
     Other(anyhow::Error),
 }
@@ -37,10 +36,10 @@ impl From<anyhow::Error> for TestError {
     }
 }
 
-impl From<eth_client::Error> for TestError {
-    fn from(value: eth_client::Error) -> Self {
+impl From<eth_client::ContractError> for TestError {
+    fn from(value: eth_client::ContractError) -> Self {
         match value {
-            eth_client::Error::Rejection(e) => TestError::ContractRejected(e),
+            eth_client::ContractError::Rejection(e) => TestError::ContractRejected(e),
             other => TestError::OtherRejection(other),
         }
     }

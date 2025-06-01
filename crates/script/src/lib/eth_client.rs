@@ -14,7 +14,6 @@ use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
-use tracing::Level;
 
 use core::clone::Clone;
 use core::fmt;
@@ -49,7 +48,7 @@ sol! {
 }
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum ContractError {
     #[error("Contract rejected: {0:#?}")]
     Rejection(Sp1LidoAccountingReportContractErrors),
 
@@ -77,7 +76,7 @@ fn map_rpc_error(error: alloy::transports::RpcError<alloy::transports::Transport
 }
 
 impl TryFrom<ReportRust> for Sp1LidoAccountingReportContract::Report {
-    type Error = Error;
+    type Error = ContractError;
     fn try_from(value: ReportRust) -> Result<Self, Self::Error> {
         let result = Sp1LidoAccountingReportContract::Report {
             reference_slot: value.reference_slot.try_into()?,
@@ -91,7 +90,7 @@ impl TryFrom<ReportRust> for Sp1LidoAccountingReportContract::Report {
 }
 
 impl TryFrom<LidoValidatorStateRust> for Sp1LidoAccountingReportContract::LidoValidatorState {
-    type Error = Error;
+    type Error = ContractError;
     fn try_from(value: LidoValidatorStateRust) -> Result<Self, Self::Error> {
         let result = Sp1LidoAccountingReportContract::LidoValidatorState {
             slot: value.slot.try_into()?,
@@ -180,7 +179,7 @@ where
         &self,
         proof: Vec<u8>,
         public_values: Vec<u8>,
-    ) -> Result<alloy_primitives::TxHash, Error> {
+    ) -> Result<alloy_primitives::TxHash, ContractError> {
         let tx_builder = self.contract.submitReportData(proof.into(), public_values.into());
 
         let tx = tx_builder
@@ -193,7 +192,7 @@ where
         Ok(tx_result)
     }
 
-    pub async fn get_latest_validator_state_slot(&self) -> Result<BeaconChainSlot, Error> {
+    pub async fn get_latest_validator_state_slot(&self) -> Result<BeaconChainSlot, ContractError> {
         let latest_report_response = self
             .contract
             .getLatestLidoValidatorStateSlot()
@@ -204,7 +203,7 @@ where
         Ok(BeaconChainSlot(latest_report_slot.to::<u64>()))
     }
 
-    pub async fn get_report(&self, slot: ReferenceSlot) -> Result<ReportRust, Error> {
+    pub async fn get_report(&self, slot: ReferenceSlot) -> Result<ReportRust, ContractError> {
         let report_response = self
             .contract
             .getReport(slot.try_into()?)
@@ -213,7 +212,7 @@ where
             .map_err(|e: alloy::contract::Error| self.map_contract_error(e))?;
 
         if !report_response.success {
-            return Err(Error::ReportNotFound(slot));
+            return Err(ContractError::ReportNotFound(slot));
         }
 
         let report: ReportRust = ReportRust {
@@ -226,15 +225,15 @@ where
         Ok(report)
     }
 
-    fn map_contract_error(&self, error: alloy::contract::Error) -> Error {
+    fn map_contract_error(&self, error: alloy::contract::Error) -> ContractError {
         if let alloy::contract::Error::TransportError(alloy::transports::RpcError::ErrorResp(ref error_payload)) = error
         {
             if let Some(contract_error) =
                 error_payload.as_decoded_interface_error::<Sp1LidoAccountingReportContractErrors>()
             {
-                Error::Rejection(contract_error)
+                ContractError::Rejection(contract_error)
             } else if error_payload.message.contains("execution reverted") {
-                Error::CustomRejection(error_payload.message.to_string())
+                ContractError::CustomRejection(error_payload.message.to_string())
             } else {
                 error.into()
             }
@@ -260,7 +259,7 @@ where
         HashConsensusContractWrapper { contract }
     }
 
-    pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), Error> {
+    pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), ContractError> {
         tracing::info!(
             hash_consensus_address = hex::encode(self.contract.address()),
             "Reading current refslot from HashConsensus"
@@ -364,9 +363,9 @@ impl ProviderFactory {
         ProviderBuilder::new().wallet(wallet).on_http(endpoint)
     }
 
-    pub fn create_provider_decode_key(key_str: String, endpoint: Url) -> DefaultProvider {
-        let key = Self::decode_key(&key_str).expect("Failed to decode private key");
-        Self::create_provider(key, endpoint)
+    pub fn create_provider_decode_key(key_str: String, endpoint: Url) -> Result<DefaultProvider, ProviderError> {
+        let key = Self::decode_key(&key_str)?;
+        Ok(Self::create_provider(key, endpoint))
     }
 }
 
