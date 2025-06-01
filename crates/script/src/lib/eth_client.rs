@@ -261,9 +261,8 @@ where
     }
 
     pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), Error> {
-        tracing::event!(
-            Level::INFO,
-            address = hex::encode(self.contract.address()),
+        tracing::info!(
+            hash_consensus_address = hex::encode(self.contract.address()),
             "Reading current refslot from HashConsensus"
         );
         let result: HashConsensus::getCurrentFrameReturn = self.contract.getCurrentFrame().call().await?;
@@ -295,9 +294,8 @@ where
         block_hash: Hash256,
     ) -> Result<WithdrawalVaultData, RPCError> {
         tracing::info!(
-            "Reading balance proof for address 0x{} at block 0x{}",
-            hex::encode(address),
-            hex::encode(block_hash)
+            widthrawal_vault_address = hex::encode(address),
+            "Reading balance proof for address 0x{address:#?} at block 0x{block_hash:#?}",
         );
 
         let block_hash: RpcBlockHash = RpcBlockHash::from_hash(block_hash.0.into(), Some(true));

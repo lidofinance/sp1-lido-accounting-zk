@@ -7,7 +7,7 @@ use crate::scripts::prelude::ScriptRuntime;
 use alloy_primitives::{Address, TxHash};
 use anyhow::{self, Context};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
-use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
+use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 
 #[derive(Debug, Default)]
 pub struct Flags {
@@ -15,13 +15,24 @@ pub struct Flags {
     pub dry_run: bool,
 }
 
-pub async fn run(
+struct ResolvedSlotValues {
+    /// This is the reference slot for report
+    /// The report will be recorded for this slot in the on-chain contract
+    report_slot: ReferenceSlot,
+    /// Slot used to fetch BeaconState and other components.
+    /// Most often equal to report_slot, unless there were no block for that slot -
+    /// in that case see RefSlotResolver and implementations
+    target_slot: BeaconChainSlot,
+    /// This is the actual (not reference) slot for the old report
+    previous_slot: BeaconChainSlot,
+}
+
+async fn resolve_slot_values(
     runtime: &ScriptRuntime,
     target_slot: Option<ReferenceSlot>,
     prev_slot: Option<ReferenceSlot>,
-    flags: &Flags,
-) -> anyhow::Result<TxHash> {
-    let target_slot = if let Some(slot) = target_slot {
+) -> anyhow::Result<ResolvedSlotValues> {
+    let resolved_target_slot = if let Some(slot) = target_slot {
         slot
     } else {
         tracing::debug!("Reading target slot from hash consensus contract");
@@ -41,7 +52,7 @@ pub async fn run(
     };
     let actual_target_slot = runtime
         .ref_slot_resolver()
-        .find_bc_slot_for_refslot(target_slot)
+        .find_bc_slot_for_refslot(resolved_target_slot)
         .await?;
 
     let is_finalized = runtime
@@ -51,22 +62,55 @@ pub async fn run(
 
     if !is_finalized {
         tracing::error!(
-            "Target slot {actual_target_slot} resolved for reference slot {target_slot} is not yet finalized."
+            target_slot = ?resolved_target_slot,
+            "Target slot {actual_target_slot} resolved for reference slot {resolved_target_slot} is not yet finalized."
         );
         return Err(anyhow::anyhow!(
             "Target slot {actual_target_slot} is not yet finalized - aborting"
         ));
     }
+    Ok(ResolvedSlotValues {
+        report_slot: resolved_target_slot,
+        target_slot: actual_target_slot,
+        previous_slot: actual_previous_slot,
+    })
+}
 
+pub async fn run(
+    runtime: &ScriptRuntime,
+    target_slot: Option<ReferenceSlot>,
+    prev_slot: Option<ReferenceSlot>,
+    flags: &Flags,
+) -> anyhow::Result<TxHash> {
     let network = runtime.network().as_str();
+
+    let resolved_slot_values = resolve_slot_values(runtime, target_slot, prev_slot)
+        .await
+        .inspect(|val| tracing::info!(report_slot=?val.report_slot, target_slot=?val.target_slot, previous_slot=?val.previous_slot, "Resolved ref slot argument to values"))
+        .inspect_err(|e| {
+            tracing::error!(
+                target_slot_input = ?target_slot,
+                previous_slot_input = ?prev_slot,
+                "Failed to resolve arguments {e:?}"
+            )
+        })?;
+
+    let submit_span = tracing::info_span!(
+        "span:submit",
+        report_slot=?resolved_slot_values.report_slot,
+        target_slot=?resolved_slot_values.target_slot,
+        previous_slot=?resolved_slot_values.previous_slot
+    );
+
+    let _unused = submit_span.enter();
 
     tracing::info!(
         "Submitting report for network {:?}, target: (ref={:?}, actual={:?}), previous: (ref={:?}, actual={:?})",
         network,
         target_slot,
-        actual_target_slot,
+        resolved_slot_values.target_slot,
         prev_slot,
-        actual_previous_slot
+        resolved_slot_values.previous_slot
     );
 
     let lido_withdrawal_credentials: Hash256 = runtime.lido_settings.withdrawal_credentials;
@@ -74,15 +118,15 @@ pub async fn run(
 
     let target_bh = runtime
         .bs_reader()
-        .read_beacon_block_header(&StateId::Slot(actual_target_slot))
+        .read_beacon_block_header(&StateId::Slot(resolved_slot_values.target_slot))
         .await?;
     let target_bs = runtime
         .bs_reader()
-        .read_beacon_state(&StateId::Slot(actual_target_slot))
+        .read_beacon_state(&StateId::Slot(resolved_slot_values.target_slot))
         .await?;
     let old_bs = runtime
         .bs_reader()
-        .read_beacon_state(&StateId::Slot(actual_previous_slot))
+        .read_beacon_state(&StateId::Slot(resolved_slot_values.previous_slot))
         .await?;
 
     let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
@@ -93,7 +137,7 @@ pub async fn run(
         .await?;
 
     let (program_input, public_values) = shared_logic::prepare_program_input(
-        target_slot,
+        resolved_slot_values.report_slot,
         &target_bs,
         &target_bh,
         &old_bs,
