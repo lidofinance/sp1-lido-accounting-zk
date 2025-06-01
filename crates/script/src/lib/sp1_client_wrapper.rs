@@ -14,7 +14,7 @@ pub const ELF: &[u8] = include_elf!("sp1-lido-accounting-zk-program");
 
 pub trait SP1ClientWrapper {
     fn vk(&self) -> &'_ SP1VerifyingKey;
-    fn vk_bytes(&self) -> [u8; 32];
+    fn vk_bytes(&self) -> Result<[u8; 32]>;
     fn prove(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues>;
     fn verify_proof(&self, proof: &SP1ProofWithPublicValues) -> Result<()>;
     fn execute(&self, input: ProgramInput) -> Result<(SP1PublicValues, ExecutionReport)>;
@@ -39,7 +39,7 @@ impl SP1ClientWrapperImpl {
     }
 
     fn write_sp1_stdin(&self, program_input: &ProgramInput) -> SP1Stdin {
-        tracing::info!("Writing program input to SP1Stdin");
+        tracing::debug!("Writing program input to SP1Stdin");
         let mut stdin: SP1Stdin = SP1Stdin::new();
         stdin.write(&program_input);
         stdin
@@ -51,13 +51,12 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
         &self.vk
     }
 
-    fn vk_bytes(&self) -> [u8; 32] {
+    fn vk_bytes(&self) -> Result<[u8; 32]> {
         let mut vk_bytes: [u8; 32] = [0; 32];
         let vk = self.vk.bytes32();
         let stripped_vk = vk.strip_prefix("0x").unwrap_or(&vk);
-        hex::decode_to_slice(stripped_vk.as_bytes(), &mut vk_bytes)
-            .expect("Failed to decode verification key to [u8; 32]");
-        vk_bytes
+        hex::decode_to_slice(stripped_vk.as_bytes(), &mut vk_bytes)?;
+        Ok(vk_bytes)
     }
 
     fn prove(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues> {

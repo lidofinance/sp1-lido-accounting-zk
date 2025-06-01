@@ -93,8 +93,10 @@ impl IntegrationTestEnvironment {
         let withdrawal_vault_address = hex!("De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76").into();
         let withdrawal_credentials = hex!("010000000000000000000000De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76").into();
 
+        let vkey = sp1_client.vk_bytes()?;
+
         let deploy_params = prepare_deploy_params(
-            sp1_client.vk_bytes(),
+            vkey,
             &deploy_bs,
             &network,
             sp1_settings.verifier_address,

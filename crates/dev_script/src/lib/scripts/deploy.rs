@@ -31,8 +31,10 @@ async fn compute_from_network(
         .read_beacon_state(&StateId::Slot(target_slot))
         .await?;
 
+    let vkey = runtime.sp1_infra.sp1_client.vk_bytes()?;
+
     Ok(sp1_lido_accounting_scripts::deploy::prepare_deploy_params(
-        runtime.sp1_infra.sp1_client.vk_bytes(),
+        vkey,
         &target_bs,
         runtime.network(),
         runtime.sp1_settings.verifier_address,
