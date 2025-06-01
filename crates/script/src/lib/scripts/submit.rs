@@ -155,7 +155,8 @@ pub async fn run(
         .sp1_infra
         .sp1_client
         .prove(program_input)
-        .context("Failed to generate proof")?;
+        .inspect(|_proof| tracing::info!("Successfully obtained proof"))
+        .inspect_err(|e| tracing::error!("Failed to obtain proof: {e:?}"))?;
     tracing::info!("Generated proof");
 
     if flags.verify {
