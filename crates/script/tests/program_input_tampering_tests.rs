@@ -10,7 +10,7 @@ use sp1_lido_accounting_scripts::scripts::shared::{self as shared_logic, compute
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::StateId,
     eth_client::{self, Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors},
-    sp1_client_wrapper::SP1ClientWrapper,
+    sp1_client_wrapper::{self, SP1ClientWrapper},
 };
 
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconStateFields;
@@ -45,7 +45,7 @@ mod test_consts {
 enum TestError {
     ContractRejected(Sp1LidoAccountingReportContractErrors),
     OtherRejection(eth_client::ContractError),
-    ProofFailed(anyhow::Error),
+    ProofFailed(sp1_client_wrapper::Error),
     Other(anyhow::Error),
 }
 

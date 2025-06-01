@@ -76,14 +76,11 @@ impl BeaconStateReader for FileBasedBeaconStateReader {
         );
         let data = read_binary(beacon_state_path)?;
         BeaconState::from_ssz_bytes(&data)
+            .map_err(|decode_err| anyhow::anyhow!("Couldn't decode BeaconState ssz for {state_id:?} {decode_err:#?}"))
             .inspect(
                 |bs| tracing::debug!(state_id=?state_id, slot=bs.slot, "Read BeaconState {} for {state_id:?}", bs.slot),
             )
-            .map_err(|decode_err| {
-                let msg = format!("Couldn't decode BeaconState ssz for {state_id:?} {decode_err:#?}");
-                tracing::debug!(state_id=?state_id, msg);
-                anyhow::anyhow!(msg)
-            })
+            .inspect_err(|e| tracing::debug!(state_id=?state_id, "{e:?}"))
     }
 
     async fn read_beacon_block_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
@@ -125,12 +122,9 @@ impl FileBeaconStateWriter {
         tracing::info!(slot = bs.slot, "Writing BeaconState {} to {:?}", bs.slot, file_path);
 
         fs::write(file_path, bs.as_ssz_bytes())
+            .map_err(|write_err| anyhow::anyhow!("Couldn't write BeaconState {}, {write_err:#?}", bs.slot))
             .inspect(|_val| tracing::debug!(slot = bs.slot, "Wrote BeaconState {}", bs.slot))
-            .map_err(|write_err| {
-                let msg = format!("Couldn't write BeaconState {}, {write_err:#?}", bs.slot);
-                tracing::debug!(slot = bs.slot, msg);
-                anyhow::anyhow!(msg)
-            })
+            .inspect_err(|e| tracing::debug!(slot = bs.slot, "{e:?}"))
     }
 
     pub fn write_beacon_block_header(&self, bh: &BeaconBlockHeader) -> anyhow::Result<()> {
@@ -140,18 +134,14 @@ impl FileBeaconStateWriter {
 
         let mut serialized: Vec<u8> = Vec::new();
 
-        serde_json::to_writer(&mut serialized, &bh).map_err(|serde_err| {
-            let msg = format!("Couldn't encode BeaconBlockHeader as json: {serde_err:#?}");
-            tracing::debug!(slot = bh.slot, msg);
-            anyhow::anyhow!(msg)
-        })?;
+        serde_json::to_writer(&mut serialized, &bh)
+            .map_err(|serde_err| anyhow::anyhow!("Couldn't encode BeaconBlockHeader as json: {serde_err:#?}"))
+            .inspect(|_val| tracing::debug!(slot = bh.slot, "Serialized BeaconBlockHeader to json"))
+            .inspect_err(|e| tracing::debug!(slot = bh.slot, "{e:?}"))?;
 
         fs::write(file_path, serialized)
+            .map_err(|write_err| anyhow::anyhow!("Couldn't write BeaconBlockHeader {} {write_err:#?}", bh.slot))
             .inspect(|_val| tracing::debug!(slot = bh.slot, "Wrote BeaconBlockHeader {}", bh.slot))
-            .map_err(|write_err| {
-                let msg = format!("Couldn't write BeaconBlockHeader {} {write_err:#?}", bh.slot);
-                tracing::debug!(slot = bh.slot, msg);
-                anyhow::anyhow!(msg)
-            })
+            .inspect_err(|e| tracing::debug!(slot = bh.slot, "{e:?}"))
     }
 }

@@ -7,7 +7,7 @@ use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
     eth_client::{self, Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors},
     scripts::{prelude::BeaconStateReaderEnum, shared as shared_logic},
-    sp1_client_wrapper::SP1ClientWrapper,
+    sp1_client_wrapper::{self, SP1ClientWrapper},
 };
 
 use sp1_lido_accounting_zk_shared::{
@@ -26,7 +26,7 @@ type WithdrawalVaultDataMutator = dyn Fn(WithdrawalVaultData) -> WithdrawalVault
 enum TestError {
     ContractRejected(Sp1LidoAccountingReportContractErrors),
     OtherRejection(eth_client::ContractError),
-    ProofFailed(anyhow::Error),
+    ProofFailed(sp1_client_wrapper::Error),
     Other(anyhow::Error),
 }
 

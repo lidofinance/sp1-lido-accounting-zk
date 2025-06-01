@@ -1,16 +1,30 @@
-use anyhow::anyhow;
-
 use sp1_sdk::{
     EnvProver, ExecutionReport, HashableKey, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
     SP1VerifyingKey,
 };
 
-use anyhow::Result;
 use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
 
 use sp1_sdk::include_elf;
 
 pub const ELF: &[u8] = include_elf!("sp1-lido-accounting-zk-program");
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Failed to generate proof {0:?}")]
+    Sp1ProveError(anyhow::Error), // prove.run uses anyhow::Result, so cannot be more precise
+
+    #[error("Failed to execute program {0:?}")]
+    Sp1ExecuteError(anyhow::Error), // execute.run uses anyhow::Result, so cannot be more precise
+
+    #[error("Failed to verify proof {0:?}")]
+    Sp1VerificationError(#[from] sp1_sdk::SP1VerificationError),
+
+    #[error("Error decoding vkey from hex {0:?}")]
+    HexDecodeErrro(#[from] hex::FromHexError),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait SP1ClientWrapper {
     fn vk(&self) -> &'_ SP1VerifyingKey;
@@ -62,18 +76,30 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
     fn prove(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues> {
         let sp1_stdin = self.write_sp1_stdin(&input);
         let prove_spec = self.client.prove(&self.pk, &sp1_stdin);
-        prove_spec.plonk().run()
+        let result = prove_spec
+            .plonk()
+            .run()
+            .map_err(Error::Sp1ProveError)
+            .inspect(|_v| tracing::info!("Successfully obtained proof"))
+            .inspect_err(|e| tracing::error!("Failed to generate proof: {e:?}"))?;
+        Ok(result)
     }
 
     fn verify_proof(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
         tracing::info!("Verifying proof");
-        self.client
-            .verify(proof, &self.vk)
-            .map_err(|err| anyhow!("Couldn't verify {:#?}", err))
+        self.client.verify(proof, &self.vk)?;
+        Ok(())
     }
 
     fn execute(&self, input: ProgramInput) -> Result<(SP1PublicValues, ExecutionReport)> {
         let sp1_stdin = self.write_sp1_stdin(&input);
-        self.client.execute(self.elf.as_slice(), &sp1_stdin).run()
+        let result = self
+            .client
+            .execute(self.elf.as_slice(), &sp1_stdin)
+            .run()
+            .map_err(Error::Sp1ExecuteError)
+            .inspect(|_v| tracing::info!("Successfully executed program"))
+            .inspect_err(|e| tracing::error!("Failed to execute program: {e:?}"))?;
+        Ok(result)
     }
 }

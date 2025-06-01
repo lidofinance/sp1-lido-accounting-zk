@@ -40,6 +40,7 @@ sol!(
 sol! {
     #[sol(rpc)]
     interface HashConsensus {
+        #[derive(Debug)]
         function getCurrentFrame() external view returns (
             uint256 refSlot,
             uint256 reportProcessingDeadlineSlot
@@ -59,20 +60,38 @@ pub enum ContractError {
     ReportNotFound(ReferenceSlot),
 
     #[error("Other alloy error {0:#?}")]
-    AlloyError(#[from] alloy::contract::Error),
+    OtherAlloyError(alloy::contract::Error),
+
+    #[error("Transaction error {0:#?}")]
+    TransactionError(#[from] alloy::providers::PendingTransactionError),
 
     #[error("{0:#?}")]
     EthIOConversionError(#[from] eth_io::Error),
+}
+
+impl From<alloy::contract::Error> for ContractError {
+    fn from(error: alloy::contract::Error) -> Self {
+        if let alloy::contract::Error::TransportError(alloy::transports::RpcError::ErrorResp(ref error_payload)) = error
+        {
+            if let Some(contract_error) =
+                error_payload.as_decoded_interface_error::<Sp1LidoAccountingReportContractErrors>()
+            {
+                ContractError::Rejection(contract_error)
+            } else if error_payload.message.contains("execution reverted") {
+                ContractError::CustomRejection(error_payload.message.to_string())
+            } else {
+                ContractError::OtherAlloyError(error)
+            }
+        } else {
+            ContractError::OtherAlloyError(error)
+        }
+    }
 }
 
 #[derive(Debug, Error)]
 pub enum RPCError {
     #[error(transparent)]
     Error(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
-}
-
-fn map_rpc_error(error: alloy::transports::RpcError<alloy::transports::TransportErrorKind>) -> RPCError {
-    error.into()
 }
 
 impl TryFrom<ReportRust> for Sp1LidoAccountingReportContract::Report {
@@ -181,24 +200,31 @@ where
         public_values: Vec<u8>,
     ) -> Result<alloy_primitives::TxHash, ContractError> {
         let tx_builder = self.contract.submitReportData(proof.into(), public_values.into());
-
+        tracing::info!("Submitting report transaction");
         let tx = tx_builder
             .send()
             .await
-            .map_err(|e: alloy::contract::Error| self.map_contract_error(e))?;
+            .inspect(|val| tracing::debug!("Submitted transaction {}", val.tx_hash()))
+            .inspect_err(|err| tracing::error!("Failed to submit transaction {err:?}"))?;
 
         tracing::info!("Waiting for report transaction");
-        let tx_result = tx.watch().await.expect("Failed to wait for confirmation");
+        let tx_result = tx
+            .watch()
+            .await
+            .inspect(|val| tracing::info!("Transaction completed {val:#?}"))
+            .inspect_err(|err| tracing::error!("Transaction failed {err:?}"))?;
         Ok(tx_result)
     }
 
     pub async fn get_latest_validator_state_slot(&self) -> Result<BeaconChainSlot, ContractError> {
+        tracing::info!("Getting latest validator state slot");
         let latest_report_response = self
             .contract
             .getLatestLidoValidatorStateSlot()
             .call()
             .await
-            .map_err(|e: alloy::contract::Error| self.map_contract_error(e))?;
+            .inspect(|val| tracing::info!("Obtained latest validator state slot {:#?}", val._0))
+            .inspect_err(|err| tracing::error!("Failed to read latest validator state slot {err:?}"))?;
         let latest_report_slot = latest_report_response._0;
         Ok(BeaconChainSlot(latest_report_slot.to::<u64>()))
     }
@@ -209,9 +235,11 @@ where
             .getReport(slot.try_into()?)
             .call()
             .await
-            .map_err(|e: alloy::contract::Error| self.map_contract_error(e))?;
+            .inspect(|_val| tracing::debug!(slot=?slot, "Obtained report for slot {slot:?}"))
+            .inspect_err(|err| tracing::error!(slot=?slot, "Failed to read report for slot {slot:?}: {err:?}"))?;
 
         if !report_response.success {
+            tracing::warn!(slot=?slot, "Report for slot {slot:?} not found");
             return Err(ContractError::ReportNotFound(slot));
         }
 
@@ -223,23 +251,6 @@ where
             lido_withdrawal_vault_balance: report_response.withdrawalVaultBalanceWei.to(),
         };
         Ok(report)
-    }
-
-    fn map_contract_error(&self, error: alloy::contract::Error) -> ContractError {
-        if let alloy::contract::Error::TransportError(alloy::transports::RpcError::ErrorResp(ref error_payload)) = error
-        {
-            if let Some(contract_error) =
-                error_payload.as_decoded_interface_error::<Sp1LidoAccountingReportContractErrors>()
-            {
-                ContractError::Rejection(contract_error)
-            } else if error_payload.message.contains("execution reverted") {
-                ContractError::CustomRejection(error_payload.message.to_string())
-            } else {
-                error.into()
-            }
-        } else {
-            error.into()
-        }
     }
 }
 
@@ -264,7 +275,13 @@ where
             hash_consensus_address = hex::encode(self.contract.address()),
             "Reading current refslot from HashConsensus"
         );
-        let result: HashConsensus::getCurrentFrameReturn = self.contract.getCurrentFrame().call().await?;
+        let result: HashConsensus::getCurrentFrameReturn = self
+            .contract
+            .getCurrentFrame()
+            .call()
+            .await
+            .inspect(|val| tracing::info!(refslot = ?val.refSlot, "Got response from hash consensus {:?}", val))
+            .inspect_err(|err| tracing::error!("Failed to current frame from hash consensus {err:?}"))?;
         Ok((
             result.refSlot.try_into()?,
             result.reportProcessingDeadlineSlot.try_into()?,
@@ -312,7 +329,8 @@ where
                     account_proof: proof_as_vecs,
                 }
             })
-            .map_err(map_rpc_error)?;
+            .inspect(|_val| tracing::info!("Successully read withdrawal vault data"))
+            .inspect_err(|e| tracing::error!("Failed to read withdrawal vault data {e:?}"))?;
 
         Ok(response)
     }
