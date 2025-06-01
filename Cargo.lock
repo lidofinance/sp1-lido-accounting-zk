@@ -5750,6 +5750,7 @@ dependencies = [
  "json-subscriber",
  "k256",
  "lazy_static",
+ "prometheus",
  "rand 0.9.1",
  "reqwest",
  "serde",

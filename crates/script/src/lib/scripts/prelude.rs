@@ -2,6 +2,7 @@ use crate::beacon_state_reader::file::FileBasedBeaconStateReader;
 use crate::beacon_state_reader::reqwest::{CachedReqwestBeaconStateReader, ReqwestBeaconStateReader};
 use crate::beacon_state_reader::{self, BeaconStateReader, RefSlotResolver, StateId};
 use crate::consts::{self, NetworkInfo, WrappedNetwork};
+use crate::prometheus_metrics::Metrics;
 use crate::sp1_client_wrapper::SP1ClientWrapperImpl;
 use crate::tracing::LogFormat;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
@@ -262,6 +263,7 @@ pub struct ScriptRuntime {
     pub lido_infra: LidoInfrastructure,
     pub lido_settings: LidoSettings,
     pub sp1_settings: Sp1Settings,
+    pub metrics: Metrics,
     pub dry_run: bool,
 }
 
@@ -272,6 +274,7 @@ impl ScriptRuntime {
         lido_infra: LidoInfrastructure,
         lido_settings: LidoSettings,
         sp1_settings: Sp1Settings,
+        metrics: Metrics,
         dry_run: bool,
     ) -> Self {
         Self {
@@ -280,6 +283,7 @@ impl ScriptRuntime {
             lido_infra,
             lido_settings,
             sp1_settings,
+            metrics,
             dry_run,
         }
     }
@@ -321,6 +325,7 @@ impl ScriptRuntime {
             Sp1Settings {
                 verifier_address: env_vars.sp1_verifier_address.value,
             },
+            Metrics::new(&env_vars.prometheus_namespace.value),
             env_vars.dry_run.value,
         );
         Ok(result)

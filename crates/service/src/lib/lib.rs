@@ -1,6 +1,8 @@
-use common::{prometheus_metrics::setup_prometheus, AppState};
+use common::AppState;
 
+use prometheus::Registry;
 use sp1_lido_accounting_scripts::{
+    prometheus_metrics::{self, Metrics, Registar},
     scripts::{self, prelude::EnvVars},
     tracing as tracing_config,
     utils::read_env,
@@ -23,7 +25,11 @@ pub async fn service_main() {
     let env_vars = EnvVars::init_from_env_or_crash();
 
     // Prometheus setup
-    let (registry, metric_reporters) = setup_prometheus(&env_vars.prometheus_namespace.value);
+    let registry = Registry::new();
+    let metric_reporters = Metrics::new(&env_vars.prometheus_namespace.value);
+    metric_reporters
+        .register_on(&registry)
+        .unwrap_or_else(|e| panic!("Failed to create metrics {e:?}"));
 
     // Initialize script runtime
     let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
@@ -34,7 +40,6 @@ pub async fn service_main() {
 
     let state = AppState {
         registry,
-        metric_reporters,
         env_vars,
         script_runtime,
         submit_flags: scripts::submit::Flags {
@@ -61,13 +66,15 @@ pub async fn service_main() {
     state.log_config_full();
 
     state
-        .metric_reporters
+        .script_runtime
+        .metrics
         .metadata
         .network_chain
         .with_label_values(&[&env_vars_ref.evm_chain.value])
         .set(1.0);
     state
-        .metric_reporters
+        .script_runtime
+        .metrics
         .metadata
         .app_build_info
         .with_label_values(&[

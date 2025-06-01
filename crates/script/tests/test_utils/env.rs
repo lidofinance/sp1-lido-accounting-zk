@@ -4,6 +4,7 @@ use sp1_lido_accounting_scripts::{
     consts::{NetworkConfig, NetworkInfo, WrappedNetwork},
     deploy::prepare_deploy_params,
     eth_client::{EthELClient, HashConsensusContractWrapper, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
+    prometheus_metrics::Metrics,
     scripts::{
         self,
         prelude::{
@@ -134,6 +135,7 @@ impl IntegrationTestEnvironment {
             },
             lido_settings,
             sp1_settings,
+            Metrics::new("irrelevant"),
             false,
         );
 

@@ -3,6 +3,7 @@ pub mod consts;
 pub mod deploy;
 pub mod env;
 pub mod eth_client;
+pub mod prometheus_metrics;
 pub mod proof_storage;
 pub mod scripts;
 pub mod sp1_client_wrapper;

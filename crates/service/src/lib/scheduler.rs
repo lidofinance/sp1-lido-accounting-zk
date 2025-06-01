@@ -30,9 +30,11 @@ async fn scheduler_loop(state: Arc<Mutex<AppState>>, schedule: Schedule, timezon
 async fn submit_report(state: Arc<Mutex<AppState>>) {
     let state = state.lock().await;
     state
-        .metric_reporters
+        .script_runtime
+        .metrics
         .metadata
-        .scheduler_report_counter
+        .run_report_counter
+        .with_label_values(&["scheduler"])
         .inc();
     let result = run_submit(&state, None, None).await;
     match result {
