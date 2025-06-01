@@ -12,7 +12,7 @@ use sp1_lido_accounting_scripts::utils::read_env;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 use std::{any::type_name_of_val, net::SocketAddr, sync::Arc, thread};
 use tokio::sync::Mutex;
-use tracing::Span;
+use tracing::{Instrument, Span};
 
 use crate::common::{run_submit, AppState};
 
@@ -77,28 +77,31 @@ async fn run_report_handler(
     Query(params): Query<RunReportParams>,
     Extension(parent_span): Extension<Span>,
 ) -> (axum::http::StatusCode, axum::Json<RunReportResponse>) {
-    let _entered = parent_span.enter();
-    let state = state_extractor.lock().await;
-    state.metric_reporters.run_report_counter.inc();
+    async {
+        let state = state_extractor.lock().await;
+        state.metric_reporters.run_report_counter.inc();
 
-    let result = run_submit(
-        &state,
-        params.target_ref_slot.map(ReferenceSlot),
-        params.previous_ref_slot.map(ReferenceSlot),
-    )
-    .await;
+        let result = run_submit(
+            &state,
+            params.target_ref_slot.map(ReferenceSlot),
+            params.previous_ref_slot.map(ReferenceSlot),
+        )
+        .await;
 
-    match result {
-        Ok(tx_hash) => {
-            let response_body = RunReportResponse::Success { tx_hash };
-            (StatusCode::OK, Json(response_body))
-        }
-        Err(e) => {
-            let response_body = RunReportResponse::Error {
-                kind: type_name_of_val(&e).to_string(),
-                message: e.to_string(),
-            };
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(response_body))
+        match result {
+            Ok(tx_hash) => {
+                let response_body = RunReportResponse::Success { tx_hash };
+                (StatusCode::OK, Json(response_body))
+            }
+            Err(e) => {
+                let response_body = RunReportResponse::Error {
+                    kind: type_name_of_val(&e).to_string(),
+                    message: e.to_string(),
+                };
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(response_body))
+            }
         }
     }
+    .instrument(parent_span)
+    .await
 }

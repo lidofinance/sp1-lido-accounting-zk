@@ -8,6 +8,7 @@ use alloy_primitives::{Address, TxHash};
 use anyhow::{self, Context};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
+use tracing::Instrument;
 
 #[derive(Debug, Default)]
 pub struct Flags {
@@ -76,37 +77,16 @@ async fn resolve_slot_values(
     })
 }
 
-pub async fn run(
+async fn run_with_span(
     runtime: &ScriptRuntime,
+    resolved_slot_values: ResolvedSlotValues,
     target_slot: Option<ReferenceSlot>,
     prev_slot: Option<ReferenceSlot>,
     flags: &Flags,
 ) -> anyhow::Result<TxHash> {
-    let network = runtime.network().as_str();
-
-    let resolved_slot_values = resolve_slot_values(runtime, target_slot, prev_slot)
-        .await
-        .inspect(|val| tracing::info!(report_slot=?val.report_slot, target_slot=?val.target_slot, previous_slot=?val.previous_slot, "Resolved ref slot argument to values"))
-        .inspect_err(|e| {
-            tracing::error!(
-                target_slot_input = ?target_slot,
-                previous_slot_input = ?prev_slot,
-                "Failed to resolve arguments {e:?}"
-            )
-        })?;
-
-    let submit_span = tracing::info_span!(
-        "span:submit",
-        report_slot=?resolved_slot_values.report_slot,
-        target_slot=?resolved_slot_values.target_slot,
-        previous_slot=?resolved_slot_values.previous_slot
-    );
-
-    let _unused = submit_span.enter();
-
     tracing::info!(
         "Submitting report for network {:?}, target: (ref={:?}, actual={:?}), previous: (ref={:?}, actual={:?})",
-        network,
+        runtime.network().as_str(),
         target_slot,
         resolved_slot_values.target_slot,
         prev_slot,
@@ -181,4 +161,33 @@ pub async fn run(
         .inspect(|tx_hash| tracing::info!("Report accepted, transaction: {tx_hash}"))
         .inspect_err(|e| tracing::error!("Failed to submit report: {e:?}"))?;
     Ok(tx_hash)
+}
+
+pub async fn run(
+    runtime: &ScriptRuntime,
+    target_slot: Option<ReferenceSlot>,
+    prev_slot: Option<ReferenceSlot>,
+    flags: &Flags,
+) -> anyhow::Result<TxHash> {
+    let resolved_slot_values = resolve_slot_values(runtime, target_slot, prev_slot)
+        .await
+        .inspect(|val| tracing::info!(report_slot=?val.report_slot, target_slot=?val.target_slot, previous_slot=?val.previous_slot, "Resolved ref slot argument to values"))
+        .inspect_err(|e| {
+            tracing::error!(
+                target_slot_input = ?target_slot,
+                previous_slot_input = ?prev_slot,
+                "Failed to resolve arguments {e:?}"
+            )
+        })?;
+
+    let submit_span = tracing::info_span!(
+        "span:submit",
+        report_slot=?resolved_slot_values.report_slot,
+        target_slot=?resolved_slot_values.target_slot,
+        previous_slot=?resolved_slot_values.previous_slot
+    );
+
+    run_with_span(runtime, resolved_slot_values, target_slot, prev_slot, flags)
+        .instrument(submit_span)
+        .await
 }

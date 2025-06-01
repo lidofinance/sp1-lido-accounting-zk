@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use sp1_lido_accounting_dev_scripts::scripts as dev_scripts;
-use sp1_lido_accounting_scripts::{consts::NetworkInfo, scripts};
+use sp1_lido_accounting_scripts::{
+    consts::NetworkInfo,
+    scripts::{self, prelude::EnvVars},
+};
 use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
 
 /*
@@ -40,7 +43,9 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
     let args = PreDeployArgs::parse();
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+    let env_vars = EnvVars::init_from_env_or_crash();
+
+    let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
         .expect("Failed to initialize script runtime");
 
     tracing::info!(

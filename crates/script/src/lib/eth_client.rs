@@ -281,7 +281,7 @@ where
             .call()
             .await
             .inspect(|val| tracing::info!(refslot = ?val.refSlot, "Got response from hash consensus {:?}", val))
-            .inspect_err(|err| tracing::error!("Failed to current frame from hash consensus {err:?}"))?;
+            .inspect_err(|err| tracing::error!("Failed to read current frame from hash consensus {err:?}"))?;
         Ok((
             result.refSlot.try_into()?,
             result.reportProcessingDeadlineSlot.try_into()?,

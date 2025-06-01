@@ -1,5 +1,6 @@
 use clap::Parser;
 use sp1_lido_accounting_scripts::scripts;
+use sp1_lido_accounting_scripts::scripts::prelude::EnvVars;
 use sp1_lido_accounting_scripts::tracing as tracing_config;
 use sp1_lido_accounting_scripts::utils::read_env;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
@@ -31,7 +32,10 @@ async fn main() -> anyhow::Result<()> {
     let args = ProveArgs::parse();
     tracing::debug!("Args: {:?}", args);
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env().expect("Failed to initialize script runtime");
+    let env_vars = EnvVars::init_from_env_or_crash();
+
+    let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
+        .unwrap_or_else(|e| panic!("Failed to initialize script runtime: {e:?}"));
 
     let flags = scripts::submit::Flags {
         verify: args.local_verify,

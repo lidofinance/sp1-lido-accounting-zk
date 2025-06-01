@@ -1,7 +1,10 @@
 use clap::Parser;
 use sp1_lido_accounting_dev_scripts::scripts as dev_scripts;
 use sp1_lido_accounting_scripts::{
-    consts::NetworkInfo, scripts, tracing as tracing_config, utils::read_env,
+    consts::NetworkInfo,
+    scripts::{self, prelude::EnvVars},
+    tracing as tracing_config,
+    utils::read_env,
 };
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
@@ -25,7 +28,9 @@ async fn main() {
     let args = ExecuteArgs::parse();
     tracing::debug!("Args: {:?}", args);
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+    let env_vars = EnvVars::init_from_env_or_crash();
+
+    let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
         .expect("Failed to initialize script runtime");
 
     let main_span =

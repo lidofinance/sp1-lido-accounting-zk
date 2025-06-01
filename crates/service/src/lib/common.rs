@@ -1,24 +1,33 @@
 use prometheus::{IntCounter, Registry};
 use sp1_lido_accounting_scripts::scripts::{self};
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
-use tracing::Level;
 
 pub struct AppState {
     pub registry: Registry,
     pub metric_reporters: PrometheusCounters,
+    pub env_vars: scripts::prelude::EnvVars,
     pub script_runtime: scripts::prelude::ScriptRuntime,
     pub submit_flags: scripts::submit::Flags,
 }
 
 impl AppState {
-    pub fn log_config(&self) {
-        tracing::event!(
-            Level::INFO,
-            env_vars = ?self.script_runtime.env_vars,
-            "Script runtime parameters",
+    pub fn log_config_full(&self) {
+        tracing::info!(
+            env_vars = ?self.env_vars.for_logging(false),
+            "Env vars",
         );
-        tracing::event!(
-            Level::INFO,
+        tracing::debug!(
+            submit_flags = ?self.submit_flags,
+            "Script flags",
+        );
+    }
+
+    pub fn log_config_important(&self) {
+        tracing::info!(
+            env_vars = ?self.env_vars.for_logging(true),
+            "Env vars",
+        );
+        tracing::info!(
             submit_flags = ?self.submit_flags,
             "Script flags",
         );
@@ -61,7 +70,7 @@ pub async fn run_submit(
     refslot: Option<ReferenceSlot>,
     previous_slot: Option<ReferenceSlot>,
 ) -> Result<String, anyhow::Error> {
-    state.log_config();
+    state.log_config_important();
     scripts::submit::run(
         &state.script_runtime,
         refslot,

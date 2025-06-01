@@ -1,6 +1,10 @@
 use common::{setup_prometheus, AppState};
 
-use sp1_lido_accounting_scripts::{scripts, tracing as tracing_config, utils::read_env};
+use sp1_lido_accounting_scripts::{
+    scripts::{self, prelude::EnvVars},
+    tracing as tracing_config,
+    utils::read_env,
+};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -19,9 +23,11 @@ pub async fn service_main() {
     // Prometheus setup
     let (registry, metric_reporters) = setup_prometheus();
 
+    let env_vars = EnvVars::init_from_env_or_crash();
+
     // Initialize script runtime
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
-        .expect("Failed to initialize script runtime");
+    let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
+        .unwrap_or_else(|e| panic!("Failed to initialize script runtime {e:?}"));
     let dry_run = script_runtime.is_dry_run();
 
     tracing::info!(dry_run = dry_run, "DRY_RUN: {}", dry_run);
@@ -29,6 +35,7 @@ pub async fn service_main() {
     let state = AppState {
         registry,
         metric_reporters,
+        env_vars,
         script_runtime,
         submit_flags: scripts::submit::Flags {
             verify: false,
@@ -36,14 +43,14 @@ pub async fn service_main() {
         },
     };
 
-    let env_vars = state.script_runtime.env_vars.as_ref();
+    let env_vars_ref = &state.env_vars;
 
     // Everything on this span will be appended to all messages
     let main_span = tracing::info_span!(
         "span:main",
-        chain = env_vars.map(|v| v.evm_chain.value.clone()),
-        chain_id = env_vars.map(|v| v.evm_chain_id.value.clone()),
-        prover = env_vars.map(|v| v.sp1_prover.value.clone()),
+        chain = env_vars_ref.evm_chain.value.clone(),
+        chain_id = env_vars_ref.evm_chain_id.value.clone(),
+        prover = env_vars_ref.sp1_prover.value.clone(),
         dry_run = dry_run,
     );
     let scheduler_span = main_span.clone();
@@ -51,7 +58,7 @@ pub async fn service_main() {
 
     let _entered = main_span.entered();
 
-    state.log_config();
+    state.log_config_full();
 
     let shared_state = Arc::new(Mutex::new(state));
 

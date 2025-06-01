@@ -33,7 +33,7 @@ async fn submit_report(state: Arc<Mutex<AppState>>) {
     let result = run_submit(&state, None, None).await;
     match result {
         Ok(tx_hash) => tracing::info!("Successfully submitted report, txhash: {}", tx_hash),
-        Err(e) => tracing::error!("Failed to submit report: {e:?}"),
+        Err(e) => tracing::error!("Failed to run: {e:?}"),
     }
 }
 

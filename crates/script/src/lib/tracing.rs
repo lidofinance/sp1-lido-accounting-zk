@@ -7,7 +7,7 @@ use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 
 static INIT: Once = Once::new();
 
-#[derive(PartialEq, FromStr)]
+#[derive(Debug, Clone, PartialEq, FromStr)]
 pub enum LogFormat {
     Plain,
     Json,

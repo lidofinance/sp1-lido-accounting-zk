@@ -1,5 +1,6 @@
 use clap::Parser;
 use sp1_lido_accounting_scripts::consts::NetworkInfo;
+use sp1_lido_accounting_scripts::scripts::prelude::EnvVars;
 use sp1_lido_accounting_scripts::{proof_storage, scripts};
 
 use std::env;
@@ -17,8 +18,9 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
     let args = ProveArgs::parse();
     tracing::debug!("Args: {:?}", args);
+    let env_vars = EnvVars::init_from_env_or_crash();
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+    let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
         .expect("Failed to initialize script runtime");
     let network = script_runtime.network();
 

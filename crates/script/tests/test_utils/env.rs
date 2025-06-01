@@ -134,7 +134,7 @@ impl IntegrationTestEnvironment {
             },
             lido_settings,
             sp1_settings,
-            None,
+            false,
         );
 
         let instance = Self {
@@ -165,7 +165,7 @@ impl IntegrationTestEnvironment {
     }
 
     pub async fn get_balance_proof(&self, state_id: &StateId) -> anyhow::Result<WithdrawalVaultData> {
-        let address = self.script_runtime.lido_settings.withdrawal_vault_address.into();
+        let address = self.script_runtime.lido_settings.withdrawal_vault_address;
         let bs: BeaconState = self.get_beacon_state(state_id).await?;
         let execution_layer_block_hash = bs.latest_execution_payload_header.block_hash;
         let withdrawal_vault_data = self

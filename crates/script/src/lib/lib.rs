@@ -1,6 +1,7 @@
 pub mod beacon_state_reader;
 pub mod consts;
 pub mod deploy;
+pub mod env;
 pub mod eth_client;
 pub mod proof_storage;
 pub mod scripts;

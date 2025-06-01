@@ -6,6 +6,7 @@ use sp1_lido_accounting_dev_scripts::scripts as dev_scripts;
 use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
 use sp1_lido_accounting_scripts::consts::NetworkInfo;
 use sp1_lido_accounting_scripts::scripts;
+use sp1_lido_accounting_scripts::scripts::prelude::EnvVars;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
 #[derive(Parser, Debug)]
@@ -22,8 +23,9 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
     let args = ProveArgs::parse();
     tracing::debug!("Args: {:?}", args);
+    let env_vars = EnvVars::init_from_env_or_crash();
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+    let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
         .expect("Failed to initialize script runtime");
 
     let refslot = match args.target_ref_slot {

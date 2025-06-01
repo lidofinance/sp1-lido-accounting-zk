@@ -6,6 +6,7 @@ use eth_trie::MemoryDB;
 use eth_trie::{EthTrie, Trie};
 use simple_logger::SimpleLogger;
 
+use sp1_lido_accounting_scripts::scripts::prelude::EnvVars;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
     scripts,
@@ -15,7 +16,9 @@ use sp1_lido_accounting_zk_shared::eth_execution_layer::EthAccountRlpValue;
 #[tokio::main]
 async fn main() {
     SimpleLogger::new().env().init().unwrap();
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+    let env_vars = EnvVars::init_from_env_or_crash();
+
+    let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
         .expect("Failed to initialize script runtime");
 
     let bs = script_runtime

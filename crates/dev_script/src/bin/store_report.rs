@@ -1,6 +1,6 @@
 use clap::Parser;
 use sp1_lido_accounting_dev_scripts::scripts as dev_scripts;
-use sp1_lido_accounting_scripts::scripts;
+use sp1_lido_accounting_scripts::scripts::{self, prelude::EnvVars};
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 
 // cargo run --bin submit --release -- --target-slot 5982336 --store --local-verify
@@ -19,8 +19,9 @@ async fn main() -> anyhow::Result<()> {
     sp1_sdk::utils::setup_logger();
     let args = ProveArgs::parse();
     tracing::debug!("Args: {:?}", args);
+    let env_vars = EnvVars::init_from_env_or_crash();
 
-    let script_runtime = scripts::prelude::ScriptRuntime::init_from_env()
+    let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
         .expect("Failed to initialize script runtime");
 
     dev_scripts::store_report::run(
