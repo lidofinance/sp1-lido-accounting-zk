@@ -30,7 +30,7 @@ pub enum Error {
     FailedToParseNetwork(#[from] consts::NetworkParseError),
 
     #[error("Failed to create beacon state reader: {0:?}")]
-    FailedToCreateBeaconState(#[from] beacon_state_reader::Error),
+    FailedToCreateBeaconState(#[from] beacon_state_reader::InitializationError),
 
     #[error("Failed to parse URL {0}")]
     FailedToParseUrl(String),
@@ -65,7 +65,7 @@ impl BeaconStateReaderEnum {
             "rpc" => {
                 let rpc_endpoint = env::var("CONSENSUS_LAYER_RPC")?;
                 let bs_endpoint = env::var("BEACON_STATE_RPC")?;
-                let reqwest_reader = ReqwestBeaconStateReader::new(&rpc_endpoint, &bs_endpoint);
+                let reqwest_reader = ReqwestBeaconStateReader::new(&rpc_endpoint, &bs_endpoint)?;
                 Ok(BeaconStateReaderEnum::RPC(reqwest_reader))
             }
             "rpc_cached" => {

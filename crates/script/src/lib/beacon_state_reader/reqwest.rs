@@ -16,6 +16,8 @@ use super::{
 };
 use ssz::Decode;
 
+pub use reqwest::Error as ReqwestError; // reexporting
+
 #[derive(Debug)]
 pub enum ConvertionError {
     FailedToParseIntField(ParseIntError),
@@ -106,17 +108,18 @@ impl ReqwestBeaconStateReader {
         base_url.strip_suffix('/').unwrap_or(base_url).to_owned()
     }
 
-    pub fn new(consensus_layer_base_uri: &str, beacon_state_base_uri: &str) -> Self {
-        let client = ClientBuilder::new()
-            .timeout(Duration::new(300, 0))
-            .build()
-            .expect("Failed to create http client");
+    pub fn new(
+        consensus_layer_base_uri: &str,
+        beacon_state_base_uri: &str,
+    ) -> Result<Self, super::InitializationError> {
+        let client = ClientBuilder::new().timeout(Duration::new(300, 0)).build()?;
 
-        Self {
+        let res = Self {
             consensus_layer_base_uri: Self::normalize_url(consensus_layer_base_uri),
             beacon_state_base_uri: Self::normalize_url(beacon_state_base_uri),
             client,
-        }
+        };
+        Ok(res)
     }
 
     fn map_err(label: &str, e: reqwest::Error) -> anyhow::Error {
@@ -274,9 +277,9 @@ impl CachedReqwestBeaconStateReader {
         consensus_layer_base_uri: &str,
         beacon_state_base_uri: &str,
         file_store: &Path,
-    ) -> Result<Self, super::Error> {
+    ) -> Result<Self, super::InitializationError> {
         let result = Self {
-            rpc_reader: ReqwestBeaconStateReader::new(consensus_layer_base_uri, beacon_state_base_uri),
+            rpc_reader: ReqwestBeaconStateReader::new(consensus_layer_base_uri, beacon_state_base_uri)?,
             file_reader: FileBasedBeaconStateReader::new(file_store)?,
             file_writer: FileBeaconStateWriter::new(file_store)?,
         };

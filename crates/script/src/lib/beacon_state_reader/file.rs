@@ -6,14 +6,14 @@ use std::{env, fs};
 
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 
-use super::{BeaconStateReader, Error, StateId};
+use super::{BeaconStateReader, InitializationError, StateId};
 
 pub struct FileBasedBeaconChainStore {
     pub store_location: PathBuf,
 }
 
 impl FileBasedBeaconChainStore {
-    pub fn new(store_location: &Path) -> Result<Self, Error> {
+    pub fn new(store_location: &Path) -> Result<Self, InitializationError> {
         let store_location = Self::abs_path(store_location.to_path_buf())?;
         Ok(Self { store_location })
     }
@@ -59,7 +59,7 @@ pub struct FileBasedBeaconStateReader {
 }
 
 impl FileBasedBeaconStateReader {
-    pub fn new(store_location: &Path) -> Result<Self, Error> {
+    pub fn new(store_location: &Path) -> Result<Self, InitializationError> {
         Ok(Self {
             file_store: FileBasedBeaconChainStore::new(store_location)?,
         })
@@ -90,7 +90,7 @@ pub struct FileBeaconStateWriter {
 }
 
 impl FileBeaconStateWriter {
-    pub fn new(store_location: &Path) -> Result<Self, Error> {
+    pub fn new(store_location: &Path) -> Result<Self, InitializationError> {
         Ok(Self {
             file_store: FileBasedBeaconChainStore::new(store_location)?,
         })

@@ -9,9 +9,11 @@ pub mod file;
 pub mod reqwest;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum InitializationError {
     #[error("Failed to initialize due to io error {0:?}")]
     IoError(#[from] std::io::Error),
+    #[error("Failed to initialize reqwest client")]
+    CannotCreateReqwestClient(#[from] reqwest::ReqwestError),
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]

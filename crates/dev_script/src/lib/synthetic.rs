@@ -45,7 +45,7 @@ impl SyntheticBeaconStateCreator {
         ssz_store_location: &Path,
         with_check: bool,
         suppress_generator_output: bool,
-    ) -> Result<Self, sp1_lido_accounting_scripts::beacon_state_reader::Error> {
+    ) -> Result<Self, sp1_lido_accounting_scripts::beacon_state_reader::InitializationError> {
         Ok(Self {
             file_store: FileBasedBeaconChainStore::new(ssz_store_location)?,
             with_check,
