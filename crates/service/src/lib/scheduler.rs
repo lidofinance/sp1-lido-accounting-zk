@@ -29,7 +29,11 @@ async fn scheduler_loop(state: Arc<Mutex<AppState>>, schedule: Schedule, timezon
 
 async fn submit_report(state: Arc<Mutex<AppState>>) {
     let state = state.lock().await;
-    state.metric_reporters.scheduler_report_counter.inc();
+    state
+        .metric_reporters
+        .metadata
+        .scheduler_report_counter
+        .inc();
     let result = run_submit(&state, None, None).await;
     match result {
         Ok(tx_hash) => tracing::info!("Successfully submitted report, txhash: {}", tx_hash),

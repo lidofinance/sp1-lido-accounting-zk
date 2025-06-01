@@ -23,6 +23,7 @@ use thiserror::Error;
 use alloy::transports::http::reqwest::Url;
 
 const DEFAULT_DRY_RUN: bool = true; // Fail close
+const DEFAULT_PROMETHEUS_NAMESPACE: &str = "zk_accounting_sp1";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -151,6 +152,8 @@ pub struct EnvVars {
     pub execution_layer_rpc: EnvVarValue<Url>,
     pub consensus_layer_rpc: EnvVarValue<Url>,
     pub beacon_state_rpc: EnvVarValue<Url>,
+
+    pub prometheus_namespace: EnvVarValue<String>,
 }
 
 impl EnvVars {
@@ -178,6 +181,7 @@ impl EnvVars {
             execution_layer_rpc: crate::env::EXECUTION_LAYER_RPC.required(),
             consensus_layer_rpc: crate::env::CONSENSUS_LAYER_RPC.required(),
             beacon_state_rpc: crate::env::BEACON_STATE_RPC.required(),
+            prometheus_namespace: crate::env::PROMETHEUS_NAMESPACE.default(DEFAULT_PROMETHEUS_NAMESPACE.to_owned()),
         }
     }
 
@@ -218,6 +222,7 @@ impl EnvVars {
             result.insert("execution_layer_rpc", self.execution_layer_rpc.value.to_string());
             result.insert("consensus_layer_rpc", self.consensus_layer_rpc.value.to_string());
             result.insert("beacon_state_rpc", self.beacon_state_rpc.value.to_string());
+            result.insert("prometheus_namespace", self.prometheus_namespace.value.to_string());
         }
 
         result

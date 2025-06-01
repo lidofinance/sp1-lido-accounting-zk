@@ -1,4 +1,4 @@
-use common::{setup_prometheus, AppState};
+use common::{prometheus_metrics::setup_prometheus, AppState};
 
 use sp1_lido_accounting_scripts::{
     scripts::{self, prelude::EnvVars},
@@ -20,10 +20,10 @@ pub async fn service_main() {
             .use_format(read_env("LOG_FORMAT", tracing_config::LogFormat::Plain)),
     );
 
-    // Prometheus setup
-    let (registry, metric_reporters) = setup_prometheus();
-
     let env_vars = EnvVars::init_from_env_or_crash();
+
+    // Prometheus setup
+    let (registry, metric_reporters) = setup_prometheus(&env_vars.prometheus_namespace.value);
 
     // Initialize script runtime
     let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)

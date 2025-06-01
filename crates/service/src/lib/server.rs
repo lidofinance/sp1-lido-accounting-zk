@@ -79,7 +79,7 @@ async fn run_report_handler(
 ) -> (axum::http::StatusCode, axum::Json<RunReportResponse>) {
     async {
         let state = state_extractor.lock().await;
-        state.metric_reporters.run_report_counter.inc();
+        state.metric_reporters.metadata.run_report_counter.inc();
 
         let result = run_submit(
             &state,
