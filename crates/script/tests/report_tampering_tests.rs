@@ -60,7 +60,7 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
 
     async fn run_test(&self) -> TestExecutorResult {
         sp1_sdk::utils::setup_logger();
-        let lido_withdrawal_credentials: Hash256 = self.env.script_runtime.lido_settings.withdrawal_credentials.into();
+        let lido_withdrawal_credentials: Hash256 = self.env.script_runtime.lido_settings.withdrawal_credentials;
         let stored_proof = self.get_stored_proof()?;
 
         let reference_slot = stored_proof.report.reference_slot;
@@ -298,7 +298,7 @@ async fn report_tampering_report_exited_count() -> Result<()> {
 async fn report_tampering_metadata_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.bc_slot = new_metadata.bc_slot - 10;
+        new_metadata.bc_slot -= 10;
         new_metadata
     }))
     .await?;
@@ -310,7 +310,7 @@ async fn report_tampering_metadata_slot() -> Result<()> {
 async fn report_tampering_metadata_slot2() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.bc_slot = new_metadata.bc_slot + 10;
+        new_metadata.bc_slot += 10;
         new_metadata
     }))
     .await?;
@@ -359,7 +359,7 @@ async fn report_tampering_metadata_beacon_block_hash() -> Result<()> {
 async fn report_tampering_metadata_old_state_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.state_for_previous_report.slot = new_metadata.state_for_previous_report.slot - 10;
+        new_metadata.state_for_previous_report.slot -= 10;
         new_metadata
     }))
     .await?;
@@ -384,7 +384,7 @@ async fn report_tampering_metadata_old_state_merkle_root() -> Result<()> {
 async fn report_tampering_metadata_new_state_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.new_state.slot = new_metadata.new_state.slot + 10;
+        new_metadata.new_state.slot += 10;
         new_metadata
     }))
     .await?;
