@@ -1,4 +1,4 @@
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use anyhow;
 use prometheus::{
@@ -25,6 +25,14 @@ pub mod services {
         pub const PROVE: &str = "prove";
         pub const EXECUTE: &str = "execute";
         pub const VERIFY: &str = "verify";
+    }
+
+    pub mod beacon_state_reader {
+        pub const READ_BEACON_STATE: &str = "read_beacon_state";
+        pub const READ_BEACON_BLOCK_HEADER: &str = "read_beacon_block_header";
+
+        pub const WEITE_BEACON_STATE: &str = "write_beacon_state";
+        pub const WRITE_BEACON_BLOCK_HEADER: &str = "write_beacon_block_header";
     }
 }
 
@@ -97,9 +105,6 @@ impl Registar for Report {
     }
 }
 
-// TODO: these are lightweight, so cloning is OK...
-// But not very elegant
-#[derive(Clone)]
 pub struct Service {
     pub call_count: UIntCounterVec,
     pub retry_count: UIntGaugeVec,
@@ -180,10 +185,10 @@ impl Service {
 }
 
 pub struct Services {
-    pub eth_client: Service,
-    pub beacon_state_client: Service,
-    pub hash_consensus: Service,
-    pub sp1_client: Service,
+    pub eth_client: Arc<Service>,
+    pub beacon_state_client: Arc<Service>,
+    pub hash_consensus: Arc<Service>,
+    pub sp1_client: Arc<Service>,
 }
 
 impl Registar for Services {
@@ -219,11 +224,6 @@ fn gauge<TVal: Atomic>(namespace: &str, name: &str, help: &str) -> GenericGauge<
 fn gauge_vec<TVal: Atomic>(namespace: &str, name: &str, help: &str, labels: &[&str]) -> GenericGaugeVec<TVal> {
     let opts = Opts::new(name, help).namespace(namespace.to_string());
     GenericGaugeVec::new(opts, labels).unwrap()
-}
-
-fn counter<TVal: Atomic>(namespace: &str, name: &str, help: &str) -> GenericCounter<TVal> {
-    let opts = Opts::new(name, help).namespace(namespace.to_string());
-    GenericCounter::with_opts(opts).unwrap()
 }
 
 fn counter_vec<TVal: Atomic>(namespace: &str, name: &str, help: &str, labels: &[&str]) -> GenericCounterVec<TVal> {
@@ -308,10 +308,10 @@ impl Metrics {
         };
 
         let services = Services {
-            eth_client: build_service_metrics(namespace, "eth_client"),
-            beacon_state_client: build_service_metrics(namespace, "beacon_state_client"),
-            hash_consensus: build_service_metrics(namespace, "hash_consensus"),
-            sp1_client: build_service_metrics(namespace, "sp1_client"),
+            eth_client: Arc::new(build_service_metrics(namespace, "eth_client")),
+            beacon_state_client: Arc::new(build_service_metrics(namespace, "beacon_state_client")),
+            hash_consensus: Arc::new(build_service_metrics(namespace, "hash_consensus")),
+            sp1_client: Arc::new(build_service_metrics(namespace, "sp1_client")),
         };
 
         let execution = Execution {

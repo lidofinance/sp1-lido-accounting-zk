@@ -1,4 +1,4 @@
-use std::{num::ParseIntError, path::Path, time::Duration};
+use std::{num::ParseIntError, path::Path, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use clap::builder::Str;
@@ -10,6 +10,8 @@ use sp1_lido_accounting_zk_shared::{
     io::eth_io::{BeaconChainSlot, HaveSlotWithBlock, ReferenceSlot},
 };
 use tree_hash::TreeHash;
+
+use crate::prometheus_metrics;
 
 use super::{
     file::{FileBasedBeaconStateReader, FileBeaconStateWriter},
@@ -102,6 +104,7 @@ pub struct ReqwestBeaconStateReader {
     consensus_layer_base_uri: String,
     beacon_state_base_uri: String,
     client: Client,
+    metrics_reporter: Arc<prometheus_metrics::Service>,
 }
 
 impl ReqwestBeaconStateReader {
@@ -112,6 +115,7 @@ impl ReqwestBeaconStateReader {
     pub fn new(
         consensus_layer_base_uri: &str,
         beacon_state_base_uri: &str,
+        metrics_reporter: Arc<prometheus_metrics::Service>,
     ) -> Result<Self, super::InitializationError> {
         let client = ClientBuilder::new().timeout(Duration::new(300, 0)).build()?;
 
@@ -119,6 +123,7 @@ impl ReqwestBeaconStateReader {
             consensus_layer_base_uri: Self::normalize_url(consensus_layer_base_uri),
             beacon_state_base_uri: Self::normalize_url(beacon_state_base_uri),
             client,
+            metrics_reporter,
         };
         Ok(res)
     }
@@ -148,7 +153,7 @@ impl ReqwestBeaconStateReader {
             .map_err(|e| Self::map_err(&err_msg, state_id, e))
     }
 
-    async fn get_beacon_header_response(&self, state_id: &StateId) -> anyhow::Result<BeaconHeaderResponse> {
+    async fn get_beacon_header_response_impl(&self, state_id: &StateId) -> anyhow::Result<BeaconHeaderResponse> {
         let url = format!(
             "{}/eth/v1/beacon/headers/{}",
             self.consensus_layer_base_uri,
@@ -168,7 +173,16 @@ impl ReqwestBeaconStateReader {
         Ok(res)
     }
 
-    async fn read_bs(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+    async fn get_beacon_header_response(&self, state_id: &StateId) -> anyhow::Result<BeaconHeaderResponse> {
+        self.metrics_reporter
+            .run_with_metrics_and_logs_async(
+                prometheus_metrics::services::beacon_state_reader::READ_BEACON_BLOCK_HEADER,
+                || self.get_beacon_header_response_impl(state_id),
+            )
+            .await
+    }
+
+    async fn read_bs_impl(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
         tracing::info!("Loading BeaconState for {}", state_id.as_str());
         let url = format!(
             "{}/eth/v2/debug/beacon/states/{}",
@@ -189,6 +203,15 @@ impl ReqwestBeaconStateReader {
                 |bs| tracing::info!(state_id=?state_id, slot=bs.slot, "Read BeaconState {} for {state_id:?}", bs.slot),
             )
             .map_err(|decode_err| Self::map_err("Couldn't decode BeaconState ssz", state_id, decode_err))
+    }
+
+    async fn read_bs(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+        self.metrics_reporter
+            .run_with_metrics_and_logs_async(
+                prometheus_metrics::services::beacon_state_reader::READ_BEACON_STATE,
+                || self.read_bs_impl(state_id),
+            )
+            .await
     }
 
     async fn read_beacon_header(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
@@ -282,11 +305,16 @@ impl CachedReqwestBeaconStateReader {
         consensus_layer_base_uri: &str,
         beacon_state_base_uri: &str,
         file_store: &Path,
+        metric_reporter: Arc<prometheus_metrics::Service>,
     ) -> Result<Self, super::InitializationError> {
         let result = Self {
-            rpc_reader: ReqwestBeaconStateReader::new(consensus_layer_base_uri, beacon_state_base_uri)?,
-            file_reader: FileBasedBeaconStateReader::new(file_store)?,
-            file_writer: FileBeaconStateWriter::new(file_store)?,
+            rpc_reader: ReqwestBeaconStateReader::new(
+                consensus_layer_base_uri,
+                beacon_state_base_uri,
+                Arc::clone(&metric_reporter),
+            )?,
+            file_reader: FileBasedBeaconStateReader::new(file_store, Arc::clone(&metric_reporter))?,
+            file_writer: FileBeaconStateWriter::new(file_store, Arc::clone(&metric_reporter))?,
         };
         Ok(result)
     }

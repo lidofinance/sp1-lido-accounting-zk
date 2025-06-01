@@ -1,5 +1,7 @@
 mod test_utils;
 
+use std::sync::Arc;
+
 use alloy_sol_types::SolType;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
@@ -198,7 +200,7 @@ fn assert_rejects(result: TestExecutorResult) -> Result<()> {
 fn check_vkey_matches() -> Result<()> {
     let sp1_client = SP1ClientWrapperImpl::new(
         ProverClient::from_env(),
-        prometheus_metrics::build_service_metrics("irrelevant", "sp1_client"),
+        Arc::new(prometheus_metrics::build_service_metrics("irrelevant", "sp1_client")),
     );
     let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
     let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;

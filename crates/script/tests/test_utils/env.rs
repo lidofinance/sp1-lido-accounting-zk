@@ -48,8 +48,9 @@ impl IntegrationTestEnvironment {
     pub async fn new(network: WrappedNetwork, deploy_slot: BeaconChainSlot) -> anyhow::Result<Self> {
         let metrics = Metrics::new("irrelevant");
 
-        let beacon_state_reader = BeaconStateReaderEnum::new_from_env(&network)
-            .map_err(|e| anyhow::anyhow!("Failed to create beacon state reader {e:?}"))?;
+        let beacon_state_reader =
+            BeaconStateReaderEnum::new_from_env(&network, metrics.services.beacon_state_client.clone())
+                .map_err(|e| anyhow::anyhow!("Failed to create beacon state reader {e:?}"))?;
 
         let target_slot = Self::finalized_slot(&beacon_state_reader).await?;
         let finalized_bs = Self::read_latest_bs_at_or_before(&beacon_state_reader, target_slot, RETRIES).await?;

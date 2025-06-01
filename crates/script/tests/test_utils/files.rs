@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{env, path::PathBuf};
 
 use eyre::{eyre, Result, WrapErr};
@@ -7,7 +8,7 @@ use sp1_lido_accounting_scripts::consts::NetworkInfo;
 use sp1_lido_accounting_scripts::eth_client::ContractDeployParametersRust;
 use sp1_lido_accounting_scripts::proof_storage::StoredProof;
 use sp1_lido_accounting_scripts::utils::read_json;
-use sp1_lido_accounting_scripts::{proof_storage, utils};
+use sp1_lido_accounting_scripts::{prometheus_metrics, proof_storage, utils};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
 use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
@@ -60,7 +61,11 @@ impl TestFiles {
     }
 
     pub async fn read_beacon_state(&self, state_id: &StateId) -> Result<BeaconState> {
-        let file_reader = FileBasedBeaconStateReader::new(&self.beacon_states()).expect("Failed to create file reader");
+        let file_reader = FileBasedBeaconStateReader::new(
+            &self.beacon_states(),
+            Arc::new(prometheus_metrics::build_service_metrics("irrelevant", "file_reader")),
+        )
+        .expect("Failed to create file reader");
         file_reader
             .read_beacon_state(state_id)
             .await
@@ -68,7 +73,11 @@ impl TestFiles {
     }
 
     pub async fn read_beacon_block_header(&self, state_id: &StateId) -> Result<BeaconBlockHeader> {
-        let file_reader = FileBasedBeaconStateReader::new(&self.beacon_states()).expect("Failed to create file reader");
+        let file_reader = FileBasedBeaconStateReader::new(
+            &self.beacon_states(),
+            Arc::new(prometheus_metrics::build_service_metrics("irrelevant", "file_reader")),
+        )
+        .expect("Failed to create file reader");
         file_reader
             .read_beacon_block_header(state_id)
             .await

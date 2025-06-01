@@ -261,14 +261,14 @@ where
     P: alloy::providers::Provider<Ethereum>,
 {
     contract: HashConsensusInstance<(), Arc<P>>,
-    metric_reporter: prometheus_metrics::Service,
+    metric_reporter: Arc<prometheus_metrics::Service>,
 }
 
 impl<P> HashConsensusContractWrapper<P>
 where
     P: alloy::providers::Provider<Ethereum>,
 {
-    pub fn new(provider: Arc<P>, contract_address: Address, metric_reporter: prometheus_metrics::Service) -> Self {
+    pub fn new(provider: Arc<P>, contract_address: Address, metric_reporter: Arc<prometheus_metrics::Service>) -> Self {
         let contract = HashConsensusInstance::new(contract_address, Arc::clone(&provider));
         HashConsensusContractWrapper {
             contract,
@@ -303,14 +303,14 @@ where
     P: alloy::providers::Provider<Ethereum>,
 {
     provider: Arc<P>,
-    metric_reporter: prometheus_metrics::Service,
+    metric_reporter: Arc<prometheus_metrics::Service>,
 }
 
 impl<P> ExecutionLayerClient<P>
 where
     P: alloy::providers::Provider<Ethereum>,
 {
-    pub fn new(provider: Arc<P>, metric_reporter: prometheus_metrics::Service) -> Self {
+    pub fn new(provider: Arc<P>, metric_reporter: Arc<prometheus_metrics::Service>) -> Self {
         Self {
             provider,
             metric_reporter,

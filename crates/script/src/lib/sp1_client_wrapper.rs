@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sp1_sdk::{
     EnvProver, ExecutionReport, HashableKey, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
     SP1VerifyingKey,
@@ -38,14 +40,14 @@ pub trait SP1ClientWrapper {
 
 pub struct SP1ClientWrapperImpl {
     client: EnvProver,
-    metric_reporter: prometheus_metrics::Service,
+    metric_reporter: Arc<prometheus_metrics::Service>,
     elf: Vec<u8>,
     pk: SP1ProvingKey,
     vk: SP1VerifyingKey,
 }
 
 impl SP1ClientWrapperImpl {
-    pub fn new(client: EnvProver, metric_reporter: prometheus_metrics::Service) -> Self {
+    pub fn new(client: EnvProver, metric_reporter: Arc<prometheus_metrics::Service>) -> Self {
         let (pk, vk) = client.setup(ELF);
         Self {
             client,

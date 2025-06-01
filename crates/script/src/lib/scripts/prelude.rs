@@ -2,7 +2,7 @@ use crate::beacon_state_reader::file::FileBasedBeaconStateReader;
 use crate::beacon_state_reader::reqwest::{CachedReqwestBeaconStateReader, ReqwestBeaconStateReader};
 use crate::beacon_state_reader::{self, BeaconStateReader, RefSlotResolver, StateId};
 use crate::consts::{self, NetworkInfo, WrappedNetwork};
-use crate::prometheus_metrics::Metrics;
+use crate::prometheus_metrics::{self, Metrics};
 use crate::sp1_client_wrapper::SP1ClientWrapperImpl;
 use crate::tracing::LogFormat;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
@@ -51,20 +51,24 @@ pub enum BeaconStateReaderEnum {
 }
 
 impl BeaconStateReaderEnum {
-    pub fn new_from_env(network: &impl NetworkInfo) -> Result<BeaconStateReaderEnum, Error> {
+    pub fn new_from_env(
+        network: &impl NetworkInfo,
+        metric_reporter: Arc<prometheus_metrics::Service>,
+    ) -> Result<BeaconStateReaderEnum, Error> {
         let bs_reader_mode_var = env::var("BS_READER_MODE")?;
 
         match bs_reader_mode_var.to_lowercase().as_str() {
             "file" => {
                 let file_store_location = env::var("BS_FILE_STORE")?;
                 let file_store = PathBuf::from(file_store_location).join(network.as_str());
-                let file_reader = FileBasedBeaconStateReader::new(&file_store)?;
+                let file_reader = FileBasedBeaconStateReader::new(&file_store, Arc::clone(&metric_reporter))?;
                 Ok(BeaconStateReaderEnum::File(file_reader))
             }
             "rpc" => {
                 let rpc_endpoint = env::var("CONSENSUS_LAYER_RPC")?;
                 let bs_endpoint = env::var("BEACON_STATE_RPC")?;
-                let reqwest_reader = ReqwestBeaconStateReader::new(&rpc_endpoint, &bs_endpoint)?;
+                let reqwest_reader =
+                    ReqwestBeaconStateReader::new(&rpc_endpoint, &bs_endpoint, Arc::clone(&metric_reporter))?;
                 Ok(BeaconStateReaderEnum::RPC(reqwest_reader))
             }
             "rpc_cached" => {
@@ -72,7 +76,12 @@ impl BeaconStateReaderEnum {
                 let rpc_endpoint = env::var("CONSENSUS_LAYER_RPC")?;
                 let bs_endpoint = env::var("BEACON_STATE_RPC")?;
                 let file_store = PathBuf::from(file_store_location).join(network.as_str());
-                let cached_reader = CachedReqwestBeaconStateReader::new(&rpc_endpoint, &bs_endpoint, &file_store)?;
+                let cached_reader = CachedReqwestBeaconStateReader::new(
+                    &rpc_endpoint,
+                    &bs_endpoint,
+                    &file_store,
+                    Arc::clone(&metric_reporter),
+                )?;
                 Ok(BeaconStateReaderEnum::RPCCached(cached_reader))
             }
             unknown_value => Err(Error::UnknownSetting {
@@ -293,20 +302,24 @@ impl ScriptRuntime {
             env_vars.private_key.value.clone(),
             env_vars.execution_layer_rpc.value.clone(),
         )?);
-        let network = env_vars.evm_chain.value.clone().parse::<WrappedNetwork>()?;
-        let beacon_state_reader = BeaconStateReaderEnum::new_from_env(&network)?;
-
         let metrics = Metrics::new(&env_vars.prometheus_namespace.value);
+
+        let network = env_vars.evm_chain.value.clone().parse::<WrappedNetwork>()?;
+        let beacon_state_reader =
+            BeaconStateReaderEnum::new_from_env(&network, Arc::clone(&metrics.services.beacon_state_client))?;
 
         let result = Self::new(
             EthInfrastructure {
                 network,
                 provider: Arc::clone(&provider),
-                eth_client: ExecutionLayerClient::new(Arc::clone(&provider), metrics.services.eth_client.clone()),
+                eth_client: ExecutionLayerClient::new(Arc::clone(&provider), Arc::clone(&metrics.services.eth_client)),
                 beacon_state_reader,
             },
             Sp1Infrastructure {
-                sp1_client: SP1ClientWrapperImpl::new(ProverClient::from_env(), metrics.services.sp1_client.clone()),
+                sp1_client: SP1ClientWrapperImpl::new(
+                    ProverClient::from_env(),
+                    Arc::clone(&metrics.services.sp1_client),
+                ),
             },
             LidoInfrastructure {
                 report_contract: Sp1LidoAccountingReportContractWrapper::new(
@@ -316,7 +329,7 @@ impl ScriptRuntime {
                 hash_consensus_contract: HashConsensusContractWrapper::new(
                     Arc::clone(&provider),
                     env_vars.hash_consensus_address.value,
-                    metrics.services.hash_consensus.clone(),
+                    Arc::clone(&metrics.services.hash_consensus),
                 ),
             },
             LidoSettings {
