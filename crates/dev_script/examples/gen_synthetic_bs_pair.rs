@@ -1,14 +1,15 @@
 use simple_logger::SimpleLogger;
 use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 use tree_hash::TreeHash;
 
 use sp1_lido_accounting_dev_scripts::synthetic::{
     BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator,
 };
 
-use sp1_lido_accounting_scripts::beacon_state_reader::{
-    file::FileBasedBeaconStateReader, BeaconStateReader, StateId,
+use sp1_lido_accounting_scripts::{
+    beacon_state_reader::{file::FileBasedBeaconStateReader, BeaconStateReader, StateId},
+    prometheus_metrics,
 };
 
 fn small_problem_size(old_slot: u64, new_slot: u64) -> (GenerationSpec, GenerationSpec) {
@@ -89,8 +90,14 @@ async fn main() {
         .await
         .unwrap_or_else(|_| panic!("Failed to create beacon state for slot {}", new_slot));
 
-    let bs_reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(&ssz_folder)
-        .expect("Failed to create file based beacon state reader");
+    let bs_reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(
+        &ssz_folder,
+        Arc::new(prometheus_metrics::build_service_metrics(
+            "irrelevant",
+            "file_reader",
+        )),
+    )
+    .expect("Failed to create file based beacon state reader");
 
     let beacon_state1 = bs_reader
         .read_beacon_state(&StateId::Slot(BeaconChainSlot(old_slot)))

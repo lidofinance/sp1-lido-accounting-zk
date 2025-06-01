@@ -1,7 +1,7 @@
 use axum::{
     extract::{Json, Query},
     http::StatusCode,
-    response::Response,
+    response::{IntoResponse, Response},
     routing::{get, post},
     Extension, Router,
 };
@@ -36,7 +36,7 @@ async fn run_server(state: Arc<Mutex<AppState>>, parent_span: Span) {
     // Build routes
     let app = Router::new()
         .route("/health", get(health))
-        .route("/metrics", get(metrics))
+        .route("/metrics", get(metrics_handler))
         .route("/run-report", post(run_report_handler))
         .layer(Extension(parent_span.clone()))
         .with_state(state);
@@ -54,16 +54,25 @@ async fn health() -> &'static str {
     "ok"
 }
 
-async fn metrics(state: axum::extract::State<Arc<Mutex<AppState>>>) -> Response {
+async fn metrics_handler(state: axum::extract::State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
     let state = state.lock().await;
-    let mut buffer = Vec::new();
-    let encoder = TextEncoder::new();
-    let mf = state.registry.gather();
-    encoder.encode(&mf, &mut buffer).unwrap();
-    Response::builder()
-        .header("Content-Type", encoder.format_type())
-        .body(buffer.into())
-        .unwrap()
+
+    match state.report_metrics() {
+        Ok((buffer, format)) => Response::builder()
+            .header("Content-Type", format)
+            .body(buffer.into())
+            .map(|response| (StatusCode::OK, response))
+            .unwrap_or_else(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to create response for metrics".into_response(),
+                )
+            }),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to collect metrics".into_response(),
+        ),
+    }
 }
 
 #[derive(Serialize, Deserialize)]

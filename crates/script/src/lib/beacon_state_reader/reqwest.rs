@@ -1,7 +1,6 @@
 use std::{num::ParseIntError, path::Path, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
-use clap::builder::Str;
 use reqwest::{header::ACCEPT, Client, ClientBuilder, Response};
 use serde::{Deserialize, Serialize};
 

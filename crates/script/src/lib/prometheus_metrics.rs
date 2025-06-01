@@ -2,7 +2,7 @@ use std::{future::Future, sync::Arc};
 
 use anyhow;
 use prometheus::{
-    core::{Atomic, AtomicU64, GenericCounter, GenericCounterVec, GenericGauge, GenericGaugeVec},
+    core::{Atomic, AtomicU64, GenericCounterVec, GenericGauge, GenericGaugeVec},
     GaugeVec, Histogram, HistogramOpts, HistogramVec, IntCounterVec, IntGauge, Opts, Registry,
 };
 
@@ -49,6 +49,7 @@ pub struct Metrics {
 
 impl Registar for Metrics {
     fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
+        // tracing::debug!("Refistering on {:?}", &registry as *const _ as usize);
         self.metadata.register_on(registry)?;
         self.report.register_on(registry)?;
         self.services.register_on(registry)?;
@@ -61,15 +62,6 @@ pub struct Metadata {
     pub network_chain: GaugeVec,
     pub app_build_info: GaugeVec,
     pub run_report_counter: IntCounterVec,
-}
-
-impl Registar for Metadata {
-    fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
-        registry.register(Box::new(self.network_chain.clone()))?;
-        registry.register(Box::new(self.app_build_info.clone()))?;
-        registry.register(Box::new(self.run_report_counter.clone()))?;
-        Ok(())
-    }
 }
 
 pub type UIntGauge = GenericGauge<AtomicU64>;
@@ -89,35 +81,104 @@ pub struct Report {
     pub state_changed_validators: UIntGauge,
 }
 
-impl Registar for Report {
-    fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
-        registry.register(Box::new(self.refslot.clone()))?;
-        registry.register(Box::new(self.refslot_epoch.clone()))?;
-        registry.register(Box::new(self.old_slot.clone()))?;
-        registry.register(Box::new(self.timestamp.clone()))?;
-        registry.register(Box::new(self.num_validators.clone()))?;
-        registry.register(Box::new(self.num_lido_validators.clone()))?;
-        registry.register(Box::new(self.cl_balance_gwei.clone()))?;
-        registry.register(Box::new(self.withdrawal_vault_balance_gwei.clone()))?;
-        registry.register(Box::new(self.state_new_validators.clone()))?;
-        registry.register(Box::new(self.state_changed_validators.clone()))?;
-        Ok(())
-    }
-}
-
 pub struct Service {
+    pub name: String,
     pub call_count: UIntCounterVec,
     pub retry_count: UIntGaugeVec,
     pub execution_time_seconds: HistogramVec,
     pub status: UIntCounterVec,
 }
 
+pub struct Services {
+    pub eth_client: Arc<Service>,
+    pub beacon_state_client: Arc<Service>,
+    pub hash_consensus: Arc<Service>,
+    pub sp1_client: Arc<Service>,
+}
+
+pub struct Execution {
+    pub execution_time_seconds: Histogram,
+    pub sp1_cycle_count: UIntGauge,
+    pub outcome: UIntCounterVec,
+}
+
+macro_rules! register_metric {
+    ($registry:expr, $component:expr, $name:expr, $metric:expr) => {{
+        tracing::debug!(component = $component, "Registering {} collector", $name);
+        $registry.register(Box::new($metric.clone()))
+    }};
+}
+
+impl Registar for Metadata {
+    fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
+        register_metric!(registry, "metadata", "network_chain", self.network_chain)?;
+        register_metric!(registry, "metadata", "app_build_info", self.app_build_info)?;
+        register_metric!(registry, "metadata", "run_report_counter", self.run_report_counter)?;
+        Ok(())
+    }
+}
+
+impl Registar for Report {
+    fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
+        register_metric!(registry, "report", "refslot", self.refslot)?;
+        register_metric!(registry, "report", "refslot_epoch", self.refslot_epoch)?;
+        register_metric!(registry, "report", "old_slot", self.old_slot)?;
+        register_metric!(registry, "report", "timestamp", self.timestamp)?;
+        register_metric!(registry, "report", "num_validators", self.num_validators)?;
+        register_metric!(registry, "report", "num_lido_validators", self.num_lido_validators)?;
+        register_metric!(registry, "report", "cl_balance_gwei", self.cl_balance_gwei)?;
+        register_metric!(
+            registry,
+            "report",
+            "withdrawal_vault_balance_gwei",
+            self.withdrawal_vault_balance_gwei
+        )?;
+        register_metric!(registry, "report", "state_new_validators", self.state_new_validators)?;
+        register_metric!(
+            registry,
+            "report",
+            "state_changed_validators",
+            self.state_changed_validators
+        )?;
+        Ok(())
+    }
+}
+
 impl Registar for Service {
     fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
-        registry.register(Box::new(self.call_count.clone()))?;
-        registry.register(Box::new(self.retry_count.clone()))?;
-        registry.register(Box::new(self.execution_time_seconds.clone()))?;
-        registry.register(Box::new(self.status.clone()))?;
+        register_metric!(registry, &self.name, "call_count", self.call_count)?;
+        register_metric!(registry, &self.name, "retry_count", self.retry_count)?;
+        register_metric!(
+            registry,
+            &self.name,
+            "execution_time_seconds",
+            self.execution_time_seconds
+        )?;
+        register_metric!(registry, &self.name, "status", self.status)?;
+        Ok(())
+    }
+}
+
+impl Registar for Services {
+    fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
+        self.eth_client.register_on(registry)?;
+        self.beacon_state_client.register_on(registry)?;
+        self.hash_consensus.register_on(registry)?;
+        self.sp1_client.register_on(registry)?;
+        Ok(())
+    }
+}
+
+impl Registar for Execution {
+    fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
+        register_metric!(
+            registry,
+            "execution",
+            "execution_time_seconds",
+            self.execution_time_seconds
+        )?;
+        register_metric!(registry, "execution", "sp1_cycle_count", self.sp1_cycle_count)?;
+        register_metric!(registry, "execution", "outcome", self.outcome)?;
         Ok(())
     }
 }
@@ -127,7 +188,7 @@ impl Service {
     where
         F: FnOnce() -> Result<T, E>,
     {
-        tracing::debug!("Starting {operation}");
+        tracing::debug!(component = self.name, operation = operation, "Starting {operation}");
         let timer = self
             .execution_time_seconds
             .with_label_values(&[operation])
@@ -139,11 +200,21 @@ impl Service {
         let result = response
             .inspect(|_val| {
                 self.status.with_label_values(&[operation, outcome::SUCCESS]).inc();
-                tracing::debug!("{operation} succeded")
+                tracing::info!(
+                    component = self.name,
+                    operation = operation,
+                    "{} {operation} succeded",
+                    self.name
+                )
             })
             .inspect_err(|e| {
                 self.status.with_label_values(&[operation, outcome::ERROR]).inc();
-                tracing::error!("{operation} failed: {e:?}")
+                tracing::error!(
+                    component = self.name,
+                    operation = operation,
+                    "{} {operation} failed: {e:?}",
+                    self.name
+                )
             })?;
 
         timer.observe_duration();
@@ -160,6 +231,7 @@ impl Service {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<T, E>>,
     {
+        tracing::debug!(component = self.name, operation = operation, "Starting {operation}");
         let timer = self
             .execution_time_seconds
             .with_label_values(&[operation])
@@ -171,48 +243,26 @@ impl Service {
         let result = response
             .inspect(|_val| {
                 self.status.with_label_values(&[operation, outcome::SUCCESS]).inc();
-                tracing::info!("{operation} succeded")
+                tracing::info!(
+                    component = self.name,
+                    operation = operation,
+                    "{} {operation} succeded",
+                    self.name
+                )
             })
             .inspect_err(|e| {
                 self.status.with_label_values(&[operation, outcome::ERROR]).inc();
-                tracing::error!("{operation} failed: {e:?}")
+                tracing::error!(
+                    component = self.name,
+                    operation = operation,
+                    "{} {operation} failed: {e:?}",
+                    self.name
+                )
             })?;
 
         timer.observe_duration();
 
         Ok(result)
-    }
-}
-
-pub struct Services {
-    pub eth_client: Arc<Service>,
-    pub beacon_state_client: Arc<Service>,
-    pub hash_consensus: Arc<Service>,
-    pub sp1_client: Arc<Service>,
-}
-
-impl Registar for Services {
-    fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
-        self.eth_client.register_on(registry)?;
-        self.beacon_state_client.register_on(registry)?;
-        self.hash_consensus.register_on(registry)?;
-        self.sp1_client.register_on(registry)?;
-        Ok(())
-    }
-}
-
-pub struct Execution {
-    pub execution_time_seconds: Histogram,
-    pub sp1_cycle_count: UIntGauge,
-    pub outcome: UIntCounterVec,
-}
-
-impl Registar for Execution {
-    fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
-        registry.register(Box::new(self.execution_time_seconds.clone()))?;
-        registry.register(Box::new(self.sp1_cycle_count.clone()))?;
-        registry.register(Box::new(self.outcome.clone()))?;
-        Ok(())
     }
 }
 
@@ -243,6 +293,7 @@ fn histogram_vec(namespace: &str, name: &str, help: &str, labels: &[&str]) -> Hi
 
 pub fn build_service_metrics(namespace: &str, component: &str) -> Service {
     Service {
+        name: component.to_owned(),
         call_count: counter_vec(
             namespace,
             &format!("external__{component}__call_count"),
@@ -292,16 +343,16 @@ impl Metrics {
         let report = Report {
             refslot: gauge(namespace, "report__refslot", "Current refslot"),
             refslot_epoch: gauge(namespace, "report__refslot_epoch", "Epoch of refslot"),
-            old_slot: gauge(namespace, "report__old_slot", "Oldest slot"),
+            old_slot: gauge(namespace, "report__old_slot", "Old slot"),
             timestamp: gauge(namespace, "report__timestamp", "Timestamp"),
 
-            num_validators: gauge(namespace, "report__num_validators", "Number of validators"),
+            num_validators: gauge(namespace, "report__num_validators", "Number of all validators"),
             num_lido_validators: gauge(namespace, "report__num_lido_validators", "Number of Lido validators"),
             cl_balance_gwei: gauge(namespace, "report__cl_balance_gwei", "CL balance in Gwei"),
             withdrawal_vault_balance_gwei: gauge(
                 namespace,
-                "report__withdrawal_vault_balance_wei",
-                "Withdrawal vault balance in Wei",
+                "report__withdrawal_vault_balance_gwei",
+                "Withdrawal vault balance in Gwei",
             ),
             state_new_validators: gauge(namespace, "report__state_new_validators", "New validators"),
             state_changed_validators: gauge(namespace, "report__state_changed_validators", "Changed validators"),
@@ -321,7 +372,7 @@ impl Metrics {
                 namespace,
                 "execution__execution_outcome",
                 "Execution outcome",
-                &[outcome::ERROR, outcome::SUCCESS, outcome::REJECTION],
+                &["outcome"],
             ),
         };
 

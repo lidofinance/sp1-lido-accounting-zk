@@ -1,7 +1,9 @@
 use sp1_lido_accounting_dev_scripts::lido;
+use sp1_lido_accounting_scripts::prometheus_metrics;
 use sp1_lido_accounting_zk_shared::{io::eth_io::BeaconChainSlot, lido::LidoValidatorState};
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use tree_hash::TreeHash;
 
 use sp1_lido_accounting_dev_scripts::synthetic::{
@@ -10,7 +12,6 @@ use sp1_lido_accounting_dev_scripts::synthetic::{
 use sp1_lido_accounting_scripts::beacon_state_reader::{
     file::FileBasedBeaconStateReader, BeaconStateReader, StateId,
 };
-use sp1_lido_accounting_scripts::consts;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::merkle_proof::FieldProof;
 
@@ -25,8 +26,14 @@ async fn main() {
         .join(env);
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
         .expect("Failed to create synthetic beacon state creator");
-    let reader: FileBasedBeaconStateReader =
-        FileBasedBeaconStateReader::new(&ssz_folder).expect("Failed to create beacon state reader");
+    let reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(
+        &ssz_folder,
+        Arc::new(prometheus_metrics::build_service_metrics(
+            "namespace",
+            "file_reader",
+        )),
+    )
+    .expect("Failed to create beacon state reader");
     let withdrawal_creds: Hash256 = lido::withdrawal_credentials::MAINNET.into();
     let old_slot = 100;
     let new_slot = 200;

@@ -1,3 +1,4 @@
+use sp1_lido_accounting_scripts::prometheus_metrics;
 use sp1_lido_accounting_zk_shared::eth_spec;
 use typenum::Unsigned;
 
@@ -11,6 +12,7 @@ use sp1_lido_accounting_scripts::beacon_state_reader::reqwest::{
 use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
 use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
@@ -26,9 +28,16 @@ async fn main() {
         .join("../../temp/")
         .join(env);
 
-    let bs_reader =
-        CachedReqwestBeaconStateReader::new(&consensus_layer_rpc_url, &bs_endpoint, &ssz_folder)
-            .expect("Failed to create CachedReqwestBeaconStateReader");
+    let bs_reader = CachedReqwestBeaconStateReader::new(
+        &consensus_layer_rpc_url,
+        &bs_endpoint,
+        &ssz_folder,
+        Arc::new(prometheus_metrics::build_service_metrics(
+            "namespace",
+            "file_reader",
+        )),
+    )
+    .expect("Failed to create CachedReqwestBeaconStateReader");
 
     let finalized_slot = bs_reader
         .get_finalized_slot()

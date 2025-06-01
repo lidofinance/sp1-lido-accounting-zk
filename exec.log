@@ -1,0 +1,149 @@
+[2m2025-06-01T13:59:53.568731Z[0m [34mDEBUG[0m main Failed reading env var NETWORK_RPC_URL: NotPresent
+[2m2025-06-01T13:59:53.568812Z[0m [34mDEBUG[0m main Failed reading env var PROMETHEUS_NAMESPACE: NotPresent
+[2m2025-06-01T13:59:53.568872Z[0m [34mDEBUG[0m main Registering network_chain collector
+[2m2025-06-01T13:59:53.568878Z[0m [34mDEBUG[0m main Registering app_build_info collector
+[2m2025-06-01T13:59:53.568882Z[0m [34mDEBUG[0m main Registering run_report_counter collector
+[2m2025-06-01T13:59:53.568885Z[0m [34mDEBUG[0m main Registering refslot collector
+[2m2025-06-01T13:59:53.568888Z[0m [34mDEBUG[0m main Registering refslot_epoch collector
+[2m2025-06-01T13:59:53.568891Z[0m [34mDEBUG[0m main Registering old_slot collector
+[2m2025-06-01T13:59:53.568894Z[0m [34mDEBUG[0m main Registering timestamp collector
+[2m2025-06-01T13:59:53.568897Z[0m [34mDEBUG[0m main Registering num_validators collector
+[2m2025-06-01T13:59:53.568900Z[0m [34mDEBUG[0m main Registering num_lido_validators collector
+[2m2025-06-01T13:59:53.568903Z[0m [34mDEBUG[0m main Registering cl_balance_gwei collector
+[2m2025-06-01T13:59:53.568906Z[0m [34mDEBUG[0m main Registering withdrawal_vault_balance_gwei collector
+[2m2025-06-01T13:59:53.568909Z[0m [34mDEBUG[0m main Registering state_new_validators collector
+[2m2025-06-01T13:59:53.568912Z[0m [34mDEBUG[0m main Registering state_changed_validators collector
+[2m2025-06-01T13:59:53.568927Z[0m [34mDEBUG[0m main Registering eth_client_call_count collector
+[2m2025-06-01T13:59:53.568930Z[0m [34mDEBUG[0m main Registering eth_client_retry_count collector
+[2m2025-06-01T13:59:53.568935Z[0m [34mDEBUG[0m main Registering eth_client_execution_time_seconds collector
+[2m2025-06-01T13:59:53.568939Z[0m [34mDEBUG[0m main Registering eth_client_status collector
+[2m2025-06-01T13:59:53.568942Z[0m [34mDEBUG[0m main Registering beacon_state_client_call_count collector
+[2m2025-06-01T13:59:53.568944Z[0m [34mDEBUG[0m main Registering beacon_state_client_retry_count collector
+[2m2025-06-01T13:59:53.568947Z[0m [34mDEBUG[0m main Registering beacon_state_client_execution_time_seconds collector
+[2m2025-06-01T13:59:53.568949Z[0m [34mDEBUG[0m main Registering beacon_state_client_status collector
+[2m2025-06-01T13:59:53.568952Z[0m [34mDEBUG[0m main Registering hash_consensus_call_count collector
+[2m2025-06-01T13:59:53.568954Z[0m [34mDEBUG[0m main Registering hash_consensus_retry_count collector
+[2m2025-06-01T13:59:53.568957Z[0m [34mDEBUG[0m main Registering hash_consensus_execution_time_seconds collector
+[2m2025-06-01T13:59:53.568959Z[0m [34mDEBUG[0m main Registering hash_consensus_status collector
+[2m2025-06-01T13:59:53.568962Z[0m [34mDEBUG[0m main Registering sp1_client_call_count collector
+[2m2025-06-01T13:59:53.568964Z[0m [34mDEBUG[0m main Registering sp1_client_retry_count collector
+[2m2025-06-01T13:59:53.568967Z[0m [34mDEBUG[0m main Registering sp1_client_execution_time_seconds collector
+[2m2025-06-01T13:59:53.568969Z[0m [34mDEBUG[0m main Registering sp1_client_status collector
+[2m2025-06-01T13:59:53.637004Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Cpu has 11 byte interactions
+[2m2025-06-01T13:59:53.637102Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Program has 0 byte interactions
+[2m2025-06-01T13:59:53.637160Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ShaExtend has 60 byte interactions
+[2m2025-06-01T13:59:53.637329Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ShaCompress has 112 byte interactions
+[2m2025-06-01T13:59:53.640451Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip EdAddAssign has 818 byte interactions
+[2m2025-06-01T13:59:53.646456Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip EdDecompress has 710 byte interactions
+[2m2025-06-01T13:59:53.650846Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256k1Decompress has 616 byte interactions
+[2m2025-06-01T13:59:53.655741Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256k1AddAssign has 1006 byte interactions
+[2m2025-06-01T13:59:53.661855Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256k1DoubleAssign has 1068 byte interactions
+[2m2025-06-01T13:59:53.667024Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256r1Decompress has 616 byte interactions
+[2m2025-06-01T13:59:53.671500Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256r1AddAssign has 1006 byte interactions
+[2m2025-06-01T13:59:53.677278Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256r1DoubleAssign has 1068 byte interactions
+[2m2025-06-01T13:59:53.682506Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip KeccakPermute has 200 byte interactions
+[2m2025-06-01T13:59:53.687873Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254AddAssign has 1006 byte interactions
+[2m2025-06-01T13:59:53.693126Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254DoubleAssign has 1068 byte interactions
+[2m2025-06-01T13:59:53.701233Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12381AddAssign has 1518 byte interactions
+[2m2025-06-01T13:59:53.713522Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12381DoubleAssign has 1612 byte interactions
+[2m2025-06-01T13:59:53.721590Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Uint256MulMod has 145 byte interactions
+[2m2025-06-01T13:59:53.724902Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip U256XU2048Mul has 1060 byte interactions
+[2m2025-06-01T13:59:53.729695Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12381FpOpAssign has 191 byte interactions
+[2m2025-06-01T13:59:53.732877Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12831Fp2AddSubAssign has 382 byte interactions
+[2m2025-06-01T13:59:53.738569Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12831Fp2MulAssign has 950 byte interactions
+[2m2025-06-01T13:59:53.743148Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254FpOpAssign has 127 byte interactions
+[2m2025-06-01T13:59:53.744726Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254Fp2AddSubAssign has 254 byte interactions
+[2m2025-06-01T13:59:53.747504Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254Fp2MulAssign has 630 byte interactions
+[2m2025-06-01T13:59:53.753116Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12381Decompress has 930 byte interactions
+[2m2025-06-01T13:59:53.757390Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip SyscallCore has 0 byte interactions
+[2m2025-06-01T13:59:53.757399Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip SyscallPrecompile has 0 byte interactions
+[2m2025-06-01T13:59:53.757438Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip DivRem has 11 byte interactions
+[2m2025-06-01T13:59:53.757500Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip AddSub has 6 byte interactions
+[2m2025-06-01T13:59:53.757520Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bitwise has 4 byte interactions
+[2m2025-06-01T13:59:53.757549Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Mul has 14 byte interactions
+[2m2025-06-01T13:59:53.757592Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ShiftRight has 25 byte interactions
+[2m2025-06-01T13:59:53.757634Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ShiftLeft has 4 byte interactions
+[2m2025-06-01T13:59:53.757664Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Lt has 3 byte interactions
+[2m2025-06-01T13:59:53.757710Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryInstrs has 7 byte interactions
+[2m2025-06-01T13:59:53.757756Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Auipc has 1 byte interactions
+[2m2025-06-01T13:59:53.757781Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Branch has 2 byte interactions
+[2m2025-06-01T13:59:53.757809Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Jump has 3 byte interactions
+[2m2025-06-01T13:59:53.757847Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip SyscallInstrs has 3 byte interactions
+[2m2025-06-01T13:59:53.757958Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryGlobalInit has 0 byte interactions
+[2m2025-06-01T13:59:53.758122Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryGlobalFinalize has 0 byte interactions
+[2m2025-06-01T13:59:53.758232Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryLocal has 0 byte interactions
+[2m2025-06-01T13:59:53.758459Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Global has 1 byte interactions
+[2m2025-06-01T13:59:53.758741Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Byte has 9 byte interactions
+[2m2025-06-01T13:59:53.758763Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryConst has 0 byte interactions
+[2m2025-06-01T13:59:53.758768Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryVar has 0 byte interactions
+[2m2025-06-01T13:59:53.758778Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip BaseAlu has 0 byte interactions
+[2m2025-06-01T13:59:53.758817Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ExtAlu has 0 byte interactions
+[2m2025-06-01T13:59:53.758985Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Poseidon2WideDeg3 has 0 byte interactions
+[2m2025-06-01T13:59:53.759143Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip BatchFRI has 0 byte interactions
+[2m2025-06-01T13:59:53.759188Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Select has 0 byte interactions
+[2m2025-06-01T13:59:53.759202Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ExpReverseBitsLen has 0 byte interactions
+[2m2025-06-01T13:59:53.759209Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip PublicValues has 0 byte interactions
+[2m2025-06-01T13:59:53.759217Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryConst has 0 byte interactions
+[2m2025-06-01T13:59:53.759221Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryVar has 0 byte interactions
+[2m2025-06-01T13:59:53.759230Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip BaseAlu has 0 byte interactions
+[2m2025-06-01T13:59:53.759266Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ExtAlu has 0 byte interactions
+[2m2025-06-01T13:59:53.759427Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Poseidon2WideDeg3 has 0 byte interactions
+[2m2025-06-01T13:59:53.759585Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip BatchFRI has 0 byte interactions
+[2m2025-06-01T13:59:53.759630Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Select has 0 byte interactions
+[2m2025-06-01T13:59:53.759640Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ExpReverseBitsLen has 0 byte interactions
+[2m2025-06-01T13:59:53.759647Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip PublicValues has 0 byte interactions
+[2m2025-06-01T13:59:53.759742Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryConst has 0 byte interactions
+[2m2025-06-01T13:59:53.759746Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryVar has 0 byte interactions
+[2m2025-06-01T13:59:53.759756Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip BaseAlu has 0 byte interactions
+[2m2025-06-01T13:59:53.759792Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ExtAlu has 0 byte interactions
+[2m2025-06-01T13:59:53.759901Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Poseidon2SkinnyDeg9 has 0 byte interactions
+[2m2025-06-01T13:59:53.759988Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Select has 0 byte interactions
+[2m2025-06-01T13:59:53.760008Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip PublicValues has 0 byte interactions
+[2m2025-06-01T13:59:53.766733Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Cpu has 11 byte interactions
+[2m2025-06-01T13:59:53.766775Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Program has 0 byte interactions
+[2m2025-06-01T13:59:53.766820Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ShaExtend has 60 byte interactions
+[2m2025-06-01T13:59:53.766971Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ShaCompress has 112 byte interactions
+[2m2025-06-01T13:59:53.770167Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip EdAddAssign has 818 byte interactions
+[2m2025-06-01T13:59:53.776050Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip EdDecompress has 710 byte interactions
+[2m2025-06-01T13:59:53.780275Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256k1Decompress has 616 byte interactions
+[2m2025-06-01T13:59:53.784999Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256k1AddAssign has 1006 byte interactions
+[2m2025-06-01T13:59:53.790936Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256k1DoubleAssign has 1068 byte interactions
+[2m2025-06-01T13:59:53.795955Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256r1Decompress has 616 byte interactions
+[2m2025-06-01T13:59:53.800301Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256r1AddAssign has 1006 byte interactions
+[2m2025-06-01T13:59:53.805929Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Secp256r1DoubleAssign has 1068 byte interactions
+[2m2025-06-01T13:59:53.811401Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip KeccakPermute has 200 byte interactions
+[2m2025-06-01T13:59:53.817256Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254AddAssign has 1006 byte interactions
+[2m2025-06-01T13:59:53.823147Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254DoubleAssign has 1068 byte interactions
+[2m2025-06-01T13:59:53.831513Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12381AddAssign has 1518 byte interactions
+[2m2025-06-01T13:59:53.843879Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12381DoubleAssign has 1612 byte interactions
+[2m2025-06-01T13:59:53.851862Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Uint256MulMod has 145 byte interactions
+[2m2025-06-01T13:59:53.855222Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip U256XU2048Mul has 1060 byte interactions
+[2m2025-06-01T13:59:53.860065Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12381FpOpAssign has 191 byte interactions
+[2m2025-06-01T13:59:53.863305Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12831Fp2AddSubAssign has 382 byte interactions
+[2m2025-06-01T13:59:53.869060Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12831Fp2MulAssign has 950 byte interactions
+[2m2025-06-01T13:59:53.873649Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254FpOpAssign has 127 byte interactions
+[2m2025-06-01T13:59:53.875226Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254Fp2AddSubAssign has 254 byte interactions
+[2m2025-06-01T13:59:53.878007Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254Fp2MulAssign has 630 byte interactions
+[2m2025-06-01T13:59:53.883590Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12381Decompress has 930 byte interactions
+[2m2025-06-01T13:59:53.887891Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip SyscallCore has 0 byte interactions
+[2m2025-06-01T13:59:53.887901Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip SyscallPrecompile has 0 byte interactions
+[2m2025-06-01T13:59:53.887937Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip DivRem has 11 byte interactions
+[2m2025-06-01T13:59:53.887997Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip AddSub has 6 byte interactions
+[2m2025-06-01T13:59:53.888015Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bitwise has 4 byte interactions
+[2m2025-06-01T13:59:53.888039Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Mul has 14 byte interactions
+[2m2025-06-01T13:59:53.888082Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ShiftRight has 25 byte interactions
+[2m2025-06-01T13:59:53.888123Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip ShiftLeft has 4 byte interactions
+[2m2025-06-01T13:59:53.888153Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Lt has 3 byte interactions
+[2m2025-06-01T13:59:53.888199Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryInstrs has 7 byte interactions
+[2m2025-06-01T13:59:53.888243Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Auipc has 1 byte interactions
+[2m2025-06-01T13:59:53.888266Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Branch has 2 byte interactions
+[2m2025-06-01T13:59:53.888295Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Jump has 3 byte interactions
+[2m2025-06-01T13:59:53.888328Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip SyscallInstrs has 3 byte interactions
+[2m2025-06-01T13:59:53.888426Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryGlobalInit has 0 byte interactions
+[2m2025-06-01T13:59:53.888594Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryGlobalFinalize has 0 byte interactions
+[2m2025-06-01T13:59:53.888705Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip MemoryLocal has 0 byte interactions
+[2m2025-06-01T13:59:53.888923Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Global has 1 byte interactions
+[2m2025-06-01T13:59:53.889205Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Byte has 9 byte interactions
+[2m2025-06-01T13:59:53.893133Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip U256XU2048Mul has 1060 byte interactions
+[2m2025-06-01T13:59:53.897663Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bn254Fp2MulAssign has 630 byte interactions
+[2m2025-06-01T13:59:53.901482Z[0m [34mDEBUG[0m main [1minitialize prover[0m: chip Bls12831Fp2AddSubAssign has 382 byte interactions

@@ -6,15 +6,16 @@ use sp1_lido_accounting_dev_scripts::{
     synthetic::{BalanceGenerationMode, GenerationSpec, SyntheticBeaconStateCreator},
 };
 
-use sp1_lido_accounting_scripts::beacon_state_reader::{
-    file::FileBasedBeaconStateReader, BeaconStateReader, StateId,
+use sp1_lido_accounting_scripts::{
+    beacon_state_reader::{file::FileBasedBeaconStateReader, BeaconStateReader, StateId},
+    prometheus_metrics,
 };
 use sp1_lido_accounting_zk_shared::{
     io::eth_io::{BeaconChainSlot, HaveEpoch},
     lido::LidoValidatorState,
 };
-use std::collections::HashSet;
 use std::path::PathBuf;
+use std::{collections::HashSet, sync::Arc};
 use tree_hash::TreeHash;
 
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Hash256};
@@ -91,8 +92,14 @@ async fn main() {
     let ssz_folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../temp");
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
         .expect("Failed to create synthetic beacon state creator");
-    let reader =
-        FileBasedBeaconStateReader::new(&ssz_folder).expect("Failed to create beacon state reader");
+    let reader = FileBasedBeaconStateReader::new(
+        &ssz_folder,
+        Arc::new(prometheus_metrics::build_service_metrics(
+            "irrelevant",
+            "file_reader",
+        )),
+    )
+    .expect("Failed to create beacon state reader");
 
     // Step 1. obtain SSZ-serialized beacon state
     let slot = 123456;

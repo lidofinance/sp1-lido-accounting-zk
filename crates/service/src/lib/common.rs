@@ -1,8 +1,6 @@
-use prometheus::Registry;
+use prometheus::{Encoder, Registry, TextEncoder};
 use sp1_lido_accounting_scripts::scripts::{self};
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
-
-use crate::prometheus_metrics;
 
 pub struct AppState {
     pub registry: Registry,
@@ -32,6 +30,15 @@ impl AppState {
             submit_flags = ?self.submit_flags,
             "Script flags",
         );
+    }
+
+    pub fn report_metrics(&self) -> Result<(Vec<u8>, String), prometheus::Error> {
+        // tracing::error!("Reporting on {:?}", &self.registry as *const _ as usize);
+        let mut buffer = Vec::new();
+        let encoder = TextEncoder::new();
+        let mf = self.registry.gather();
+        encoder.encode(&mf, &mut buffer)?;
+        Ok((buffer, encoder.format_type().to_owned()))
     }
 }
 

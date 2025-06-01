@@ -1,6 +1,8 @@
 use hex::FromHex;
 use serde_json::Value;
+use sp1_lido_accounting_scripts::prometheus_metrics;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tree_hash::TreeHash;
 
 use sp1_lido_accounting_dev_scripts::synthetic::{
@@ -243,8 +245,14 @@ async fn main() {
         .join(env);
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
         .expect("Failed to create synthetic beacon state creator");
-    let reader =
-        FileBasedBeaconStateReader::new(&ssz_folder).expect("Failed to create beacon state reader");
+    let reader = FileBasedBeaconStateReader::new(
+        &ssz_folder,
+        Arc::new(prometheus_metrics::build_service_metrics(
+            "namespace",
+            "file_reader",
+        )),
+    )
+    .expect("Failed to create beacon state reader");
 
     let slot = 1000000;
     let generation_spec = GenerationSpec {

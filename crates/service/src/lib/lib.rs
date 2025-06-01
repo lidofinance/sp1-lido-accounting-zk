@@ -2,7 +2,7 @@ use common::AppState;
 
 use prometheus::Registry;
 use sp1_lido_accounting_scripts::{
-    prometheus_metrics::{self, Metrics, Registar},
+    prometheus_metrics::Registar,
     scripts::{self, prelude::EnvVars},
     tracing as tracing_config,
     utils::read_env,
@@ -26,14 +26,14 @@ pub async fn service_main() {
 
     // Prometheus setup
     let registry = Registry::new();
-    let metric_reporters = Metrics::new(&env_vars.prometheus_namespace.value);
-    metric_reporters
-        .register_on(&registry)
-        .unwrap_or_else(|e| panic!("Failed to create metrics {e:?}"));
 
     // Initialize script runtime
     let script_runtime = scripts::prelude::ScriptRuntime::init(&env_vars)
         .unwrap_or_else(|e| panic!("Failed to initialize script runtime {e:?}"));
+    script_runtime
+        .metrics
+        .register_on(&registry)
+        .unwrap_or_else(|e| panic!("Failed to create metrics {e:?}"));
     let dry_run = script_runtime.is_dry_run();
 
     tracing::info!(dry_run = dry_run, "DRY_RUN: {}", dry_run);

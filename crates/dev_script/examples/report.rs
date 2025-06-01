@@ -10,8 +10,10 @@ use sp1_lido_accounting_dev_scripts::synthetic::{
 use sp1_lido_accounting_scripts::beacon_state_reader::{
     file::FileBasedBeaconStateReader, BeaconStateReader,
 };
+use sp1_lido_accounting_scripts::prometheus_metrics;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch, ReferenceSlot};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
@@ -60,8 +62,14 @@ async fn main() {
     let withdrawal_creds: Hash256 = lido::withdrawal_credentials::MAINNET.into();
     let creator = SyntheticBeaconStateCreator::new(&ssz_folder, false, true)
         .expect("Failed to create synthetic beacon state creator");
-    let reader: FileBasedBeaconStateReader =
-        FileBasedBeaconStateReader::new(&ssz_folder).expect("Failed to create beacon state reader");
+    let reader: FileBasedBeaconStateReader = FileBasedBeaconStateReader::new(
+        &ssz_folder,
+        Arc::new(prometheus_metrics::build_service_metrics(
+            "namespace",
+            "file_reader",
+        )),
+    )
+    .expect("Failed to create beacon state reader");
 
     let old_slot = BeaconChainSlot(9760032);
     let new_slot = old_slot + 216000; // (30 * 24 * 60 * 60 / 12) slots per month
