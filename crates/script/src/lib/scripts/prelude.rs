@@ -306,7 +306,7 @@ impl ScriptRuntime {
                 beacon_state_reader,
             },
             Sp1Infrastructure {
-                sp1_client: SP1ClientWrapperImpl::new(ProverClient::from_env()),
+                sp1_client: SP1ClientWrapperImpl::new(ProverClient::from_env(), metrics.services.sp1_client.clone()),
             },
             LidoInfrastructure {
                 report_contract: Sp1LidoAccountingReportContractWrapper::new(

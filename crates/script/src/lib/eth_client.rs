@@ -291,7 +291,7 @@ where
 
     pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), ContractError> {
         self.metric_reporter
-            .run_with_metrics_and_logs(prometheus_metrics::services::hash_consensus::GET_REFSLOT, || {
+            .run_with_metrics_and_logs_async(prometheus_metrics::services::hash_consensus::GET_REFSLOT, || {
                 self.get_refslot_impl()
             })
             .await
@@ -351,7 +351,7 @@ where
         block_hash: Hash256,
     ) -> Result<WithdrawalVaultData, RPCError> {
         self.metric_reporter
-            .run_with_metrics_and_logs(
+            .run_with_metrics_and_logs_async(
                 prometheus_metrics::services::eth_client::GET_WITHDRAWAL_VAULT_DATA,
                 || self.get_withdrawal_vault_data_impl(address, block_hash),
             )

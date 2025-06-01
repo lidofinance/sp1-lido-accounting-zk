@@ -7,6 +7,8 @@ use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
 
 use sp1_sdk::include_elf;
 
+use crate::prometheus_metrics;
+
 pub const ELF: &[u8] = include_elf!("sp1-lido-accounting-zk-program");
 
 #[derive(Debug, thiserror::Error)]
@@ -36,16 +38,18 @@ pub trait SP1ClientWrapper {
 
 pub struct SP1ClientWrapperImpl {
     client: EnvProver,
+    metric_reporter: prometheus_metrics::Service,
     elf: Vec<u8>,
     pk: SP1ProvingKey,
     vk: SP1VerifyingKey,
 }
 
 impl SP1ClientWrapperImpl {
-    pub fn new(client: EnvProver) -> Self {
+    pub fn new(client: EnvProver, metric_reporter: prometheus_metrics::Service) -> Self {
         let (pk, vk) = client.setup(ELF);
         Self {
             client,
+            metric_reporter,
             elf: ELF.to_owned(),
             pk,
             vk,
@@ -57,6 +61,27 @@ impl SP1ClientWrapperImpl {
         let mut stdin: SP1Stdin = SP1Stdin::new();
         stdin.write(&program_input);
         stdin
+    }
+
+    fn prove_impl(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues> {
+        let sp1_stdin = self.write_sp1_stdin(&input);
+        let result = self
+            .client
+            .prove(&self.pk, &sp1_stdin)
+            .plonk()
+            .run()
+            .map_err(Error::Sp1ProveError)?;
+        Ok(result)
+    }
+
+    fn execute_impl(&self, input: ProgramInput) -> Result<(SP1PublicValues, ExecutionReport)> {
+        let sp1_stdin = self.write_sp1_stdin(&input);
+        let result = self
+            .client
+            .execute(self.elf.as_slice(), &sp1_stdin)
+            .run()
+            .map_err(Error::Sp1ExecuteError)?;
+        Ok(result)
     }
 }
 
@@ -74,32 +99,23 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
     }
 
     fn prove(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues> {
-        let sp1_stdin = self.write_sp1_stdin(&input);
-        let prove_spec = self.client.prove(&self.pk, &sp1_stdin);
-        let result = prove_spec
-            .plonk()
-            .run()
-            .map_err(Error::Sp1ProveError)
-            .inspect(|_v| tracing::info!("Successfully obtained proof"))
-            .inspect_err(|e| tracing::error!("Failed to generate proof: {e:?}"))?;
-        Ok(result)
+        self.metric_reporter
+            .run_with_metrics_and_logs(prometheus_metrics::services::sp1_client::PROVE, || {
+                self.prove_impl(input)
+            })
     }
 
     fn verify_proof(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
-        tracing::info!("Verifying proof");
-        self.client.verify(proof, &self.vk)?;
-        Ok(())
+        self.metric_reporter
+            .run_with_metrics_and_logs(prometheus_metrics::services::sp1_client::PROVE, || {
+                self.client.verify(proof, &self.vk).map_err(|e| e.into())
+            })
     }
 
     fn execute(&self, input: ProgramInput) -> Result<(SP1PublicValues, ExecutionReport)> {
-        let sp1_stdin = self.write_sp1_stdin(&input);
-        let result = self
-            .client
-            .execute(self.elf.as_slice(), &sp1_stdin)
-            .run()
-            .map_err(Error::Sp1ExecuteError)
-            .inspect(|_v| tracing::info!("Successfully executed program"))
-            .inspect_err(|e| tracing::error!("Failed to execute program: {e:?}"))?;
-        Ok(result)
+        self.metric_reporter
+            .run_with_metrics_and_logs(prometheus_metrics::services::sp1_client::EXECUTE, || {
+                self.execute_impl(input)
+            })
     }
 }

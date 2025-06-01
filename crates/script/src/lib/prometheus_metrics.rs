@@ -20,6 +20,12 @@ pub mod services {
     pub mod hash_consensus {
         pub const GET_REFSLOT: &str = "get_refslot";
     }
+
+    pub mod sp1_client {
+        pub const PROVE: &str = "prove";
+        pub const EXECUTE: &str = "execute";
+        pub const VERIFY: &str = "verify";
+    }
 }
 
 pub trait Registar {
@@ -91,6 +97,8 @@ impl Registar for Report {
     }
 }
 
+// TODO: these are lightweight, so cloning is OK...
+// But not very elegant
 #[derive(Clone)]
 pub struct Service {
     pub call_count: UIntCounterVec,
@@ -110,7 +118,39 @@ impl Registar for Service {
 }
 
 impl Service {
-    pub async fn run_with_metrics_and_logs<F, Fut, T, E: std::fmt::Debug>(&self, operation: &str, f: F) -> Result<T, E>
+    pub fn run_with_metrics_and_logs<F, T, E: std::fmt::Debug>(&self, operation: &str, f: F) -> Result<T, E>
+    where
+        F: FnOnce() -> Result<T, E>,
+    {
+        tracing::debug!("Starting {operation}");
+        let timer = self
+            .execution_time_seconds
+            .with_label_values(&[operation])
+            .start_timer();
+        self.call_count.with_label_values(&[operation]).inc();
+
+        let response = f();
+
+        let result = response
+            .inspect(|_val| {
+                self.status.with_label_values(&[operation, outcome::SUCCESS]).inc();
+                tracing::debug!("{operation} succeded")
+            })
+            .inspect_err(|e| {
+                self.status.with_label_values(&[operation, outcome::ERROR]).inc();
+                tracing::error!("{operation} failed: {e:?}")
+            })?;
+
+        timer.observe_duration();
+
+        Ok(result)
+    }
+
+    pub async fn run_with_metrics_and_logs_async<F, Fut, T, E: std::fmt::Debug>(
+        &self,
+        operation: &str,
+        f: F,
+    ) -> Result<T, E>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<T, E>>,
@@ -144,6 +184,7 @@ pub struct Services {
     pub prover: Service,
     pub beacon_state_client: Service,
     pub hash_consensus: Service,
+    pub sp1_client: Service,
 }
 
 impl Registar for Services {
@@ -151,6 +192,8 @@ impl Registar for Services {
         self.eth_client.register_on(registry)?;
         self.prover.register_on(registry)?;
         self.beacon_state_client.register_on(registry)?;
+        self.hash_consensus.register_on(registry)?;
+        self.sp1_client.register_on(registry)?;
         Ok(())
     }
 }
@@ -200,6 +243,35 @@ fn histogram_vec(namespace: &str, name: &str, help: &str, labels: &[&str]) -> Hi
     HistogramVec::new(opts, labels).unwrap()
 }
 
+pub fn build_service_metrics(namespace: &str, component: &str) -> Service {
+    Service {
+        call_count: counter_vec(
+            namespace,
+            &format!("external__{component}__call_count"),
+            "Total call count",
+            &["operation"],
+        ),
+        retry_count: gauge_vec(
+            namespace,
+            &format!("external__{component}__retry_count"),
+            "Retry count",
+            &["operation"],
+        ),
+        execution_time_seconds: histogram_vec(
+            namespace,
+            &format!("{component}_execution_time_seconds"),
+            "Execution time in seconds",
+            &["operation"],
+        ),
+        status: counter_vec(
+            namespace,
+            &format!("external__{component}__status"),
+            "Status codes",
+            &["operation", "status"],
+        ),
+    }
+}
+
 impl Metrics {
     pub fn new(namespace: &str) -> Self {
         let metadata = Metadata {
@@ -237,40 +309,12 @@ impl Metrics {
             state_changed_validators: gauge(namespace, "report__state_changed_validators", "Changed validators"),
         };
 
-        fn build_service_metrics(namespace: &str, component: &str) -> Service {
-            Service {
-                call_count: counter_vec(
-                    namespace,
-                    &format!("external__{component}__call_count"),
-                    "Total call count",
-                    &["operation"],
-                ),
-                retry_count: gauge_vec(
-                    namespace,
-                    &format!("external__{component}__retry_count"),
-                    "Retry count",
-                    &["operation"],
-                ),
-                execution_time_seconds: histogram_vec(
-                    namespace,
-                    &format!("{component}_execution_time_seconds"),
-                    "Execution time in seconds",
-                    &["operation"],
-                ),
-                status: counter_vec(
-                    namespace,
-                    &format!("external__{component}__status"),
-                    "Status codes",
-                    &["operation", "status"],
-                ),
-            }
-        }
-
         let services = Services {
             eth_client: build_service_metrics(namespace, "eth_client"),
             prover: build_service_metrics(namespace, "prover"),
             beacon_state_client: build_service_metrics(namespace, "beacon_state_client"),
-            hash_consensus: build_service_metrics(namespace, "beacon_state_client"),
+            hash_consensus: build_service_metrics(namespace, "hash_consensus"),
+            sp1_client: build_service_metrics(namespace, "sp1_client"),
         };
 
         let execution = Execution {

@@ -3,7 +3,7 @@ mod test_utils;
 use alloy_sol_types::SolType;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
-    eth_client,
+    eth_client, prometheus_metrics,
     proof_storage::StoredProof,
     scripts::shared as shared_logic,
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
@@ -196,7 +196,10 @@ fn assert_rejects(result: TestExecutorResult) -> Result<()> {
 
 #[test]
 fn check_vkey_matches() -> Result<()> {
-    let sp1_client = SP1ClientWrapperImpl::new(ProverClient::from_env());
+    let sp1_client = SP1ClientWrapperImpl::new(
+        ProverClient::from_env(),
+        prometheus_metrics::build_service_metrics("irrelevant", "sp1_client"),
+    );
     let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
     let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;
     assert_eq!(sp1_client.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
