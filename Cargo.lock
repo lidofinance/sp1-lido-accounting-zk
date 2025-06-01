@@ -5737,6 +5737,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
+ "chrono",
  "clap",
  "derive_more 2.0.1",
  "dotenvy",
@@ -5774,7 +5775,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum 0.8.4",
- "axum-macros",
  "chrono",
  "chrono-tz",
  "cron",

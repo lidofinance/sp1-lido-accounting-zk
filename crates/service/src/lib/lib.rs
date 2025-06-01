@@ -43,7 +43,8 @@ pub async fn service_main() {
         env_vars,
         script_runtime,
         submit_flags: scripts::submit::Flags {
-            verify: false,
+            verify_input: true,
+            verify_proof: false,
             dry_run,
         },
     };

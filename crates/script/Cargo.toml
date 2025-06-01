@@ -20,6 +20,7 @@ alloy-rlp.workspace = true
 alloy-primitives.workspace = true
 alloy-sol-types.workspace = true
 anyhow.workspace = true
+chrono.workspace=true
 derive_more.workspace = true
 ethereum_serde_utils.workspace = true
 ethereum_ssz_derive.workspace = true

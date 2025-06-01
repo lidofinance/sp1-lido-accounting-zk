@@ -1,5 +1,14 @@
 use anyhow;
-use prometheus::{Counter, Gauge, GaugeVec, Histogram, HistogramOpts, IntCounter, IntCounterVec, Opts, Registry};
+use prometheus::{
+    core::{Atomic, AtomicU64, GenericCounter, GenericCounterVec, GenericGauge, GenericGaugeVec},
+    Counter, Gauge, GaugeVec, Histogram, HistogramOpts, IntCounterVec, IntGauge, Opts, Registry,
+};
+
+pub mod outcome {
+    pub const REJECTION: &str = "rejection";
+    pub const SUCCESS: &str = "success";
+    pub const ERROR: &str = "error";
+}
 
 pub trait Registar {
     fn register_on(&self, registry: &Registry) -> anyhow::Result<()>;
@@ -37,17 +46,21 @@ impl Registar for Metadata {
     }
 }
 
+pub type UIntGauge = GenericGauge<AtomicU64>;
+pub type UIntGaugeVec = GenericGaugeVec<AtomicU64>;
+pub type UIntCounterVec = GenericCounterVec<AtomicU64>;
+
 pub struct Report {
-    pub refslot: Gauge,
-    pub refslot_epoch: Gauge,
-    pub old_slot: Gauge,
-    pub timestamp: Gauge,
-    pub num_validators: Gauge,
-    pub num_lido_validators: Gauge,
-    pub cl_balance_gwei: Gauge,
-    pub withdrawal_vault_balance_wei: Gauge,
-    pub state_new_validators: Gauge,
-    pub state_changed_validators: Gauge,
+    pub refslot: UIntGauge,
+    pub refslot_epoch: UIntGauge,
+    pub old_slot: UIntGauge,
+    pub timestamp: IntGauge,
+    pub num_validators: UIntGauge,
+    pub num_lido_validators: UIntGauge,
+    pub cl_balance_gwei: UIntGauge,
+    pub withdrawal_vault_balance_gwei: UIntGauge,
+    pub state_new_validators: UIntGauge,
+    pub state_changed_validators: UIntGauge,
 }
 
 impl Registar for Report {
@@ -59,7 +72,7 @@ impl Registar for Report {
         registry.register(Box::new(self.num_validators.clone()))?;
         registry.register(Box::new(self.num_lido_validators.clone()))?;
         registry.register(Box::new(self.cl_balance_gwei.clone()))?;
-        registry.register(Box::new(self.withdrawal_vault_balance_wei.clone()))?;
+        registry.register(Box::new(self.withdrawal_vault_balance_gwei.clone()))?;
         registry.register(Box::new(self.state_new_validators.clone()))?;
         registry.register(Box::new(self.state_changed_validators.clone()))?;
         Ok(())
@@ -99,9 +112,9 @@ impl Registar for Services {
 }
 
 pub struct Execution {
-    pub execution_time_seconds: Gauge,
-    pub sp1_cycle_count: Gauge,
-    pub outcome: Gauge,
+    pub execution_time_seconds: Histogram,
+    pub sp1_cycle_count: UIntGauge,
+    pub outcome: UIntCounterVec,
 }
 
 impl Registar for Execution {
@@ -113,29 +126,34 @@ impl Registar for Execution {
     }
 }
 
-pub fn register_counter(namespace: &str, name: &str, help: &str) -> Counter {
+pub fn register_gauge<TVal: Atomic>(namespace: &str, name: &str, help: &str) -> GenericGauge<TVal> {
     let opts = Opts::new(name, help).namespace(namespace.to_string());
-    Counter::with_opts(opts).unwrap()
+    GenericGauge::with_opts(opts).unwrap()
 }
 
-pub fn register_int_counter(namespace: &str, name: &str, help: &str) -> IntCounter {
+pub fn register_gauge_vec<TVal: Atomic>(
+    namespace: &str,
+    name: &str,
+    help: &str,
+    labels: &[&str],
+) -> GenericGaugeVec<TVal> {
     let opts = Opts::new(name, help).namespace(namespace.to_string());
-    IntCounter::with_opts(opts).unwrap()
+    GenericGaugeVec::new(opts, labels).unwrap()
 }
 
-pub fn register_int_counter_vec(namespace: &str, name: &str, help: &str, labels: &[&str]) -> IntCounterVec {
+pub fn register_counter<TVal: Atomic>(namespace: &str, name: &str, help: &str) -> GenericCounter<TVal> {
     let opts = Opts::new(name, help).namespace(namespace.to_string());
-    IntCounterVec::new(opts, labels).unwrap()
+    GenericCounter::with_opts(opts).unwrap()
 }
 
-pub fn register_gauge(namespace: &str, name: &str, help: &str) -> Gauge {
+pub fn register_counter_vec<TVal: Atomic>(
+    namespace: &str,
+    name: &str,
+    help: &str,
+    labels: &[&str],
+) -> GenericCounterVec<TVal> {
     let opts = Opts::new(name, help).namespace(namespace.to_string());
-    Gauge::with_opts(opts).unwrap()
-}
-
-pub fn register_gauge_vec(namespace: &str, name: &str, help: &str, labels: &[&str]) -> GaugeVec {
-    let opts = Opts::new(name, help).namespace(namespace.to_string());
-    GaugeVec::new(opts, labels).unwrap()
+    GenericCounterVec::new(opts, labels).unwrap()
 }
 
 pub fn register_histogram(namespace: &str, name: &str, help: &str) -> Histogram {
@@ -159,7 +177,7 @@ impl Metrics {
                 &["version", "git_sha", "git_branch", "build_timestamp", "target"],
             ),
 
-            run_report_counter: register_int_counter_vec(
+            run_report_counter: register_counter_vec(
                 namespace,
                 "metadata__report_runs",
                 "Number of report runs",
@@ -176,7 +194,7 @@ impl Metrics {
             num_validators: register_gauge(namespace, "report__num_validators", "Number of validators"),
             num_lido_validators: register_gauge(namespace, "report__num_lido_validators", "Number of Lido validators"),
             cl_balance_gwei: register_gauge(namespace, "report__cl_balance_gwei", "CL balance in Gwei"),
-            withdrawal_vault_balance_wei: register_gauge(
+            withdrawal_vault_balance_gwei: register_gauge(
                 namespace,
                 "report__withdrawal_vault_balance_wei",
                 "Withdrawal vault balance in Wei",
@@ -217,13 +235,18 @@ impl Metrics {
         };
 
         let execution = Execution {
-            execution_time_seconds: register_gauge(
+            execution_time_seconds: register_histogram(
                 namespace,
                 "execution__execution_time_seconds",
                 "Total execution time",
             ),
             sp1_cycle_count: register_gauge(namespace, "execution__sp1_cycle_count", "SP1 cycle count"),
-            outcome: register_gauge(namespace, "execution__execution_outcome", "Execution outcome"),
+            outcome: register_counter_vec(
+                namespace,
+                "execution__execution_outcome",
+                "Execution outcome",
+                &[outcome::ERROR, outcome::SUCCESS, outcome::REJECTION],
+            ),
         };
 
         Metrics {

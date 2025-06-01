@@ -14,7 +14,8 @@ use test_utils::{eyre_to_anyhow, files::TestFiles, mark_as_refslot};
 use typenum::Unsigned;
 
 const DEFAULT_FLAGS: scripts::submit::Flags = scripts::submit::Flags {
-    verify: true,
+    verify_input: true,
+    verify_proof: false,
     dry_run: false,
 };
 
