@@ -105,12 +105,18 @@ impl IntegrationTestEnvironment {
             withdrawal_credentials,
         );
 
+        let metrics = Metrics::new("irrelevant");
+
         tracing::info!("Deploying contract with parameters {:?}", deploy_params);
         let report_contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&provider), &deploy_params)
             .await
             .map_err(test_utils::eyre_to_anyhow)?;
 
-        let hash_consensus_contract = HashConsensusContractWrapper::new(Arc::clone(&provider), hash_consensus_address);
+        let hash_consensus_contract = HashConsensusContractWrapper::new(
+            Arc::clone(&provider),
+            hash_consensus_address,
+            metrics.services.hash_consensus.clone(),
+        );
 
         let lido_settings = LidoSettings {
             contract_address: report_contract.address().to_owned(),
@@ -135,7 +141,7 @@ impl IntegrationTestEnvironment {
             },
             lido_settings,
             sp1_settings,
-            Metrics::new("irrelevant"),
+            metrics,
             false,
         );
 

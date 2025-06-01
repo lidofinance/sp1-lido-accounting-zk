@@ -296,6 +296,8 @@ impl ScriptRuntime {
         let network = env_vars.evm_chain.value.clone().parse::<WrappedNetwork>()?;
         let beacon_state_reader = BeaconStateReaderEnum::new_from_env(&network)?;
 
+        let metrics = Metrics::new(&env_vars.prometheus_namespace.value);
+
         let result = Self::new(
             EthInfrastructure {
                 network,
@@ -314,6 +316,7 @@ impl ScriptRuntime {
                 hash_consensus_contract: HashConsensusContractWrapper::new(
                     Arc::clone(&provider),
                     env_vars.hash_consensus_address.value,
+                    metrics.services.hash_consensus.clone(),
                 ),
             },
             LidoSettings {
@@ -325,7 +328,7 @@ impl ScriptRuntime {
             Sp1Settings {
                 verifier_address: env_vars.sp1_verifier_address.value,
             },
-            Metrics::new(&env_vars.prometheus_namespace.value),
+            metrics,
             env_vars.dry_run.value,
         );
         Ok(result)

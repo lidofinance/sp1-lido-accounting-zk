@@ -29,6 +29,8 @@ use HashConsensus::HashConsensusInstance;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
 
+use crate::prometheus_metrics;
+
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
@@ -259,18 +261,30 @@ where
     P: alloy::providers::Provider<Ethereum>,
 {
     contract: HashConsensusInstance<(), Arc<P>>,
+    metric_reporter: prometheus_metrics::Service,
 }
 
 impl<P> HashConsensusContractWrapper<P>
 where
     P: alloy::providers::Provider<Ethereum>,
 {
-    pub fn new(provider: Arc<P>, contract_address: Address) -> Self {
+    pub fn new(provider: Arc<P>, contract_address: Address, metric_reporter: prometheus_metrics::Service) -> Self {
         let contract = HashConsensusInstance::new(contract_address, Arc::clone(&provider));
-        HashConsensusContractWrapper { contract }
+        HashConsensusContractWrapper {
+            contract,
+            metric_reporter,
+        }
     }
 
     pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), ContractError> {
+        let metric = prometheus_metrics::services::hash_consensus::GET_REFSLOT;
+        let timer = self
+            .metric_reporter
+            .execution_time_seconds
+            .with_label_values(&[metric])
+            .start_timer();
+        self.metric_reporter.call_count.with_label_values(&[metric]).inc();
+
         tracing::info!(
             hash_consensus_address = hex::encode(self.contract.address()),
             "Reading current refslot from HashConsensus"
@@ -280,8 +294,22 @@ where
             .getCurrentFrame()
             .call()
             .await
-            .inspect(|val| tracing::info!(refslot = ?val.refSlot, "Got response from hash consensus {:?}", val))
-            .inspect_err(|err| tracing::error!("Failed to read current frame from hash consensus {err:?}"))?;
+            .inspect(|val| {
+                self.metric_reporter
+                    .status
+                    .with_label_values(&[metric, prometheus_metrics::outcome::SUCCESS])
+                    .inc();
+                tracing::info!(refslot = ?val.refSlot, "Got response from hash consensus {:?}", val)
+            })
+            .inspect_err(|err| {
+                self.metric_reporter
+                    .status
+                    .with_label_values(&[metric, prometheus_metrics::outcome::ERROR])
+                    .inc();
+                tracing::error!("Failed to read current frame from hash consensus {err:?}")
+            })?;
+
+        timer.observe_duration();
         Ok((
             result.refSlot.try_into()?,
             result.reportProcessingDeadlineSlot.try_into()?,
