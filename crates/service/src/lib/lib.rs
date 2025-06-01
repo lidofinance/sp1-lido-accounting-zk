@@ -1,8 +1,6 @@
 use common::{setup_prometheus, AppState};
 
-use sp1_lido_accounting_scripts::{
-    consts::NetworkInfo, scripts, tracing as tracing_config, utils::read_env,
-};
+use sp1_lido_accounting_scripts::{scripts, tracing as tracing_config, utils::read_env};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

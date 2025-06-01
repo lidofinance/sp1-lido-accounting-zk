@@ -12,7 +12,6 @@ use sp1_lido_accounting_scripts::utils::read_env;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
 use std::{any::type_name_of_val, net::SocketAddr, sync::Arc, thread};
 use tokio::sync::Mutex;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use tracing::Span;
 
 use crate::common::{run_submit, AppState};
