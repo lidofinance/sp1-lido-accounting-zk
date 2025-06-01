@@ -1,8 +1,9 @@
+use std::future::Future;
+
 use anyhow;
-use lazy_static::lazy_static;
 use prometheus::{
     core::{Atomic, AtomicU64, GenericCounter, GenericCounterVec, GenericGauge, GenericGaugeVec},
-    Counter, Gauge, GaugeVec, Histogram, HistogramOpts, HistogramVec, IntCounterVec, IntGauge, Opts, Registry,
+    GaugeVec, Histogram, HistogramOpts, HistogramVec, IntCounterVec, IntGauge, Opts, Registry,
 };
 
 pub mod outcome {
@@ -12,6 +13,10 @@ pub mod outcome {
 }
 
 pub mod services {
+    pub mod eth_client {
+        pub const GET_WITHDRAWAL_VAULT_DATA: &str = "get_withdrawal_vault_data";
+    }
+
     pub mod hash_consensus {
         pub const GET_REFSLOT: &str = "get_refslot";
     }
@@ -101,6 +106,36 @@ impl Registar for Service {
         registry.register(Box::new(self.execution_time_seconds.clone()))?;
         registry.register(Box::new(self.status.clone()))?;
         Ok(())
+    }
+}
+
+impl Service {
+    pub async fn run_with_metrics_and_logs<F, Fut, T, E: std::fmt::Debug>(&self, operation: &str, f: F) -> Result<T, E>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<T, E>>,
+    {
+        let timer = self
+            .execution_time_seconds
+            .with_label_values(&[operation])
+            .start_timer();
+        self.call_count.with_label_values(&[operation]).inc();
+
+        let response = f().await;
+
+        let result = response
+            .inspect(|_val| {
+                self.status.with_label_values(&[operation, outcome::SUCCESS]).inc();
+                tracing::info!("{operation} succeded")
+            })
+            .inspect_err(|e| {
+                self.status.with_label_values(&[operation, outcome::ERROR]).inc();
+                tracing::error!("{operation} failed: {e:?}")
+            })?;
+
+        timer.observe_duration();
+
+        Ok(result)
     }
 }
 

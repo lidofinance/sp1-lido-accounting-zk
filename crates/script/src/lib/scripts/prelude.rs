@@ -302,7 +302,7 @@ impl ScriptRuntime {
             EthInfrastructure {
                 network,
                 provider: Arc::clone(&provider),
-                eth_client: ExecutionLayerClient::new(Arc::clone(&provider)),
+                eth_client: ExecutionLayerClient::new(Arc::clone(&provider), metrics.services.eth_client.clone()),
                 beacon_state_reader,
             },
             Sp1Infrastructure {

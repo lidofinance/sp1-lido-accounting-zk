@@ -276,44 +276,25 @@ where
         }
     }
 
-    pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), ContractError> {
-        let metric = prometheus_metrics::services::hash_consensus::GET_REFSLOT;
-        let timer = self
-            .metric_reporter
-            .execution_time_seconds
-            .with_label_values(&[metric])
-            .start_timer();
-        self.metric_reporter.call_count.with_label_values(&[metric]).inc();
-
+    async fn get_refslot_impl(&self) -> Result<(ReferenceSlot, ReferenceSlot), ContractError> {
         tracing::info!(
             hash_consensus_address = hex::encode(self.contract.address()),
             "Reading current refslot from HashConsensus"
         );
-        let result: HashConsensus::getCurrentFrameReturn = self
-            .contract
-            .getCurrentFrame()
-            .call()
-            .await
-            .inspect(|val| {
-                self.metric_reporter
-                    .status
-                    .with_label_values(&[metric, prometheus_metrics::outcome::SUCCESS])
-                    .inc();
-                tracing::info!(refslot = ?val.refSlot, "Got response from hash consensus {:?}", val)
-            })
-            .inspect_err(|err| {
-                self.metric_reporter
-                    .status
-                    .with_label_values(&[metric, prometheus_metrics::outcome::ERROR])
-                    .inc();
-                tracing::error!("Failed to read current frame from hash consensus {err:?}")
-            })?;
+        let result: HashConsensus::getCurrentFrameReturn = self.contract.getCurrentFrame().call().await?;
 
-        timer.observe_duration();
         Ok((
             result.refSlot.try_into()?,
             result.reportProcessingDeadlineSlot.try_into()?,
         ))
+    }
+
+    pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), ContractError> {
+        self.metric_reporter
+            .run_with_metrics_and_logs(prometheus_metrics::services::hash_consensus::GET_REFSLOT, || {
+                self.get_refslot_impl()
+            })
+            .await
     }
 }
 
@@ -322,17 +303,21 @@ where
     P: alloy::providers::Provider<Ethereum>,
 {
     provider: Arc<P>,
+    metric_reporter: prometheus_metrics::Service,
 }
 
 impl<P> ExecutionLayerClient<P>
 where
     P: alloy::providers::Provider<Ethereum>,
 {
-    pub fn new(provider: Arc<P>) -> Self {
-        Self { provider }
+    pub fn new(provider: Arc<P>, metric_reporter: prometheus_metrics::Service) -> Self {
+        Self {
+            provider,
+            metric_reporter,
+        }
     }
 
-    pub async fn get_withdrawal_vault_data(
+    async fn get_withdrawal_vault_data_impl(
         &self,
         address: Address,
         block_hash: Hash256,
@@ -356,11 +341,21 @@ where
                     balance: resp.balance,
                     account_proof: proof_as_vecs,
                 }
-            })
-            .inspect(|_val| tracing::info!("Successully read withdrawal vault data"))
-            .inspect_err(|e| tracing::error!("Failed to read withdrawal vault data {e:?}"))?;
-
+            })?;
         Ok(response)
+    }
+
+    pub async fn get_withdrawal_vault_data(
+        &self,
+        address: Address,
+        block_hash: Hash256,
+    ) -> Result<WithdrawalVaultData, RPCError> {
+        self.metric_reporter
+            .run_with_metrics_and_logs(
+                prometheus_metrics::services::eth_client::GET_WITHDRAWAL_VAULT_DATA,
+                || self.get_withdrawal_vault_data_impl(address, block_hash),
+            )
+            .await
     }
 }
 

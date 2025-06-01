@@ -46,6 +46,8 @@ impl IntegrationTestEnvironment {
     }
 
     pub async fn new(network: WrappedNetwork, deploy_slot: BeaconChainSlot) -> anyhow::Result<Self> {
+        let metrics = Metrics::new("irrelevant");
+
         let beacon_state_reader = BeaconStateReaderEnum::new_from_env(&network)
             .map_err(|e| anyhow::anyhow!("Failed to create beacon state reader {e:?}"))?;
 
@@ -70,7 +72,7 @@ impl IntegrationTestEnvironment {
             anvil.keys()[0].clone(),
             anvil.endpoint().parse()?,
         ));
-        let eth_client = EthELClient::new(Arc::clone(&provider));
+        let eth_client = EthELClient::new(Arc::clone(&provider), metrics.services.eth_client.clone());
 
         let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
         let deploy_bs: BeaconState = test_files
@@ -104,8 +106,6 @@ impl IntegrationTestEnvironment {
             withdrawal_vault_address,
             withdrawal_credentials,
         );
-
-        let metrics = Metrics::new("irrelevant");
 
         tracing::info!("Deploying contract with parameters {:?}", deploy_params);
         let report_contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&provider), &deploy_params)
