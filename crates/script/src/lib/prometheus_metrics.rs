@@ -181,7 +181,6 @@ impl Service {
 
 pub struct Services {
     pub eth_client: Service,
-    pub prover: Service,
     pub beacon_state_client: Service,
     pub hash_consensus: Service,
     pub sp1_client: Service,
@@ -190,7 +189,6 @@ pub struct Services {
 impl Registar for Services {
     fn register_on(&self, registry: &Registry) -> anyhow::Result<()> {
         self.eth_client.register_on(registry)?;
-        self.prover.register_on(registry)?;
         self.beacon_state_client.register_on(registry)?;
         self.hash_consensus.register_on(registry)?;
         self.sp1_client.register_on(registry)?;
@@ -311,7 +309,6 @@ impl Metrics {
 
         let services = Services {
             eth_client: build_service_metrics(namespace, "eth_client"),
-            prover: build_service_metrics(namespace, "prover"),
             beacon_state_client: build_service_metrics(namespace, "beacon_state_client"),
             hash_consensus: build_service_metrics(namespace, "hash_consensus"),
             sp1_client: build_service_metrics(namespace, "sp1_client"),
