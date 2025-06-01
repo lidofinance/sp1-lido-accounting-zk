@@ -28,8 +28,8 @@ pub enum Error {
 
     #[error("Validator states mismatch: {actual:?} != {expected:?}")]
     ValidatorStateMismatch {
-        expected: LidoValidatorState,
-        actual: LidoValidatorState,
+        expected: Box<LidoValidatorState>,
+        actual: Box<LidoValidatorState>,
     },
 
     #[error("Failed to merge validator delta: {0:?}")]
@@ -51,6 +51,7 @@ pub fn prepare_program_input(
     lido_withdrawal_vault_data: WithdrawalVaultData,
     verify: bool,
 ) -> Result<(ProgramInput, PublicValuesRust), Error> {
+    tracing::info!("Preparing program input");
     let beacon_block_hash = bh.tree_hash_root();
 
     tracing::info!(
@@ -64,6 +65,12 @@ pub fn prepare_program_input(
     let new_validator_state = LidoValidatorState::compute_from_beacon_state(bs, lido_withdrawal_credentials);
 
     tracing::info!(
+        old_deposited = old_validator_state.deposited_lido_validator_indices.len(),
+        old_pending = old_validator_state.pending_deposit_lido_validator_indices.len(),
+        old_exited = old_validator_state.exited_lido_validator_indices.len(),
+        new_deposited = new_validator_state.deposited_lido_validator_indices.len(),
+        new_pending = new_validator_state.pending_deposit_lido_validator_indices.len(),
+        new_exited = new_validator_state.exited_lido_validator_indices.len(),
         "Computed validator states. Old: deposited {}, pending {}, exited {}. New: deposited {}, pending {}, exited {}",
         old_validator_state.deposited_lido_validator_indices.len(),
         old_validator_state.pending_deposit_lido_validator_indices.len(),
@@ -73,6 +80,7 @@ pub fn prepare_program_input(
         new_validator_state.exited_lido_validator_indices.len(),
     );
 
+    tracing::info!(validators_count = bs.validators.len(), "Computing report");
     let report = ReportData::compute(
         reference_slot,
         bs.epoch(),
@@ -81,6 +89,7 @@ pub fn prepare_program_input(
         lido_withdrawal_credentials,
     );
 
+    tracing::info!("Forming public values");
     let public_values: PublicValuesRust = PublicValuesRust {
         report: ReportRust {
             reference_slot: report.slot,
@@ -110,11 +119,13 @@ pub fn prepare_program_input(
     tracing::debug!("Report {report:?}");
     tracing::debug!("Public values {public_values:?}");
 
+    tracing::info!("Computing validators and balances struct for program input");
     let validators_and_balances =
         compute_validators_and_balances(bs, old_bs, &old_validator_state, lido_withdrawal_credentials, verify)?;
 
+    tracing::info!("Obtaining execution header data");
     let execution_header_data = ExecutionPayloadHeaderData::new(&bs.latest_execution_payload_header);
-    tracing::info!("Obtained BeaconState.latest_execution_header.state_root proof");
+    tracing::debug!("Obtained BeaconState.latest_execution_header.state_root proof");
 
     tracing::info!("Creating program input");
     let program_input = ProgramInput {
@@ -138,10 +149,10 @@ pub fn prepare_program_input(
             &old_validator_state,
             &new_validator_state,
             lido_withdrawal_credentials,
-        )
-        .expect("Failed to verify input correctness");
+        )?;
     }
 
+    tracing::info!("Program input ready");
     Ok((program_input, public_values))
 }
 
@@ -183,11 +194,11 @@ fn compute_validators_and_balances(
 
     let added_validators_proof = bs.validators.get_serialized_multiproof(added_indices.as_slice());
     let changed_validators_proof = bs.validators.get_serialized_multiproof(changed_indices.as_slice());
-    tracing::info!("Obtained added and changed validators multiproofs");
+    tracing::info!("Obtained validators multiproofs for added and changed validators");
 
     let validators_and_balances_proof =
         bs.get_serialized_multiproof(&[BeaconStateFields::validators, BeaconStateFields::balances]);
-    tracing::info!("Obtained validators and balances fields multiproof");
+    tracing::info!("Obtained multiproofs for BeaconState.validators and BeaconState.balances fields");
 
     Ok(ValsAndBals {
         validators_and_balances_proof,
@@ -207,6 +218,7 @@ fn verify_input_correctness(
     new_state: &LidoValidatorState,
     lido_withdrawal_credentials: &Hash256,
 ) -> Result<(), Error> {
+    tracing::info!("Verifying program input correctness");
     tracing::debug!("Verifying inputs");
     let cycle_tracker = LogCycleTracker {};
     let input_verifier = InputVerifier::new(&cycle_tracker);
@@ -217,15 +229,19 @@ fn verify_input_correctness(
     let delta = &program_input.validators_and_balances.validators_delta;
     let computed_new_state = old_state.merge_validator_delta(slot, delta, lido_withdrawal_credentials)?;
     if computed_new_state != *new_state {
+        tracing::error!("Validator states mismatch");
         return Err(Error::ValidatorStateMismatch {
-            expected: computed_new_state.clone(),
-            actual: new_state.clone(),
+            expected: Box::new(computed_new_state.clone()),
+            actual: Box::new(new_state.clone()),
         });
     }
+    let computed_hash = computed_new_state.tree_hash_root();
+    let program_input_hash = program_input.new_lido_validator_state_hash;
     if computed_new_state.tree_hash_root() != program_input.new_lido_validator_state_hash {
+        tracing::error!("New validator state hash mismatch: computed {computed_hash} != passed {program_input_hash}",);
         return Err(Error::ValidatorStateHashMismatch {
-            computed: computed_new_state.tree_hash_root(),
-            program_input: program_input.new_lido_validator_state_hash,
+            computed: computed_hash,
+            program_input: program_input_hash,
         });
     }
     tracing::debug!("New state verified");
@@ -246,11 +262,9 @@ pub fn verify_public_values(public_values: &SP1PublicValues, expected_public_val
         hex::encode(public_values_rust.metadata.beacon_block_hash)
     );
     if public_values_rust != *expected_public_values {
-        return Err(anyhow::anyhow!(
-            "Public values mismatch: expected {:?}, got {:?}",
-            expected_public_values,
-            public_values_rust
-        ));
+        let msg = format!("Public values mismatch: expected {expected_public_values:?}, got {public_values_rust:?}");
+        tracing::error!(msg);
+        return Err(anyhow::anyhow!(msg));
     }
     tracing::info!("Public values match!");
 
