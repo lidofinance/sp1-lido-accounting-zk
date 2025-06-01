@@ -177,6 +177,8 @@ pub async fn run(
         .lido_infra
         .report_contract
         .submit_report_data(proof.bytes(), proof.public_values.to_vec())
-        .await?;
+        .await
+        .inspect(|tx_hash| tracing::info!("Report accepted, transaction: {tx_hash}"))
+        .inspect_err(|e| tracing::error!("Failed to submit report: {e:?}"))?;
     Ok(tx_hash)
 }
