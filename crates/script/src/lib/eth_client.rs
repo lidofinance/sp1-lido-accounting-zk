@@ -160,7 +160,7 @@ pub struct Sp1LidoAccountingReportContractWrapper<P>
 where
     P: alloy::providers::Provider<Ethereum> + std::clone::Clone,
 {
-    contract: Sp1LidoAccountingReportContractInstance<(), Arc<P>>,
+    contract: Sp1LidoAccountingReportContractInstance<Arc<P>>,
 }
 
 impl<P> Sp1LidoAccountingReportContractWrapper<P>
@@ -225,10 +225,9 @@ where
             .getLatestLidoValidatorStateSlot()
             .call()
             .await
-            .inspect(|val| tracing::info!("Obtained latest validator state slot {:#?}", val._0))
+            .inspect(|val| tracing::info!("Obtained latest validator state slot {:#?}", val))
             .inspect_err(|err| tracing::error!("Failed to read latest validator state slot {err:?}"))?;
-        let latest_report_slot = latest_report_response._0;
-        Ok(BeaconChainSlot(latest_report_slot.to::<u64>()))
+        Ok(BeaconChainSlot(latest_report_response.to::<u64>()))
     }
 
     pub async fn get_report(&self, slot: ReferenceSlot) -> Result<ReportRust, ContractError> {
@@ -260,7 +259,7 @@ pub struct HashConsensusContractWrapper<P>
 where
     P: alloy::providers::Provider<Ethereum>,
 {
-    contract: HashConsensusInstance<(), Arc<P>>,
+    contract: HashConsensusInstance<Arc<P>>,
     metric_reporter: Arc<prometheus_metrics::Service>,
 }
 

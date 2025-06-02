@@ -250,7 +250,7 @@ fn verify_input_correctness(
 
 pub fn verify_public_values(public_values: &SP1PublicValues, expected_public_values: &PublicValuesRust) -> Result<()> {
     let public_values_solidity: PublicValuesSolidity =
-        PublicValuesSolidity::abi_decode(public_values.as_slice(), true)?;
+        PublicValuesSolidity::abi_decode_validate(public_values.as_slice())?;
     let public_values_rust: PublicValuesRust = public_values_solidity.try_into()?;
 
     tracing::debug!(

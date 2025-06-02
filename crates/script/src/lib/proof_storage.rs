@@ -37,7 +37,7 @@ pub fn store_proof_and_metadata(
     proof_file: &Path,
 ) -> Result<(), Error> {
     let bytes = proof.public_values.to_vec();
-    let public_values = PublicValuesSolidity::abi_decode(bytes.as_slice(), false)?;
+    let public_values = PublicValuesSolidity::abi_decode_validate(bytes.as_slice())?;
 
     let stored_proof = StoredProof {
         vkey: vk.bytes32(),

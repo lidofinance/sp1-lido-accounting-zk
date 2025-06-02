@@ -146,7 +146,7 @@ mod tests {
 
         let abi_encoded = PublicValuesSolidity::abi_encode(&public_values_solidity);
         let decoded =
-            PublicValuesSolidity::abi_decode(&abi_encoded, true).expect("Failed to decode PublicValuesSolidity");
+            PublicValuesSolidity::abi_decode_validate(&abi_encoded).expect("Failed to decode PublicValuesSolidity");
         let public_values_rust: PublicValuesRust = decoded
             .try_into()
             .expect("Test: Failed to convert PublicValuesSolidity to PublicValuesRust");
