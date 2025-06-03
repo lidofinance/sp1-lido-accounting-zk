@@ -61,7 +61,8 @@ tracing-subscriber = {version="0.3.19", features=["std", "fmt", "json"]}
 tree_hash = "0.10"
 tree_hash_derive = "0.10"
 typenum = "1.18"
-ssz_types = { version = "0.11.0", features = ["arbitrary"] }
+# ssz_types = { version = "0.12.0", features = ["arbitrary", "cap-typenum-to-usize-overflow"], path = "../../ssz_types"  }
+ssz_types = { git = "https://github.com/color-typea/ssz_types", features = ["arbitrary", "cap-typenum-to-usize-overflow"] }
 
 sp1-lido-accounting-zk-shared = { path = "crates/shared" }
 sp1-lido-accounting-zk-scripts = { path = "crates/script" }
@@ -76,3 +77,4 @@ cargo-bundle-licenses = "2.0.0"
 sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.10.8-sp1-4.0.0" }
 ethereum_hashing = { git = "https://github.com/sp1-patches/ethereum_hashing", branch = "sp1-patch-0.7.0" }
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-4.0.0" }
+ssz_types = { git = "https://github.com/color-typea/ssz_types", features = ["arbitrary", "cap-typenum-to-usize-overflow"] }

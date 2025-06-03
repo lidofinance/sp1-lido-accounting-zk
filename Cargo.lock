@@ -6051,10 +6051,10 @@ dependencies = [
 [[package]]
 name = "ssz_types"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75b55bedc9a18ed2860a46d6beb4f4082416ee1d60be0cc364cebdcdddc7afd4"
+source = "git+https://github.com/color-typea/ssz_types#c81e87812a9449b89d6d7a31a375090466b90544"
 dependencies = [
  "arbitrary",
+ "ethereum_hashing",
  "ethereum_serde_utils",
  "ethereum_ssz",
  "itertools 0.13.0",
