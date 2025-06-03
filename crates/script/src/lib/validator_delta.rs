@@ -176,13 +176,16 @@ mod test {
     const FUTURE_SLOT: BeaconChainSlot = BeaconChainSlot(1200 + 12 * 10); // 10 epochs forward
 
     mod creds {
+        use hex_literal::hex;
         use lazy_static::lazy_static;
         use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 
         // Not real ones, just test double that we'll treat as lido
         lazy_static! {
-            pub static ref LIDO: Hash256 = Hash256::random();
-            pub static ref NON_LIDO: Hash256 = Hash256::random();
+            pub static ref LIDO: Hash256 =
+                hex!("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff").into();
+            pub static ref NON_LIDO: Hash256 =
+                hex!("ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100").into();
         }
     }
 

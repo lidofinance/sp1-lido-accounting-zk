@@ -81,10 +81,10 @@ impl IntegrationTestEnvironment {
             .await
             .map_err(test_utils::eyre_to_anyhow)?;
 
-        let verifier_address = env::var("VERIFIER_ADDRESS")
-            .expect("VERIFIER_ADDRESS not set")
+        let verifier_address = env::var("SP1_VERIFIER_ADDRESS")
+            .expect("SP1_VERIFIER_ADDRESS not set")
             .parse()
-            .expect("Failed to parse VERIFIER_ADDRES to Address");
+            .expect("Failed to parse SP1_VERIFIER_ADDRESS to Address");
 
         let hash_consensus_address = env::var("HASH_CONSENSUS_ADDRESS")
             .expect("HASH_CONSENSUS_ADDRESS not set")

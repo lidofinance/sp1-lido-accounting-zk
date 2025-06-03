@@ -39,7 +39,7 @@ pub fn make_validator(current_epoch: Epoch, balance: u64) -> Validator {
 
     Validator {
         pubkey: bls_key.into(),
-        withdrawal_credentials: Hash256::random(),
+        withdrawal_credentials: hex!("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff").into(),
         effective_balance: balance,
         slashed: false,
         activation_eligibility_epoch,

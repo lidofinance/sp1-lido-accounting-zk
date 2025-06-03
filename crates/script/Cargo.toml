@@ -53,6 +53,7 @@ sp1-helper.workspace = true
 
 [dev-dependencies]
 alloy = { version = "1", features = ["node-bindings"] }
+alloy-primitives = { version = "1", features = ["arbitrary", "serde", "rlp", "getrandom"] }
 typenum.workspace = true
 dotenvy.workspace = true
 lazy_static.workspace = true
