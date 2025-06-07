@@ -164,7 +164,7 @@ async fn run_with_span(
 
     let report_timestamp = Utc::now().timestamp();
     // report metrics
-    report_metrics(
+    let metric_report = report_metrics(
         &runtime.metrics,
         &resolved_slot_values,
         &program_input,
@@ -172,6 +172,10 @@ async fn run_with_span(
         &execution_report,
         report_timestamp,
     );
+    match metric_report {
+        Ok(_) => tracing::debug!("Reported metrics"),
+        Err(e) => tracing::warn!("Failed to report metrics {e:?}"),
+    }
 
     let proof = runtime
         .sp1_infra
@@ -243,7 +247,7 @@ fn report_metrics(
     public_values: &PublicValuesRust,
     execution_report: &ExecutionReport,
     report_timestamp: i64,
-) {
+) -> anyhow::Result<()> {
     metrics.report.refslot.set(resolved_slot_values.report_slot.0);
     metrics.report.refslot.set(resolved_slot_values.report_slot.epoch());
     metrics.report.old_slot.set(resolved_slot_values.previous_slot.0);
@@ -265,20 +269,21 @@ fn report_metrics(
     metrics.report.cl_balance_gwei.set(public_values.report.lido_cl_balance);
     metrics.report.withdrawal_vault_balance_gwei.set(wv_balance_gwei);
 
-    let added = usize_to_u64(program_input.validators_and_balances.validators_delta.all_added.len());
+    let added = usize_to_u64(program_input.validators_and_balances.validators_delta.all_added.len())?;
     let changed = usize_to_u64(
         program_input
             .validators_and_balances
             .validators_delta
             .lido_changed
             .len(),
-    );
+    )?;
 
     metrics.report.state_new_validators.set(added);
     metrics.report.state_changed_validators.set(changed);
 
     let total_cycles: u64 = execution_report.cycle_tracker.values().sum();
     metrics.execution.sp1_cycle_count.set(total_cycles);
+    Ok(())
 }
 
 pub async fn run(

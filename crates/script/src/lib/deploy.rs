@@ -16,7 +16,8 @@ pub fn prepare_deploy_params(
 ) -> ContractDeployParametersRust {
     let network_config = network.get_config();
     let network_name = network.as_str();
-    let lido_validator_state = LidoValidatorState::compute_from_beacon_state(target_bs, &lido_withdrawal_credentials);
+    let lido_validator_state = LidoValidatorState::compute_from_beacon_state(target_bs, &lido_withdrawal_credentials)
+        .expect("Failed to compute validator state");
 
     ContractDeployParametersRust {
         network: network_name.clone(),

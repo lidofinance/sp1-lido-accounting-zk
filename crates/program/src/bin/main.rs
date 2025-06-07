@@ -55,7 +55,8 @@ pub fn main() {
         &new_state,
         &input.validators_and_balances.balances,
         &input.validators_and_balances.lido_withdrawal_credentials,
-    );
+    )
+    .expect("Failed to compute report");
     cycle_tracker.end_span("main.compute_report");
 
     cycle_tracker.start_span("main.commit_public_values");

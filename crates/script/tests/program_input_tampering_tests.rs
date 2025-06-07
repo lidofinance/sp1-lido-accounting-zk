@@ -239,8 +239,10 @@ fn update_program_input(
     bs_modifier: impl Fn(BeaconState) -> BeaconState,
 ) {
     let bs = bs_modifier(new_bs);
-    let old_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, withdrawal_credentials);
-    let new_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, withdrawal_credentials);
+    let old_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, withdrawal_credentials)
+        .expect("Failed to compute validator state");
+    let new_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, withdrawal_credentials)
+        .expect("Failed to compute validator state");
     let modified_vals_and_bals =
         compute_validators_and_balances_test_public(&bs, &old_bs, &old_validator_state, withdrawal_credentials, false)
             .expect("Failed to prepare program input");
@@ -621,7 +623,7 @@ async fn program_input_tampering_vals_and_bals_delta_all_added_existing_as_added
     program_input.validators_and_balances.validators_delta.all_added = vecs::append(
         program_input.validators_and_balances.validators_delta.all_added,
         ValidatorWithIndex {
-            index: usize_to_u64(target_validator_index),
+            index: usize_to_u64(target_validator_index).expect("Failed to convert usize to u64"),
             validator,
         },
     );
@@ -772,7 +774,7 @@ async fn program_input_tampering_vals_and_bals_delta_lido_changed_extra() -> Res
     program_input.validators_and_balances.validators_delta.lido_changed = vecs::append(
         program_input.validators_and_balances.validators_delta.lido_changed,
         ValidatorWithIndex {
-            index: usize_to_u64(target_validator_index),
+            index: usize_to_u64(target_validator_index).expect("Failed to convert usize to u64"),
             validator,
         },
     );

@@ -75,7 +75,8 @@ async fn main() {
         .await
         .expect("Failed to read beacon state");
     let lido_state1 =
-        LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds);
+        LidoValidatorState::compute_from_beacon_state(&beacon_state1, &withdrawal_creds)
+            .expect("Failed to compute validator state from beacon state");
 
     let beacon_state2 = reader
         .read_beacon_state(&StateId::Slot(BeaconChainSlot(new_slot)))

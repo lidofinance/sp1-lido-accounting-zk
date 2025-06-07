@@ -1,6 +1,7 @@
 use crate::validator_delta::{self, ValidatorDeltaCompute, ValidatorDeltaComputeBeaconStateProjection};
 use alloy_sol_types::SolType;
 
+use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
 use sp1_sdk::SP1PublicValues;
 
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{self, InputVerifier, LogCycleTracker};
@@ -15,7 +16,6 @@ use sp1_lido_accounting_zk_shared::io::program_io::{
 };
 use sp1_lido_accounting_zk_shared::lido::{self, LidoValidatorState};
 use sp1_lido_accounting_zk_shared::merkle_proof::FieldProof;
-use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
 
 use anyhow::Result;
 
@@ -40,6 +40,8 @@ pub enum Error {
 
     #[error(transparent)]
     FailedToProveInput(#[from] input_verification::Error),
+    #[error(transparent)]
+    ConversionError(#[from] sp1_lido_accounting_zk_shared::util::ConversionError),
 }
 
 pub fn prepare_program_input(
@@ -61,8 +63,8 @@ pub fn prepare_program_input(
         hex::encode(beacon_block_hash),
         bs.validators.len()
     );
-    let old_validator_state = LidoValidatorState::compute_from_beacon_state(old_bs, lido_withdrawal_credentials);
-    let new_validator_state = LidoValidatorState::compute_from_beacon_state(bs, lido_withdrawal_credentials);
+    let old_validator_state = LidoValidatorState::compute_from_beacon_state(old_bs, lido_withdrawal_credentials)?;
+    let new_validator_state = LidoValidatorState::compute_from_beacon_state(bs, lido_withdrawal_credentials)?;
 
     tracing::info!(
         old_deposited = old_validator_state.deposited_lido_validator_indices.len(),
@@ -186,14 +188,15 @@ fn compute_validators_and_balances(
         validator_delta.all_added.len(),
         validator_delta.lido_changed.len(),
     );
-    let added_indices: Vec<usize> = validator_delta.added_indices().map(|v| u64_to_usize(*v)).collect();
-    let changed_indices: Vec<usize> = validator_delta
+    // Try converting indices, return early on error
+    let added_indices: Result<Vec<usize>, _> = validator_delta.added_indices().map(|v| u64_to_usize(*v)).collect();
+    let changed_indices: Result<Vec<usize>, _> = validator_delta
         .lido_changed_indices()
         .map(|v| u64_to_usize(*v))
         .collect();
 
-    let added_validators_proof = bs.validators.get_serialized_multiproof(added_indices.as_slice());
-    let changed_validators_proof = bs.validators.get_serialized_multiproof(changed_indices.as_slice());
+    let added_validators_proof = bs.validators.get_serialized_multiproof(&added_indices?);
+    let changed_validators_proof = bs.validators.get_serialized_multiproof(&changed_indices?);
     tracing::info!("Obtained validators multiproofs for added and changed validators");
 
     let validators_and_balances_proof =
@@ -203,7 +206,7 @@ fn compute_validators_and_balances(
     Ok(ValsAndBals {
         validators_and_balances_proof,
         lido_withdrawal_credentials: *lido_withdrawal_credentials,
-        total_validators: usize_to_u64(bs.validators.len()),
+        total_validators: usize_to_u64(bs.validators.len())?,
         validators_delta: validator_delta,
         added_validators_inclusion_proof: added_validators_proof,
         changed_validators_inclusion_proof: changed_validators_proof,

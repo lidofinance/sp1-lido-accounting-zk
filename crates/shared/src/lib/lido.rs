@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::num::TryFromIntError;
 use std::ops::Range;
 
 use itertools::Itertools;
@@ -10,7 +9,7 @@ use tree_hash_derive::TreeHash;
 use crate::eth_consensus_layer::{BeaconState, Epoch, Hash256, Validator, ValidatorIndex, Validators};
 use crate::eth_spec;
 use crate::io::eth_io::{BeaconChainSlot, HaveEpoch, HaveSlotWithBlock};
-use crate::util::usize_to_u64;
+use crate::util::{usize_to_u64, ConversionError};
 
 type ValidatorIndexList = VariableList<ValidatorIndex, eth_spec::ReducedValidatorRegistryLimit>;
 
@@ -33,8 +32,8 @@ pub enum Error {
         #[debug("0x{:?}", hex::encode(withdrawal_credentials))]
         withdrawal_credentials: Hash256,
     },
-    #[error("Passed non-Lido validator in delta")]
-    U64ToUizeConversionError(#[from] TryFromIntError),
+    #[error("Failed to convert between numeric types")]
+    ConversionError(#[from] ConversionError),
 }
 
 #[derive(PartialEq, Clone, Debug, Serialize, Deserialize, TreeHash)]
@@ -69,13 +68,17 @@ impl LidoValidatorState {
         self.max_validator_index + 1
     }
 
-    pub fn compute(slot: BeaconChainSlot, validators: &Validators, lido_withdrawal_credentials: &Hash256) -> Self {
+    pub fn compute(
+        slot: BeaconChainSlot,
+        validators: &Validators,
+        lido_withdrawal_credentials: &Hash256,
+    ) -> Result<Self, Error> {
         let mut deposited: Vec<ValidatorIndex> = vec![];
         let mut pending_deposit: Vec<ValidatorIndex> = vec![];
         let mut exited: Vec<ValidatorIndex> = vec![];
 
         let epoch = slot.epoch();
-        let validator_count: u64 = usize_to_u64(validators.len());
+        let validator_count: u64 = usize_to_u64(validators.len())?;
 
         for (idx, validator) in validators.iter().enumerate() {
             if !validator.is_lido(lido_withdrawal_credentials) {
@@ -83,22 +86,23 @@ impl LidoValidatorState {
             }
 
             match validator.status(epoch) {
-                ValidatorStatus::Deposited => deposited.push(usize_to_u64(idx)),
-                ValidatorStatus::FutureDeposit => pending_deposit.push(usize_to_u64(idx)),
+                ValidatorStatus::Deposited => deposited.push(usize_to_u64(idx)?),
+                ValidatorStatus::FutureDeposit => pending_deposit.push(usize_to_u64(idx)?),
                 ValidatorStatus::Exited => {
-                    deposited.push(usize_to_u64(idx));
-                    exited.push(usize_to_u64(idx));
+                    deposited.push(usize_to_u64(idx)?);
+                    exited.push(usize_to_u64(idx)?);
                 }
             }
         }
-        Self {
+        let res = Self {
             slot,
             epoch,
             max_validator_index: validator_count - 1,
             deposited_lido_validator_indices: deposited.into(),
             pending_deposit_lido_validator_indices: pending_deposit.into(),
             exited_lido_validator_indices: exited.into(),
-        }
+        };
+        Ok(res)
     }
 
     pub fn all_lido_validators_indices(&self) -> impl Iterator<Item = &u64> {
@@ -116,7 +120,7 @@ impl LidoValidatorState {
         first..(first + added)
     }
 
-    pub fn compute_from_beacon_state(bs: &BeaconState, lido_withdrawal_credentials: &Hash256) -> Self {
+    pub fn compute_from_beacon_state(bs: &BeaconState, lido_withdrawal_credentials: &Hash256) -> Result<Self, Error> {
         Self::compute(BeaconChainSlot(bs.slot), &bs.validators, lido_withdrawal_credentials)
     }
 
@@ -212,7 +216,7 @@ impl LidoValidatorState {
         let deposited_list: ValidatorIndexList = new_deposited.into();
         let pending_deposit_list: ValidatorIndexList = new_pending_deposit.into_iter().sorted().collect_vec().into();
         let exited_list: ValidatorIndexList = new_exited.into();
-        let added_validator_count: u64 = validator_delta.all_added.len().try_into()?;
+        let added_validator_count: u64 = usize_to_u64(validator_delta.all_added.len())?;
 
         let result = Self {
             slot,

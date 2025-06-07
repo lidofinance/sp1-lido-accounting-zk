@@ -33,6 +33,8 @@ pub enum Error {
         #[debug("0x{:?}", hex::encode(new.to_vec()))]
         new: BlsPublicKey,
     },
+    #[error("Failed to convert u64 to usize")]
+    ConversionError(#[from] sp1_lido_accounting_zk_shared::util::ConversionError),
 }
 
 pub struct ValidatorDeltaCompute<'a> {
@@ -91,7 +93,7 @@ impl<'a> ValidatorDeltaCompute<'a> {
             // for already deposited validators, we want to check if something material have changed:
             // this can only be activation epoch or exist epoch. Theoretically "slashed" can also be
             // relevant, but for now we have no use for it
-            let index_usize = u64_to_usize(*index);
+            let index_usize = u64_to_usize(*index)?;
             let old_validator = &self.old_bs.validators[index_usize];
             let new_validator = &self.new_bs.validators[index_usize];
 
@@ -123,19 +125,18 @@ impl<'a> ValidatorDeltaCompute<'a> {
         Ok(lido_changed_indices)
     }
 
-    fn read_validators(&self, indices: Vec<ValidatorIndex>) -> Vec<ValidatorWithIndex> {
-        indices
-            .iter()
-            .filter_map(|index| {
-                self.new_bs
-                    .validators
-                    .get(u64_to_usize(*index))
-                    .map(|v| ValidatorWithIndex {
-                        index: *index,
-                        validator: v.clone(),
-                    })
-            })
-            .collect()
+    fn read_validators(&self, indices: Vec<ValidatorIndex>) -> Result<Vec<ValidatorWithIndex>, Error> {
+        let mut result = Vec::with_capacity(indices.len());
+        for index in indices {
+            let idx_usize: usize = u64_to_usize(index)?;
+            if let Some(v) = self.new_bs.validators.get(idx_usize) {
+                result.push(ValidatorWithIndex {
+                    index,
+                    validator: v.clone(),
+                });
+            }
+        }
+        Ok(result)
     }
 
     pub fn compute(&self) -> Result<ValidatorDelta, Error> {
@@ -146,16 +147,16 @@ impl<'a> ValidatorDeltaCompute<'a> {
         );
 
         let added_count = self.new_bs.validators.len() - self.old_bs.validators.len();
-        let added = self
+        let added: Vec<u64> = self
             .old_state
-            .indices_for_adjacent_delta(usize_to_u64(added_count))
+            .indices_for_adjacent_delta(usize_to_u64(added_count)?)
             .collect();
         let mut changed: Vec<u64> = self.compute_changed()?.into_iter().collect();
         changed.sort(); // this is important - otherwise equality comparisons and hash computation won't work as expected
 
         Ok(ValidatorDelta {
-            all_added: self.read_validators(added),
-            lido_changed: self.read_validators(changed),
+            all_added: self.read_validators(added)?,
+            lido_changed: self.read_validators(changed)?,
         })
     }
 }
@@ -225,7 +226,7 @@ mod test {
     fn compute(old_validators: Vec<Validator>, new_validators: Vec<Validator>) -> ValidatorDelta {
         let old: Validators = old_validators.into();
         let new: Validators = new_validators.into();
-        let old_state = LidoValidatorState::compute(SLOT, &old, &creds::LIDO);
+        let old_state = LidoValidatorState::compute(SLOT, &old, &creds::LIDO).expect("Failed to compute state");
         let compute = ValidatorDeltaCompute::new(
             ValidatorDeltaComputeBeaconStateProjection::new(SLOT, &old),
             &old_state,
@@ -317,7 +318,7 @@ mod test {
         let mut new_validators = original_validators.clone();
         new_validators[idx].exit_epoch = SLOT.epoch() - 5;
         let expected_changed = vec![ValidatorWithIndex {
-            index: usize_to_u64(idx),
+            index: usize_to_u64(idx).expect("Failed to covert usize to u64"),
             validator: new_validators[idx].clone(),
         }];
 
@@ -356,7 +357,7 @@ mod test {
         let expected_added: Vec<ValidatorWithIndex> = [8_usize, 9, 10, 11]
             .iter()
             .map(|idx| ValidatorWithIndex {
-                index: usize_to_u64(*idx),
+                index: usize_to_u64(*idx).expect("Failed to convert usize to u64"),
                 validator: new_validators[*idx].clone(),
             })
             .collect();
@@ -364,7 +365,7 @@ mod test {
         let expected_changed: Vec<ValidatorWithIndex> = [0_usize, 4]
             .iter()
             .map(|idx| ValidatorWithIndex {
-                index: usize_to_u64(*idx),
+                index: usize_to_u64(*idx).expect("Failed to convert usize to u64"),
                 validator: new_validators[*idx].clone(),
             })
             .collect();

@@ -33,19 +33,22 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
     assert_eq!(state.slot.0, manifesto["report"]["slot"].as_u64().unwrap());
     assert_eq!(state.epoch, manifesto["report"]["epoch"].as_u64().unwrap());
     assert_eq!(
-        usize_to_u64(state.deposited_lido_validator_indices.len()),
+        usize_to_u64(state.deposited_lido_validator_indices.len())
+            .expect("Failed to convert usize to u64"),
         manifesto["report"]["lido_deposited_validators"]
             .as_u64()
             .unwrap()
     );
     assert_eq!(
-        usize_to_u64(state.exited_lido_validator_indices.len()),
+        usize_to_u64(state.exited_lido_validator_indices.len())
+            .expect("Failed to convert usize to u64"),
         manifesto["report"]["lido_exited_validators"]
             .as_u64()
             .unwrap()
     );
     assert_eq!(
-        usize_to_u64(state.pending_deposit_lido_validator_indices.len()),
+        usize_to_u64(state.pending_deposit_lido_validator_indices.len())
+            .expect("Failed to convert usize to u64"),
         manifesto["report"]["lido_pending_deposit_validators"]
             .as_u64()
             .unwrap()
@@ -66,7 +69,7 @@ fn verify_state(beacon_state: &BeaconState, state: &LidoValidatorState, manifest
         HashSet::from_iter(state.exited_lido_validator_indices.clone());
 
     for (idx, validator) in beacon_state.validators.iter().enumerate() {
-        let validator_index = usize_to_u64(idx);
+        let validator_index = usize_to_u64(idx).expect("Failed to convert usize to u64");
 
         if validator.withdrawal_credentials != withdrawal_creds {
             assert!(!deposited_hash_set.contains(&validator_index));
@@ -141,7 +144,8 @@ async fn main() {
 
     // Step 3: Compute lido state
     let lido_state =
-        LidoValidatorState::compute_from_beacon_state(&beacon_state, &lido_withdrawal_creds);
+        LidoValidatorState::compute_from_beacon_state(&beacon_state, &lido_withdrawal_creds)
+            .expect("Failed to compute validator state from beacon state");
 
     // Step 4: verify state
     verify_state(&beacon_state, &lido_state, &manifesto);
