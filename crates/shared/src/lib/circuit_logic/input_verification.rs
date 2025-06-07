@@ -11,7 +11,6 @@ use crate::{
     },
     eth_execution_layer::EthAccountRlpValue,
     eth_spec,
-    hashing::{self, HashHelper, HashHelperImpl},
     io::{
         eth_io::HaveEpoch,
         program_io::{ProgramInput, WithdrawalVaultData},
@@ -140,7 +139,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         validators_with_indices: &Vec<ValidatorWithIndex>,
         proof: MerkleProofWrapper,
     ) -> Result<(), Error> {
-        let tree_depth = hashing::target_tree_depth::<Validator, eth_spec::ValidatorRegistryLimit>();
+        let tree_depth = merkle_proof::target_tree_depth::<Validator, eth_spec::ValidatorRegistryLimit>();
 
         let validators_count = validators_with_indices.len();
         let mut indexes: Vec<usize> = Vec::with_capacity(validators_count);
@@ -354,7 +353,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         // Step 2: confirm passed balances match the ones in BeaconState
         self.cycle_tracker
             .start_span(&format!("{vals_and_bals_prefix}.balances"));
-        let balances_hash = HashHelperImpl::hash_list(&input.validators_and_balances.balances);
+        let balances_hash = input.validators_and_balances.balances.tree_hash_root();
         if balances_hash != beacon_state.balances {
             return Err(Error::ConditionCheck(ConditionCheckFailure::BalancesHashMismatch {
                 actual: balances_hash,

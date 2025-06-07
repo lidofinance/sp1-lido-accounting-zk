@@ -1,3 +1,4 @@
+use ethereum_hashing::{hash32_concat, ZERO_HASHES};
 use hex;
 use itertools::Itertools;
 use rs_merkle;
@@ -6,12 +7,33 @@ use ssz_types::VariableList;
 use typenum::Unsigned;
 
 use crate::eth_consensus_layer::Hash256;
-use crate::hashing;
 
-use tree_hash::TreeHash;
+use tree_hash::{TreeHash, TreeHashType};
 
 type MerkleHash = [u8; 32];
 type LeafIndex = usize;
+
+fn pad_to_depth(hash: &Hash256, current_depth: usize, target_depth: usize) -> Hash256 {
+    let mut curhash: [u8; 32] = hash.0;
+    for depth in current_depth..target_depth {
+        curhash = hash32_concat(&curhash, ZERO_HASHES[depth].as_slice());
+    }
+    curhash.into()
+}
+
+fn packing_factor<T: TreeHash>() -> usize {
+    match T::tree_hash_type() {
+        TreeHashType::Basic => T::tree_hash_packing_factor(),
+        TreeHashType::Container | TreeHashType::List | TreeHashType::Vector => 1,
+    }
+}
+
+pub fn target_tree_depth<T: TreeHash, N: Unsigned>() -> usize {
+    let packing_factor = packing_factor::<T>();
+    let packing_factor_log2 = packing_factor.trailing_zeros() as usize;
+    let main_depth = N::to_u64().next_power_of_two().trailing_zeros() as usize;
+    main_depth - packing_factor_log2
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SerdeError {
@@ -177,7 +199,7 @@ impl MerkleProofWrapper {
         tracing::debug!("Main data hash {}", hex::encode(root));
         if let Some(target_depth) = expand_to_depth {
             let main_data_depth: usize = leaves_count.trailing_zeros() as usize;
-            root = hashing::pad_to_depth(&root, main_data_depth, target_depth);
+            root = pad_to_depth(&root, main_data_depth, target_depth);
         }
         if let Some(size) = mix_in_size {
             tracing::debug!("Mixing in size {} to {}", size, hex::encode(root));
@@ -326,7 +348,7 @@ where
     type LeafIndex = usize;
 
     fn get_members_multiproof(&self, indices: &[LeafIndex]) -> MerkleProofWrapper {
-        if hashing::packing_factor::<T>() != 1 {
+        if packing_factor::<T>() != 1 {
             unimplemented!("Multiproof is not yet supported for types that involve packing");
         }
 
@@ -339,7 +361,7 @@ where
         indices: &[Self::LeafIndex],
         element_hashes: &[Hash256],
     ) -> Result<(), Error> {
-        if hashing::packing_factor::<T>() != 1 {
+        if packing_factor::<T>() != 1 {
             unimplemented!("Multiproof is not yet supported for types that involve packing");
         }
 
@@ -347,7 +369,7 @@ where
             self.len(),
             indices,
             element_hashes,
-            Some(hashing::target_tree_depth::<T, N>()),
+            Some(target_tree_depth::<T, N>()),
             Some(self.len()),
         )?;
 
@@ -364,9 +386,9 @@ mod test {
     use tree_hash_derive::TreeHash;
     use typenum::Unsigned;
 
-    use crate::{eth_consensus_layer::Hash256, hashing};
+    use crate::eth_consensus_layer::Hash256;
 
-    use super::{verify_hashes, FieldProof, LeafIndex, MerkleTreeFieldLeaves};
+    use super::{target_tree_depth, verify_hashes, FieldProof, LeafIndex, MerkleTreeFieldLeaves};
 
     // Helper functions to minimize number of hits for `assert` in production files
     fn check(cond: bool) {
@@ -464,7 +486,7 @@ mod test {
 
         let expected_root = list.tree_hash_root();
         let total_leaves_count = input.len().next_power_of_two();
-        let target_depth = hashing::target_tree_depth::<GuineaPig, N>();
+        let target_depth = target_tree_depth::<GuineaPig, N>();
 
         let target_hashes: Vec<Hash256> = target_indices
             .iter()
@@ -537,7 +559,7 @@ mod test {
         proof: super::MerkleProofWrapper,
     ) -> Result<Hash256, super::Error> {
         let list_len = list.len();
-        let target_depth = hashing::target_tree_depth::<Item, N>();
+        let target_depth = target_tree_depth::<Item, N>();
         proof.build_root_from_proof(
             list_len,
             verify_indices,
@@ -564,7 +586,7 @@ mod test {
         let proof = list.get_members_multiproof(&proof_indices);
 
         let list_len = list.len();
-        let target_depth = hashing::target_tree_depth::<U256, typenum::U8>();
+        let target_depth = target_tree_depth::<U256, typenum::U8>();
 
         let raw_proof_root = proof
             .build_root_from_proof_bypass_verify(list_len, &verify_indices, &hashes, Some(target_depth), Some(list_len))
