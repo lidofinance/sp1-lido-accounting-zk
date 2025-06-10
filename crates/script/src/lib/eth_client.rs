@@ -33,7 +33,7 @@ sol!(
     #[sol(rpc)]
     #[derive(Debug)]
     Sp1LidoAccountingReportContract,
-    "../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
+    "../../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
 );
 
 sol!(
@@ -41,7 +41,7 @@ sol!(
     #[sol(rpc)]
     #[derive(Debug)]
     ISP1Verifier,
-    "../contracts/out/ISP1Verifier.sol/ISP1Verifier.json",
+    "../../contracts/out/ISP1Verifier.sol/ISP1Verifier.json",
 );
 
 #[derive(Debug, Error)]
