@@ -1,12 +1,15 @@
 mod test_utils;
 
+use std::sync::Arc;
+
+use alloy::rpc::types::TransactionReceipt;
 use alloy_sol_types::SolType;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
-    eth_client,
+    eth_client, prometheus_metrics,
     proof_storage::StoredProof,
     scripts::shared as shared_logic,
-    sp1_client_wrapper::SP1ClientWrapper,
+    sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 
 use hex_literal::hex;
@@ -17,7 +20,7 @@ use sp1_lido_accounting_zk_shared::{
         program_io::WithdrawalVaultData,
     },
 };
-use sp1_sdk::HashableKey;
+use sp1_sdk::{HashableKey, ProverClient};
 use test_utils::env::IntegrationTestEnvironment;
 use thiserror::Error;
 
@@ -26,41 +29,17 @@ const STORED_PROOF_FILE_NAME: &str = "fixture.json";
 #[derive(Debug, Error)]
 enum ExecutorError {
     #[error("Contract rejected: {0:#?}")]
-    Contract(eth_client::Error),
+    Contract(#[from] eth_client::ContractError),
     #[error("Failed to launch anvil: {0:#?}")]
-    AnvilLaunch(alloy::node_bindings::NodeError),
+    AnvilLaunch(#[from] alloy::node_bindings::NodeError),
     #[error("Eyre error: {0:#?}")]
-    Eyre(eyre::Error),
+    Eyre(#[from] eyre::Error),
     #[error("Anyhow error: {0:#?}")]
-    Anyhow(anyhow::Error),
+    Anyhow(#[from] anyhow::Error),
 }
 
 type Result<T> = std::result::Result<T, ExecutorError>;
-type TestExecutorResult = Result<alloy_primitives::TxHash>;
-
-impl From<eth_client::Error> for ExecutorError {
-    fn from(value: eth_client::Error) -> Self {
-        ExecutorError::Contract(value)
-    }
-}
-
-impl From<alloy::node_bindings::NodeError> for ExecutorError {
-    fn from(value: alloy::node_bindings::NodeError) -> Self {
-        ExecutorError::AnvilLaunch(value)
-    }
-}
-
-impl From<eyre::Error> for ExecutorError {
-    fn from(value: eyre::Error) -> Self {
-        ExecutorError::Eyre(value)
-    }
-}
-
-impl From<anyhow::Error> for ExecutorError {
-    fn from(value: anyhow::Error) -> Self {
-        ExecutorError::Anyhow(value)
-    }
-}
+type TestExecutorResult = Result<TransactionReceipt>;
 
 struct TestExecutor<M: Fn(PublicValuesRust) -> PublicValuesRust> {
     env: IntegrationTestEnvironment,
@@ -84,27 +63,40 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
 
     async fn run_test(&self) -> TestExecutorResult {
         sp1_sdk::utils::setup_logger();
-        let lido_withdrawal_credentials: Hash256 = self.env.network_config().lido_withdrawal_credentials.into();
+        let lido_withdrawal_credentials: Hash256 = self.env.script_runtime.lido_settings.withdrawal_credentials;
         let stored_proof = self.get_stored_proof()?;
 
         let reference_slot = stored_proof.report.reference_slot;
         let bc_slot = stored_proof.metadata.bc_slot;
 
-        let previous_slot = self.env.contract.get_latest_validator_state_slot().await?;
+        let previous_slot = self
+            .env
+            .script_runtime
+            .lido_infra
+            .report_contract
+            .get_latest_validator_state_slot()
+            .await?;
 
         let target_bh = self
             .env
-            .bs_reader
+            .script_runtime
+            .bs_reader()
             .read_beacon_block_header(&StateId::Slot(bc_slot))
             .await?;
-        let target_bs = self.env.bs_reader.read_beacon_state(&StateId::Slot(bc_slot)).await?;
+        let target_bs = self
+            .env
+            .script_runtime
+            .bs_reader()
+            .read_beacon_state(&StateId::Slot(bc_slot))
+            .await?;
         // Should read old state from untampered reader, so the old state compute will match
         let old_bs = self
             .env
-            .bs_reader
+            .script_runtime
+            .bs_reader()
             .read_beacon_state(&StateId::Slot(previous_slot))
             .await?;
-        log::info!("Preparing program input");
+        tracing::info!("Preparing program input");
 
         let withdrawal_vault_data = WithdrawalVaultData {
             balance: stored_proof.metadata.withdrawal_vault_data.balance,
@@ -120,18 +112,23 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
             &lido_withdrawal_credentials,
             withdrawal_vault_data,
             false,
-        );
-        log::info!("Reading proof");
+        )
+        .expect("Failed to prepare program input");
+        tracing::info!("Reading proof");
 
         let tampered_public_values = (self.tamper_public_values)(public_values);
 
-        let pub_vals_solidity: PublicValuesSolidity = tampered_public_values.into();
+        let pub_vals_solidity: PublicValuesSolidity = tampered_public_values
+            .try_into()
+            .expect("Failed to convert public values to solidity");
         let public_values_bytes: Vec<u8> = PublicValuesSolidity::abi_encode(&pub_vals_solidity);
 
-        log::info!("Sending report");
+        tracing::info!("Sending report");
         let result = self
             .env
-            .contract
+            .script_runtime
+            .lido_infra
+            .report_contract
             .submit_report_data(stored_proof.proof, public_values_bytes)
             .await?;
 
@@ -187,12 +184,12 @@ fn wrap_metadata_mapper(
 
 fn assert_rejects(result: TestExecutorResult) -> Result<()> {
     match result {
-        Err(ExecutorError::Contract(eth_client::Error::Rejection(err))) => {
-            log::info!("As expected, contract rejected {:#?}", err);
+        Err(ExecutorError::Contract(eth_client::ContractError::Rejection(err))) => {
+            tracing::info!("As expected, contract rejected {:#?}", err);
             Ok(())
         }
-        Err(ExecutorError::Contract(eth_client::Error::CustomRejection(err))) => {
-            log::info!("As expected, verifier rejected {:#?}", err);
+        Err(ExecutorError::Contract(eth_client::ContractError::CustomRejection(err))) => {
+            tracing::info!("As expected, verifier rejected {:#?}", err);
             Ok(())
         }
         Err(other_err) => Err(other_err),
@@ -202,9 +199,17 @@ fn assert_rejects(result: TestExecutorResult) -> Result<()> {
 
 #[test]
 fn check_vkey_matches() -> Result<()> {
+    let sp1_client = SP1ClientWrapperImpl::new(
+        ProverClient::from_env(),
+        Arc::new(prometheus_metrics::build_service_metrics(
+            "irrelevant",
+            "sp1_client",
+            None,
+        )),
+    );
     let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
     let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;
-    assert_eq!(test_utils::SP1_CLIENT.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
+    assert_eq!(sp1_client.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
     Ok(())
 }
 
@@ -229,7 +234,7 @@ async fn report_tampering_sanity_check_should_pass() -> Result<()> {
     let result = executor.run_test().await;
     match result {
         Ok(_txhash) => {
-            log::info!("Sanity check succeeded - submitting valid report with no tampering succeeds");
+            tracing::info!("Sanity check succeeded - submitting valid report with no tampering succeeds");
             Ok(())
         }
         Err(err) => Err(err),
@@ -300,7 +305,7 @@ async fn report_tampering_report_exited_count() -> Result<()> {
 async fn report_tampering_metadata_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.bc_slot = new_metadata.bc_slot - 10;
+        new_metadata.bc_slot -= 10;
         new_metadata
     }))
     .await?;
@@ -312,7 +317,7 @@ async fn report_tampering_metadata_slot() -> Result<()> {
 async fn report_tampering_metadata_slot2() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.bc_slot = new_metadata.bc_slot + 10;
+        new_metadata.bc_slot += 10;
         new_metadata
     }))
     .await?;
@@ -361,7 +366,7 @@ async fn report_tampering_metadata_beacon_block_hash() -> Result<()> {
 async fn report_tampering_metadata_old_state_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.state_for_previous_report.slot = new_metadata.state_for_previous_report.slot - 10;
+        new_metadata.state_for_previous_report.slot -= 10;
         new_metadata
     }))
     .await?;
@@ -386,7 +391,7 @@ async fn report_tampering_metadata_old_state_merkle_root() -> Result<()> {
 async fn report_tampering_metadata_new_state_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_metadata_mapper(|metadata| {
         let mut new_metadata = metadata.clone();
-        new_metadata.new_state.slot = new_metadata.new_state.slot + 10;
+        new_metadata.new_state.slot += 10;
         new_metadata
     }))
     .await?;

@@ -1,0 +1,7 @@
+*
+!contracts
+!crates
+!Cargo.toml
+!Cargo.lock
+!rust-toolcahin
+!docker

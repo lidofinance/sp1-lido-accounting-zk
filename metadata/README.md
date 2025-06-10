@@ -16,5 +16,6 @@ is the source of truth; difference is negligible anyway)
 
 * Tests - for obvious reasons
 * `contract/scripts/Deploy.s.sol` - deployment script
-* Everyithng in `script` - the main requirement for this solution is to operate correctly even if offchain part 
+* Everyithng in `script`,  `service` - the main requirement for this solution is to operate correctly even if offchain part 
 is executed by a compromised/maliciious actor - i.e. the solution correctness should not depend on the offchain part.
+* Everything in `dev_scripts` - these are development scripts aiming to automate some development and debugging work.

@@ -10,7 +10,7 @@ use sp1_lido_accounting_scripts::scripts::shared::{self as shared_logic, compute
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::StateId,
     eth_client::{self, Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors},
-    sp1_client_wrapper::SP1ClientWrapper,
+    sp1_client_wrapper::{self, SP1ClientWrapper},
 };
 
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconStateFields;
@@ -44,8 +44,8 @@ mod test_consts {
 #[derive(Debug)]
 enum TestError {
     ContractRejected(Sp1LidoAccountingReportContractErrors),
-    OtherRejection(eth_client::Error),
-    ProofFailed(anyhow::Error),
+    OtherRejection(eth_client::ContractError),
+    ProofFailed(sp1_client_wrapper::Error),
     Other(anyhow::Error),
 }
 
@@ -55,10 +55,10 @@ impl From<anyhow::Error> for TestError {
     }
 }
 
-impl From<eth_client::Error> for TestError {
-    fn from(value: eth_client::Error) -> Self {
+impl From<eth_client::ContractError> for TestError {
+    fn from(value: eth_client::ContractError) -> Self {
         match value {
-            eth_client::Error::Rejection(e) => TestError::ContractRejected(e),
+            eth_client::ContractError::Rejection(e) => TestError::ContractRejected(e),
             other => TestError::OtherRejection(other),
         }
     }
@@ -83,7 +83,7 @@ impl TestExecutor {
     }
 
     pub async fn prepare_actual_input(&self, target_slot: BeaconChainSlot) -> anyhow::Result<ProgramInput> {
-        let lido_withdrawal_credentials: Hash256 = self.env.network_config().lido_withdrawal_credentials.into();
+        let lido_withdrawal_credentials: Hash256 = self.env.script_runtime.lido_settings.withdrawal_credentials.into();
 
         let reference_slot = mark_as_refslot(target_slot);
         let previous_slot = self.get_old_slot().await?;
@@ -94,7 +94,7 @@ impl TestExecutor {
 
         let withdrawal_vault_data = self.env.get_balance_proof(&StateId::Slot(target_slot)).await?;
 
-        log::info!("Preparing program input");
+        tracing::info!("Preparing program input");
         let (program_input, _public_values) = shared_logic::prepare_program_input(
             reference_slot,
             &target_bs,
@@ -103,12 +103,18 @@ impl TestExecutor {
             &lido_withdrawal_credentials,
             withdrawal_vault_data,
             false,
-        );
+        )?;
         Ok(program_input)
     }
 
     pub async fn get_old_slot(&self) -> anyhow::Result<BeaconChainSlot> {
-        let res = self.env.contract.get_latest_validator_state_slot().await?;
+        let res = self
+            .env
+            .script_runtime
+            .lido_infra
+            .report_contract
+            .get_latest_validator_state_slot()
+            .await?;
         Ok(res)
     }
 
@@ -118,10 +124,10 @@ impl TestExecutor {
     }
 
     pub async fn assert_fails_in_prover(&self, program_input: ProgramInput) -> anyhow::Result<()> {
-        let result = self.env.sp1_client.execute(program_input);
+        let result = self.env.script_runtime.sp1_infra.sp1_client.execute(program_input);
         match result {
             Err(e) => {
-                log::info!("Failed to create proof - as expected: {:?}", e);
+                tracing::info!("Failed to create proof - as expected: {:?}", e);
                 Ok(())
             }
             Ok(_) => Err(anyhow!("Executing proof succeeded")),
@@ -129,20 +135,22 @@ impl TestExecutor {
     }
 
     pub async fn run(&self, program_input: ProgramInput) -> core::result::Result<(), TestError> {
-        log::info!("Requesting proof");
-        let try_proof = self.env.sp1_client.prove(program_input);
+        tracing::info!("Requesting proof");
+        let try_proof = self.env.script_runtime.sp1_infra.sp1_client.prove(program_input);
 
         if let Err(e) = try_proof {
             return Err(TestError::ProofFailed(e));
         }
 
-        log::info!("Generated proof");
+        tracing::info!("Generated proof");
         let proof = try_proof.unwrap();
 
-        log::info!("Sending report");
+        tracing::info!("Sending report");
         let result = self
             .env
-            .contract
+            .script_runtime
+            .lido_infra
+            .report_contract
             .submit_report_data(proof.bytes(), proof.public_values.to_vec())
             .await?;
         Ok(())
@@ -151,7 +159,7 @@ impl TestExecutor {
     pub fn assert_failed_proof(&self, result: Result<(), TestError>) -> anyhow::Result<()> {
         match result {
             Err(TestError::ProofFailed(e)) => {
-                log::info!("Failed to create proof - as expected: {:?}", e);
+                tracing::info!("Failed to create proof - as expected: {:?}", e);
                 Ok(())
             }
             Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
@@ -162,7 +170,7 @@ impl TestExecutor {
     pub fn assert_rejected(&self, result: Result<(), TestError>) -> anyhow::Result<()> {
         match result {
             Err(TestError::ContractRejected(err)) => {
-                log::info!("As expected, contract rejected {:#?}", err);
+                tracing::info!("As expected, contract rejected {:#?}", err);
                 Ok(())
             }
             Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
@@ -234,7 +242,8 @@ fn update_program_input(
     let old_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, withdrawal_credentials);
     let new_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, withdrawal_credentials);
     let modified_vals_and_bals =
-        compute_validators_and_balances_test_public(&bs, &old_bs, &old_validator_state, withdrawal_credentials, false);
+        compute_validators_and_balances_test_public(&bs, &old_bs, &old_validator_state, withdrawal_credentials, false)
+            .expect("Failed to prepare program input");
 
     program_input.validators_and_balances = modified_vals_and_bals;
     program_input.old_lido_validator_state = old_validator_state;
@@ -269,7 +278,7 @@ async fn program_input_tampering_multi_vals_and_bals_added_balance_with_recomput
     let bs = executor.get_beacon_state(target_slot).await?;
     let old_bs = executor.get_beacon_state(executor.get_old_slot().await?).await?;
 
-    let lido_credentials: Hash256 = executor.env.network_config().lido_withdrawal_credentials.into();
+    let lido_credentials: Hash256 = executor.env.script_runtime.lido_settings.withdrawal_credentials.into();
 
     update_program_input(&mut program_input, bs, old_bs, &lido_credentials, |mut bs| {
         let balance = 32000000123;
@@ -290,7 +299,7 @@ async fn program_input_tampering_multi_vals_and_bals_modified_balance_with_recom
     let bs = executor.get_beacon_state(target_slot).await?;
     let old_bs = executor.get_beacon_state(executor.get_old_slot().await?).await?;
 
-    let lido_credentials: Hash256 = executor.env.network_config().lido_withdrawal_credentials.into();
+    let lido_credentials: Hash256 = executor.env.script_runtime.lido_settings.withdrawal_credentials.into();
 
     update_program_input(&mut program_input, bs, old_bs, &lido_credentials, |mut bs| {
         let lido_validators: Vec<usize> = bs
@@ -300,7 +309,7 @@ async fn program_input_tampering_multi_vals_and_bals_modified_balance_with_recom
             .filter(|(_idx, val)| val.withdrawal_credentials == lido_credentials)
             .map(|(idx, _val)| idx)
             .collect();
-        let modify_idx = lido_validators.iter().choose(&mut rand::thread_rng()).expect("...");
+        let modify_idx = lido_validators.iter().choose(&mut rand::rng()).expect("...");
         bs.balances[*modify_idx] += 250;
         bs
     });
@@ -338,7 +347,7 @@ async fn program_input_tampering_multi_shuffle_added_with_recompute() -> Result<
     let mut modified_new_indices: Vec<u64> = modified_all_added.iter().map(|v| v.index.to_owned()).collect();
     modified_deposited.append(&mut modified_new_indices);
 
-    let mut new_state = program_input.compute_new_state();
+    let mut new_state = program_input.compute_new_state()?;
     // Self-checks - old and new deposited indices should have the same elements
     assert!(equal_in_any_order(
         &new_state.deposited_lido_validator_indices,
@@ -390,7 +399,7 @@ async fn program_input_tampering_input_bc_slot_in_future_with_new_state_hash_upd
 
     let mut program_input = executor.prepare_actual_input(target_slot).await?;
 
-    let mut new_validator_state = program_input.compute_new_state();
+    let mut new_validator_state = program_input.compute_new_state()?;
 
     // self-check - to ensure the new_validator_state is computed correctly
     assert_eq!(
@@ -516,7 +525,7 @@ async fn program_input_tampering_vals_and_bals_wrong_withdrawal_credentials_empt
 
     program_input.validators_and_balances.lido_withdrawal_credentials = modified_credentials;
     program_input.validators_and_balances.validators_delta.lido_changed = vec![];
-    program_input.new_lido_validator_state_hash = program_input.compute_new_state().tree_hash_root();
+    program_input.new_lido_validator_state_hash = program_input.compute_new_state()?.tree_hash_root();
     let result = executor.run(program_input).await;
     // With these manipulations, it successfully generates the proof, but got rejected in the contract
     executor.assert_rejected(result)
@@ -638,7 +647,7 @@ async fn program_input_tampering_vals_and_bals_delta_all_added_modified_creds() 
     let target_slot = executor.env.get_finalized_slot().await?;
 
     let mut program_input = executor.prepare_actual_input(target_slot).await?;
-    let lido_creds: Hash256 = executor.env.network_config().lido_withdrawal_credentials.into();
+    let lido_creds: Hash256 = executor.env.script_runtime.lido_settings.withdrawal_credentials.into();
 
     program_input.validators_and_balances.validators_delta.all_added = vecs::modify_random(
         program_input.validators_and_balances.validators_delta.all_added,
@@ -777,7 +786,7 @@ async fn program_input_tampering_vals_and_bals_delta_lido_changed_modified_creds
     let target_slot = executor.env.get_finalized_slot().await?;
 
     let mut program_input = executor.prepare_actual_input(target_slot).await?;
-    let lido_creds: Hash256 = executor.env.network_config().lido_withdrawal_credentials.into();
+    let lido_creds: Hash256 = executor.env.script_runtime.lido_settings.withdrawal_credentials.into();
 
     program_input.validators_and_balances.validators_delta.lido_changed = vecs::modify_random(
         program_input.validators_and_balances.validators_delta.lido_changed,
@@ -943,9 +952,7 @@ async fn program_input_tampering_vals_and_bals_delta_lido_changed_emptied_old_no
 
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_vals_and_bals_delta_lido_changed_shuffled() -> Result<()> {
-    // Need alternative deploy slot since there's only one validator in original
-    // Thus changed is at most 1, and shuffling don't do anything (so ensured_shuffle crashes on len>1 assertion)
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
 
     let mut program_input = executor.prepare_actual_input(target_slot).await?;
@@ -1071,7 +1078,7 @@ async fn program_input_tampering_old_state_deposited_remove_existing() -> Result
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_old_state_deposited_shuffle() -> Result<()> {
     // Using alt deploy slot since it has 5 validators
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
 
     let mut program_input = executor.prepare_actual_input(target_slot).await?;
@@ -1108,8 +1115,7 @@ async fn program_input_tampering_old_state_exited_add_new_accepted_subsequent_re
 #[ignore = "Hits external prover (slow, incurs costs)"]
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_old_state_exited_duplicated_accepted_subsequent_report_accepted() -> Result<()> {
-    // Need alt deploy slot since there are no exited at the main deploy slot
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT_2).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
     let intermediate_slot = target_slot - eth_spec::SlotsPerEpoch::to_u64();
 
@@ -1129,8 +1135,7 @@ async fn program_input_tampering_old_state_exited_duplicated_accepted_subsequent
 #[ignore = "Hits external prover (slow, incurs costs)"]
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_old_state_exited_removed_accepted_subsequent_report_accepted() -> Result<()> {
-    // Need alt deploy slot since there are no exited at the main deploy slot
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT_2).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
     let intermediate_slot = target_slot - eth_spec::SlotsPerEpoch::to_u64();
 
@@ -1150,8 +1155,7 @@ async fn program_input_tampering_old_state_exited_removed_accepted_subsequent_re
 #[ignore = "Hits external prover (slow, incurs costs)"]
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_tampering_old_state_exited_shuffled_accepted_subsequent_report_accepted() -> Result<()> {
-    // Using alt deploy slot since it has 5 validators
-    let executor = TestExecutor::new(test_utils::ALT_DEPLOY_SLOT_2).await?;
+    let executor = TestExecutor::new(test_utils::DEPLOY_SLOT).await?;
     let target_slot = executor.env.get_finalized_slot().await?;
     let intermediate_slot = target_slot - eth_spec::SlotsPerEpoch::to_u64();
 
@@ -1206,11 +1210,13 @@ async fn program_input_tampering_withdrawal_vault_outdated_state() -> Result<()>
 
     let old_slot = target_slot - eth_spec::SlotsPerEpoch::to_u64();
     let old_bs = executor.env.get_beacon_state(&StateId::Slot(old_slot)).await?;
-    let withdrawal_vault_address: Address = executor.env.network_config().lido_withdrwawal_vault_address.into();
+    let withdrawal_vault_address: Address = executor.env.script_runtime.lido_settings.withdrawal_vault_address;
 
     program_input.withdrawal_vault_data = executor
         .env
-        .eth_el_client
+        .script_runtime
+        .eth_infra
+        .eth_client
         .get_withdrawal_vault_data(
             withdrawal_vault_address,
             old_bs.latest_execution_payload_header.block_hash,
@@ -1231,7 +1237,9 @@ async fn program_input_tampering_withdrawal_vault_data_for_wrong_address() -> Re
 
     let updated_vault_data = executor
         .env
-        .eth_el_client
+        .script_runtime
+        .eth_infra
+        .eth_client
         .get_withdrawal_vault_data(
             test_consts::ANY_RANDOM_ADDRESS.into(),
             bs.latest_execution_payload_header.block_hash,

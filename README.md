@@ -3,38 +3,46 @@
 This is an implementation of LIDO [LIP-23][lip-23] sanity check oracle, using Succinct [SP1][sp1]. 
 Repository contains the following:
 
-* [program](program) - ZK circuit implementation
-* [script](script) - offchain oracle implementation (`submit.rs`) + some development scripts (scripts/src/dev)
 * [contracts](contracts) - on-chain, LIP-23 compatible contract.
-* [shared](shared) - common code shared between ZK (program) and oracle (script).
+* [program](crates/program) - ZK circuit implementation
+* [script](crates/script) - offchain oracle implementation (`submit.rs`)
+* [service](crates/service) - offchain oracle implementation (`submit.rs`) + some development scripts (scripts/src/dev)
+* [shared](crates/shared) - common code shared between ZK (program) and oracle (script).
+* [dev_script](crates/dev_script/) - development scripts
+* [macros](crates/macros/) - macros implementations
 
 [lip-23]: https://github.com/lidofinance/lido-improvement-proposals/blob/develop/LIPS/lip-23.md
 [sp1]: https://github.com/succinctlabs
 
 ## Running oracle
 
-The oracle comes in a form of an executable (`submit`) that takes the following inputs:
+The oracle comes in two forms:
+* CLI interface (`submit`)
+* Service (`service`) with internal scheduler (optional, controlled by env vars) and HTTP endpoint to trigger running a report
 
-* (REQUIRED) target_slot: int - slot number for report
-* (OPTIONAL) previous_slot:int - slot number for the previos report nad cached validator state. If omitted, read from the contract `getLatestValidatorStateSlot`.
-* (OPTIONAL) store: bool - if set, stores the report and proof on disk. Default: false. Note: stored reports can
-be submitted via `submit_cached` without re-generating the proof on prover network. Requires `PROOF_CACHE_DIR` env var to be set.
-* (OPTIONAL) local_verify: bool - if set, stores the report and proof on disk. Default: false. **Note:** local proving requires docker to run.
+Most of the configuration is shared between the two (in fact, both are just thin wrappers around common underlying logic) and
+delivered via env vars - see [.env.example](.env.example) (and comments in it) for the list of required settings.
 
-Rest of the configuration is delivered via environment variables, listed and documented in the [.env.example](.env.example), but to highligh a few important ones:
+## CLI interface
+* (OPTIONAL) target_ref_slot: int - slot number for report; if not set, determined from Lido's HashConsensus contract for Accounting Oracle
+* (OPTIONAL) previous_ref_slot:int - slot number for the previous report and cached validator state. If omitted, read from the contract `getLatestValidatorStateSlot`.
+* (OPTIONAL) dry_run: bool - if set, prepares the input for proving, but do not request the proof (and hence do not sumbit the report for on-chain verification). Default: false
+* (OPTIONAL) verify_input: bool - if set, verifies the input for consistency/correctness. Default: false.
+* (OPTIONAL) verify_proof: bool - if set, verifies the proof locally. Default: false. **Note:** local proving requires docker to run.
+* (OPTIONAL) report_cycles: bool - if set, measures the SP1 cycles require to generate the proof - by locally "executing" (in SP1 terms) the program. Default: false.
 
-* SP1_PROVER - could be `network` or `cpu`. CPU proover requires 128+Gb memory and is not tested.
-* NETWORK_PRIVATE_KEY - private key, granting access to the Succinct prover network. See [setup instructions][sp1-key-instructions]
-* BEACON_STATE_RPC - the oracle needs access to full BeaconState at the `target_slot` to prepare the 
-  report and proof. BEACON_STATE_RPC
+**Examples:**
 
-[sp1-key-instructions]: https://docs.succinct.xyz/prover-network/setup.html#key-setup
+* Run oracle for slot `5994112`, submit to EVM contract: `submit --target-ref-slot 5994112`
+* Run oracle for slot `5994112`, locally verify the proof and public values (will crash if verification fails), submit to EVM contract: `submit --target-ref-slot 5994112 --local_verify`
+* Run oracle for slot `5994112`, use `5993824` as a previous report slot, submit to EVM contract: `submit --target-ref-slot 5994112 --previous-ref-slot 5993824`
 
-Examples:
+### Service API endpoints
 
-* Run oracle for slot `5994112`, store report and proof, submit to EVM contract: `submit --target-slot 5994112 --store-proof`
-* Run oracle for slot `5994112`, locally verify the proof and public values (will crash if verification fails), submit to EVM contract: `submit --target-slot 5994112 --local_verify`
-* Run oracle for slot `5994112`, use `5993824` as a previous report slot, submit to EVM contract: `submit --target-slot 5994112`
+* GET `/health` - used for healthcheck, just returns 'ok' when healthy
+* GET `/metrics` - returns Prometheus metrics
+* GET `/get-report?target-slot=$d` - reads report for a given slot from the contract. If `target-slot` omitted, obtains the latest report from the contract
+* POST `/run-report` - reads report for a given slot from the contract. If `target-slot` omitted, obtains the latest report from the contract
 
 
 ## Development
@@ -58,7 +66,7 @@ set for those tests to work.
 
 ### Development scripts
 
-`script/src/dev` hosts a few scripts to support development and deployment workflows. 
+`crates/dev_scripts/src/bin` hosts a few scripts to support development and deployment workflows. 
 
 * `execute.rs` - prepares the input and runs ZK circuit simulation, outputting number of cycles and instructions used.
 Does **not** interact with the prover network, safe to run to quickly check changes and estimate cycle count.
@@ -68,10 +76,10 @@ be run when `vkey` changes (basically, any code or dependency change in `program
 **Note:** deployment works, but doesn't perform code verfication yet. Preferred deployment workflow is to run `deploy.rs`
 with `--dry-run --store "../data/deploy/${EVM_CHAIN}-deploy.json"` - and then run deployment script in `contracts/script/Deploy.s.sol`
 that automatically picks the deploy manifesto from that location.
-* `sumbit_cached.rs` - intended to be used with `submit.rs` script run with `--store-proof` flag. Allows submitting a cached proof
+* `store_report.rs` - generates report and stores it on disk for inspection and debugging.
+* `sumbit_cached.rs` - intended to be used with `store_report.rs` script. Allows submitting a cached proof
 and report to the verification contract - skipping on the (most time-consuming) proof generation stage.
 
-`script/examples` folder contains a number of standalone scripts that exercise various parts of the solution -
+`crates/dev_scripts/examples` folder contains a number of standalone scripts that exercise various parts of the solution -
 technically they are not examples, but ad-hoc tests used during early stages of development. They are provided "as is"
 (could be still useful in future + have some development workflows tied to some them - e.g. `gen_synthetic_bs_pair.rs`).
-**Note:** `cargo build` doesn't even compile the examples by default, so they might not always be operational.

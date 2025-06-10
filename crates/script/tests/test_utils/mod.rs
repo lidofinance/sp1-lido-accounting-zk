@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use eyre::eyre;
 use hex_literal::hex;
 use lazy_static::lazy_static;
 use sp1_lido_accounting_scripts::consts::{self, Network, NetworkInfo, WrappedNetwork};
@@ -8,38 +7,14 @@ use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
     BeaconStateFields, BeaconStatePrecomputedHashes, Epoch, Hash256, Validator,
 };
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
-use sp1_sdk::ProverClient;
 
 pub mod env;
 pub mod files;
-pub mod tampering_bs;
 
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);
-// Original deploy slot for tests - 1 Lido validator, 1785 (?) total
-pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(5832096);
-// Alternative deploy slot for tests - 5 Lido validators, exited: 0, 1789 total
-pub const ALT_DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(5928800);
-// Alternative deploy slot for tests - 6 Lido validators, 2 exited, 1790 total
-pub const ALT_DEPLOY_SLOT_2: BeaconChainSlot = BeaconChainSlot(6789600);
+pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(7643456);
 
-pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(6946176);
-
-// TODO: Enable local prover if/when it becomes feasible.
-// In short, local proving with groth16 seems to not really work at the moment -
-// get stuck at generating proof with ~100% CPU utilization for ~40 minutes.
-// This makes local prover impractical - network takes ~5-10 minutes to finish
-// #[cfg(not(feature = "test_network_prover"))]
-// lazy_static! {
-//     pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::local(), consts::ELF);
-// }
-// #[cfg(feature = "test_network_prover")]
-lazy_static! {
-    pub static ref SP1_CLIENT: SP1ClientWrapperImpl = SP1ClientWrapperImpl::new(ProverClient::from_env(), consts::ELF);
-}
-
-lazy_static! {
-    pub static ref LIDO_CREDS: Hash256 = NETWORK.get_config().lido_withdrawal_credentials.into();
-}
+pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(7700384);
 
 pub fn eyre_to_anyhow(err: eyre::Error) -> anyhow::Error {
     anyhow!("Eyre error: {:#?}", err)
@@ -64,7 +39,7 @@ pub fn make_validator(current_epoch: Epoch, balance: u64) -> Validator {
 
     Validator {
         pubkey: bls_key.into(),
-        withdrawal_credentials: Hash256::random(),
+        withdrawal_credentials: hex!("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff").into(),
         effective_balance: balance,
         slashed: false,
         activation_eligibility_epoch,
@@ -137,7 +112,7 @@ pub mod vecs {
     }
 
     pub fn duplicate_random<Elem: Clone>(mut input: Vec<Elem>) -> Vec<Elem> {
-        let duplicate_idx = rand::thread_rng().gen_range(0..input.len());
+        let duplicate_idx = rand::rng().random_range(0..input.len());
         duplicate(input, duplicate_idx)
     }
 
@@ -148,7 +123,7 @@ pub mod vecs {
     }
 
     pub fn modify_random<Elem: Clone>(mut input: Vec<Elem>, modifier: impl Fn(Elem) -> Elem) -> Vec<Elem> {
-        let modify_idx = rand::thread_rng().gen_range(0..input.len());
+        let modify_idx = rand::rng().random_range(0..input.len());
         modify(input, modify_idx, modifier)
     }
 
@@ -159,14 +134,14 @@ pub mod vecs {
     }
 
     pub fn remove_random<Elem>(mut input: Vec<Elem>) -> Vec<Elem> {
-        let remove_idx = rand::thread_rng().gen_range(0..input.len());
+        let remove_idx = rand::rng().random_range(0..input.len());
         remove(input, remove_idx)
     }
 
     pub fn ensured_shuffle<N: Clone + PartialEq>(input: &[N]) -> Vec<N> {
         assert!(input.len() > 1); // no point shuffling a single element
         let mut new = input.to_vec();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         while vectors_equal(&new, input) {
             new.shuffle(&mut rng);
         }

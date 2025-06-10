@@ -31,11 +31,13 @@ pub fn main() {
 
     cycle_tracker.start_span("main.verify_inputs");
     let input_verifier = InputVerifier::new(&cycle_tracker);
-    input_verifier.prove_input(&input);
+    input_verifier.prove_input(&input).expect("Failed to verify input");
     cycle_tracker.end_span("main.verify_inputs");
 
     cycle_tracker.start_span("main.compute_new_state");
-    let new_state: LidoValidatorState = input.compute_new_state();
+    let new_state: LidoValidatorState = input
+        .compute_new_state()
+        .expect("Failed to compute new state from input");
     cycle_tracker.end_span("main.compute_new_state");
 
     cycle_tracker.start_span("main.compute_new_state.hash_root");
@@ -67,7 +69,8 @@ pub fn main() {
         &old_state_hash_root,
         new_state.slot,
         &new_state_hash_root,
-    );
+    )
+    .expect("Failed to create public values");
     let bytes = PublicValuesSolidity::abi_encode(&public_values);
     sp1_zkvm::io::commit_slice(&bytes);
     cycle_tracker.end_span("main.commit_public_values");

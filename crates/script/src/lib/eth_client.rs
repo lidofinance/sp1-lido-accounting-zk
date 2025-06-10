@@ -3,30 +3,35 @@ use alloy::eips::RpcBlockHash;
 use alloy::network::Ethereum;
 use alloy::network::EthereumWallet;
 use alloy::primitives::Address;
+use alloy::providers::fillers::RecommendedFillers;
 use alloy::providers::ProviderBuilder;
+use alloy::rpc::types::TransactionReceipt;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
 use alloy::transports::http::reqwest::Url;
-use alloy::transports::Transport;
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
+use sp1_lido_accounting_zk_shared::io::eth_io;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
+use tracing::Instrument;
 
 use core::clone::Clone;
 use core::fmt;
 use eyre::Result;
 use k256;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use sp1_lido_accounting_zk_shared::io::eth_io::{LidoValidatorStateRust, ReportRust};
 use sp1_lido_accounting_zk_shared::io::serde_utils::serde_hex_as_string;
 use thiserror::Error;
+use HashConsensus::HashConsensusInstance;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
 use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
+
+use crate::prometheus_metrics;
 
 sol!(
     #[allow(missing_docs)]
@@ -36,16 +41,19 @@ sol!(
     "../../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
 );
 
-sol!(
-    #[allow(missing_docs)]
+sol! {
     #[sol(rpc)]
-    #[derive(Debug)]
-    ISP1Verifier,
-    "../../contracts/out/ISP1Verifier.sol/ISP1Verifier.json",
-);
+    interface HashConsensus {
+        #[derive(Debug)]
+        function getCurrentFrame() external view returns (
+            uint256 refSlot,
+            uint256 reportProcessingDeadlineSlot
+        );
+    }
+}
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum ContractError {
     #[error("Contract rejected: {0:#?}")]
     Rejection(Sp1LidoAccountingReportContractErrors),
 
@@ -56,7 +64,32 @@ pub enum Error {
     ReportNotFound(ReferenceSlot),
 
     #[error("Other alloy error {0:#?}")]
-    AlloyError(alloy::contract::Error),
+    OtherAlloyError(alloy::contract::Error),
+
+    #[error("Transaction error {0:#?}")]
+    TransactionError(#[from] alloy::providers::PendingTransactionError),
+
+    #[error("{0:#?}")]
+    EthIOConversionError(#[from] eth_io::Error),
+}
+
+impl From<alloy::contract::Error> for ContractError {
+    fn from(error: alloy::contract::Error) -> Self {
+        if let alloy::contract::Error::TransportError(alloy::transports::RpcError::ErrorResp(ref error_payload)) = error
+        {
+            if let Some(contract_error) =
+                error_payload.as_decoded_interface_error::<Sp1LidoAccountingReportContractErrors>()
+            {
+                ContractError::Rejection(contract_error)
+            } else if error_payload.message.contains("execution reverted") {
+                ContractError::CustomRejection(error_payload.message.to_string())
+            } else {
+                ContractError::OtherAlloyError(error)
+            }
+        } else {
+            ContractError::OtherAlloyError(error)
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -65,28 +98,28 @@ pub enum RPCError {
     Error(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
 }
 
-fn map_rpc_error(error: alloy::transports::RpcError<alloy::transports::TransportErrorKind>) -> RPCError {
-    error.into()
-}
-
-impl From<ReportRust> for Sp1LidoAccountingReportContract::Report {
-    fn from(value: ReportRust) -> Self {
-        Sp1LidoAccountingReportContract::Report {
-            reference_slot: value.reference_slot.into(),
+impl TryFrom<ReportRust> for Sp1LidoAccountingReportContract::Report {
+    type Error = ContractError;
+    fn try_from(value: ReportRust) -> Result<Self, Self::Error> {
+        let result = Sp1LidoAccountingReportContract::Report {
+            reference_slot: value.reference_slot.try_into()?,
             deposited_lido_validators: U256::from(value.deposited_lido_validators),
             exited_lido_validators: U256::from(value.exited_lido_validators),
             lido_cl_balance: U256::from(value.lido_cl_balance),
             lido_withdrawal_vault_balance: U256::from(value.lido_withdrawal_vault_balance),
-        }
+        };
+        Ok(result)
     }
 }
 
-impl From<LidoValidatorStateRust> for Sp1LidoAccountingReportContract::LidoValidatorState {
-    fn from(value: LidoValidatorStateRust) -> Self {
-        Sp1LidoAccountingReportContract::LidoValidatorState {
-            slot: value.slot.into(),
+impl TryFrom<LidoValidatorStateRust> for Sp1LidoAccountingReportContract::LidoValidatorState {
+    type Error = ContractError;
+    fn try_from(value: LidoValidatorStateRust) -> Result<Self, Self::Error> {
+        let result = Sp1LidoAccountingReportContract::LidoValidatorState {
+            slot: value.slot.try_into()?,
             merkle_root: value.merkle_root.into(),
-        }
+        };
+        Ok(result)
     }
 }
 
@@ -125,16 +158,16 @@ impl Debug for ContractDeployParametersRust {
     }
 }
 
-pub struct Sp1LidoAccountingReportContractWrapper<P, T: Transport + Clone>
+pub struct Sp1LidoAccountingReportContractWrapper<P>
 where
-    P: alloy::providers::Provider<T, Ethereum> + std::clone::Clone,
+    P: alloy::providers::Provider<Ethereum> + std::clone::Clone,
 {
-    contract: Sp1LidoAccountingReportContractInstance<T, Arc<P>>,
+    contract: Sp1LidoAccountingReportContractInstance<Arc<P>>,
 }
 
-impl<P, T: Transport + Clone> Sp1LidoAccountingReportContractWrapper<P, T>
+impl<P> Sp1LidoAccountingReportContractWrapper<P>
 where
-    P: alloy::providers::Provider<T, Ethereum> + std::clone::Clone,
+    P: alloy::providers::Provider<Ethereum> + std::clone::Clone,
 {
     pub fn new(provider: Arc<P>, contract_address: Address) -> Self {
         let contract = Sp1LidoAccountingReportContract::new(contract_address, Arc::clone(&provider));
@@ -145,7 +178,7 @@ where
         // Deploy the `Counter` contract.
         let validator_state_solidity: Sp1LidoAccountingReportContract::LidoValidatorState =
             Sp1LidoAccountingReportContract::LidoValidatorState {
-                slot: constructor_args.initial_validator_state.slot.into(),
+                slot: constructor_args.initial_validator_state.slot.try_into()?,
                 merkle_root: constructor_args.initial_validator_state.merkle_root.into(),
             };
         let contract = Sp1LidoAccountingReportContract::deploy(
@@ -165,44 +198,65 @@ where
         self.contract.address()
     }
 
+    async fn submit_report_data_impl(
+        &self,
+        proof: Vec<u8>,
+        public_values: Vec<u8>,
+    ) -> Result<TransactionReceipt, ContractError> {
+        let tx_builder = self.contract.submitReportData(proof.into(), public_values.into());
+        tracing::info!("Submitting report transaction");
+        let tx = tx_builder
+            .send()
+            .instrument(tracing::info_span!("send_tx"))
+            .await
+            .inspect(|val| tracing::debug!("Submitted transaction {}", val.tx_hash()))
+            .inspect_err(|err| tracing::error!("Failed to submit transaction {err:?}"))?;
+
+        tracing::info!("Waiting for report transaction");
+        let tx_result = tx
+            .get_receipt()
+            .instrument(tracing::info_span!("get_receipt"))
+            .await
+            .inspect(|val| tracing::info!("Transaction completed {:#?}", val.transaction_hash))
+            .inspect_err(|err| tracing::error!("Transaction failed {err:?}"))?;
+        Ok(tx_result)
+    }
+
     pub async fn submit_report_data(
         &self,
         proof: Vec<u8>,
         public_values: Vec<u8>,
-    ) -> Result<alloy_primitives::TxHash, Error> {
-        let tx_builder = self.contract.submitReportData(proof.into(), public_values.into());
-
-        let tx = tx_builder
-            .send()
+    ) -> Result<TransactionReceipt, ContractError> {
+        let tracing_span = tracing::info_span!("submit_report_data");
+        self.submit_report_data_impl(proof, public_values)
+            .instrument(tracing_span)
             .await
-            .map_err(|e: alloy::contract::Error| self.map_contract_error(e))?;
-
-        log::info!("Waiting for report transaction");
-        let tx_result = tx.watch().await.expect("Failed to wait for confirmation");
-        Ok(tx_result)
     }
 
-    pub async fn get_latest_validator_state_slot(&self) -> Result<BeaconChainSlot, Error> {
+    pub async fn get_latest_validator_state_slot(&self) -> Result<BeaconChainSlot, ContractError> {
+        tracing::info!("Getting latest validator state slot");
         let latest_report_response = self
             .contract
             .getLatestLidoValidatorStateSlot()
             .call()
             .await
-            .map_err(|e: alloy::contract::Error| self.map_contract_error(e))?;
-        let latest_report_slot = latest_report_response._0;
-        Ok(BeaconChainSlot(latest_report_slot.to::<u64>()))
+            .inspect(|val| tracing::info!("Obtained latest validator state slot {:#?}", val))
+            .inspect_err(|err| tracing::error!("Failed to read latest validator state slot {err:?}"))?;
+        Ok(BeaconChainSlot(latest_report_response.to::<u64>()))
     }
 
-    pub async fn get_report(&self, slot: ReferenceSlot) -> Result<ReportRust, Error> {
+    pub async fn get_report(&self, slot: ReferenceSlot) -> Result<ReportRust, ContractError> {
         let report_response = self
             .contract
-            .getReport(slot.into())
+            .getReport(slot.try_into()?)
             .call()
             .await
-            .map_err(|e: alloy::contract::Error| self.map_contract_error(e))?;
+            .inspect(|_val| tracing::debug!(slot=?slot, "Obtained report for slot {slot:?}"))
+            .inspect_err(|err| tracing::error!(slot=?slot, "Failed to read report for slot {slot:?}: {err:?}"))?;
 
         if !report_response.success {
-            return Err(Error::ReportNotFound(slot));
+            tracing::warn!(slot=?slot, "Report for slot {slot:?} not found");
+            return Err(ContractError::ReportNotFound(slot));
         }
 
         let report: ReportRust = ReportRust {
@@ -214,52 +268,77 @@ where
         };
         Ok(report)
     }
+}
 
-    fn map_contract_error(&self, error: alloy::contract::Error) -> Error {
-        if let alloy::contract::Error::TransportError(alloy::transports::RpcError::ErrorResp(ref error_payload)) = error
-        {
-            if let Some(contract_error) = error_payload.as_decoded_error::<Sp1LidoAccountingReportContractErrors>(true)
-            {
-                Error::Rejection(contract_error)
-            } else if error_payload.message.contains("execution reverted") {
-                Error::CustomRejection(error_payload.message.to_string())
-            } else {
-                Error::AlloyError(error)
-            }
-        } else {
-            Error::AlloyError(error)
+pub struct HashConsensusContractWrapper<P>
+where
+    P: alloy::providers::Provider<Ethereum>,
+{
+    contract: HashConsensusInstance<Arc<P>>,
+    metric_reporter: Arc<prometheus_metrics::Service>,
+}
+
+impl<P> HashConsensusContractWrapper<P>
+where
+    P: alloy::providers::Provider<Ethereum>,
+{
+    pub fn new(provider: Arc<P>, contract_address: Address, metric_reporter: Arc<prometheus_metrics::Service>) -> Self {
+        let contract = HashConsensusInstance::new(contract_address, Arc::clone(&provider));
+        HashConsensusContractWrapper {
+            contract,
+            metric_reporter,
         }
+    }
+
+    async fn get_refslot_impl(&self) -> Result<(ReferenceSlot, ReferenceSlot), ContractError> {
+        tracing::info!(
+            hash_consensus_address = hex::encode(self.contract.address()),
+            "Reading current refslot from HashConsensus"
+        );
+        let result: HashConsensus::getCurrentFrameReturn = self.contract.getCurrentFrame().call().await?;
+
+        Ok((
+            result.refSlot.try_into()?,
+            result.reportProcessingDeadlineSlot.try_into()?,
+        ))
+    }
+
+    pub async fn get_refslot(&self) -> Result<(ReferenceSlot, ReferenceSlot), ContractError> {
+        self.metric_reporter
+            .run_with_metrics_and_logs_async(prometheus_metrics::services::hash_consensus::GET_REFSLOT, || {
+                self.get_refslot_impl()
+            })
+            .await
     }
 }
 
-pub struct ExecutionLayerClient<P, T: Transport + Clone>
+pub struct ExecutionLayerClient<P>
 where
-    P: alloy::providers::Provider<T, Ethereum> + Clone,
+    P: alloy::providers::Provider<Ethereum>,
 {
     provider: Arc<P>,
-    _phantom: PhantomData<T>,
+    metric_reporter: Arc<prometheus_metrics::Service>,
 }
 
-impl<P, T: Transport + Clone> ExecutionLayerClient<P, T>
+impl<P> ExecutionLayerClient<P>
 where
-    P: alloy::providers::Provider<T, Ethereum> + Clone,
+    P: alloy::providers::Provider<Ethereum>,
 {
-    pub fn new(provider: Arc<P>) -> Self {
+    pub fn new(provider: Arc<P>, metric_reporter: Arc<prometheus_metrics::Service>) -> Self {
         Self {
             provider,
-            _phantom: PhantomData,
+            metric_reporter,
         }
     }
 
-    pub async fn get_withdrawal_vault_data(
+    async fn get_withdrawal_vault_data_impl(
         &self,
         address: Address,
         block_hash: Hash256,
     ) -> Result<WithdrawalVaultData, RPCError> {
-        log::info!(
-            "Reading balance proof for address 0x{} at block 0x{}",
-            hex::encode(address),
-            hex::encode(block_hash)
+        tracing::info!(
+            widthrawal_vault_address = hex::encode(address),
+            "Reading balance proof for address 0x{address:#?} at block 0x{block_hash:#?}",
         );
 
         let block_hash: RpcBlockHash = RpcBlockHash::from_hash(block_hash.0.into(), Some(true));
@@ -276,10 +355,21 @@ where
                     balance: resp.balance,
                     account_proof: proof_as_vecs,
                 }
-            })
-            .map_err(map_rpc_error)?;
-
+            })?;
         Ok(response)
+    }
+
+    pub async fn get_withdrawal_vault_data(
+        &self,
+        address: Address,
+        block_hash: Hash256,
+    ) -> Result<WithdrawalVaultData, RPCError> {
+        self.metric_reporter
+            .run_with_metrics_and_logs_async(
+                prometheus_metrics::services::eth_client::GET_WITHDRAWAL_VAULT_DATA,
+                || self.get_withdrawal_vault_data_impl(address, block_hash),
+            )
+            .await
     }
 }
 
@@ -297,28 +387,17 @@ pub type DefaultProvider = alloy::providers::fillers::FillProvider<
     alloy::providers::fillers::JoinFill<
         alloy::providers::fillers::JoinFill<
             alloy::providers::Identity,
-            alloy::providers::fillers::JoinFill<
-                alloy::providers::fillers::GasFiller,
-                alloy::providers::fillers::JoinFill<
-                    alloy::providers::fillers::BlobGasFiller,
-                    alloy::providers::fillers::JoinFill<
-                        alloy::providers::fillers::NonceFiller,
-                        alloy::providers::fillers::ChainIdFiller,
-                    >,
-                >,
-            >,
+            <Ethereum as RecommendedFillers>::RecommendedFillers,
         >,
         alloy::providers::fillers::WalletFiller<EthereumWallet>,
     >,
-    alloy::providers::RootProvider<alloy::transports::http::Http<reqwest::Client>>,
-    alloy::transports::http::Http<reqwest::Client>,
-    Ethereum,
+    alloy::providers::RootProvider,
 >;
 
-pub type Contract =
-    Sp1LidoAccountingReportContractWrapper<DefaultProvider, alloy::transports::http::Http<reqwest::Client>>;
+pub type ReportContract = Sp1LidoAccountingReportContractWrapper<DefaultProvider>;
+pub type HashConsensusContract = HashConsensusContractWrapper<DefaultProvider>;
 
-pub type EthELClient = ExecutionLayerClient<DefaultProvider, alloy::transports::http::Http<reqwest::Client>>;
+pub type EthELClient = ExecutionLayerClient<DefaultProvider>;
 pub struct ProviderFactory {}
 impl ProviderFactory {
     fn decode_key(private_key_raw: &str) -> Result<k256::SecretKey, ProviderError> {
@@ -336,15 +415,12 @@ impl ProviderFactory {
     pub fn create_provider(key: k256::SecretKey, endpoint: Url) -> DefaultProvider {
         let signer: PrivateKeySigner = PrivateKeySigner::from(key);
         let wallet: EthereumWallet = EthereumWallet::from(signer);
-        ProviderBuilder::new()
-            .with_recommended_fillers()
-            .wallet(wallet)
-            .on_http(endpoint)
+        ProviderBuilder::new().wallet(wallet).connect_http(endpoint)
     }
 
-    pub fn create_provider_decode_key(key_str: String, endpoint: Url) -> DefaultProvider {
-        let key = Self::decode_key(&key_str).expect("Failed to decode private key");
-        Self::create_provider(key, endpoint)
+    pub fn create_provider_decode_key(key_str: String, endpoint: Url) -> Result<DefaultProvider, ProviderError> {
+        let key = Self::decode_key(&key_str)?;
+        Ok(Self::create_provider(key, endpoint))
     }
 }
 
@@ -352,7 +428,7 @@ impl ProviderFactory {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::{consts, utils};
+    use crate::utils;
 
     use super::*;
     use hex_literal::hex;
@@ -361,14 +437,14 @@ mod tests {
     fn default_params() -> ContractDeployParametersRust {
         ContractDeployParametersRust {
             network: "anvil-sepolia".to_owned(),
-            verifier: hex!("3b6041173b80e77f038f3f2c0f9744f04837185e"),
-            vkey: hex!("00da6bb9e019268e8f2494fc5dbcda36d7c1c854ca2682df448f761cf47887f4"),
+            verifier: hex!("e00a3cbfc45241b33c0a44c78e26168cbc55ec63"),
+            vkey: hex!("00a13852b52626b0cc77128e2935361ed27c3ba6e97ffa92a9faaa62f0720643"),
             withdrawal_credentials: hex!("010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76"),
-            withdrawal_vault_address: consts::lido_withdrawal_vault::SEPOLIA,
+            withdrawal_vault_address: hex!("De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76"),
             genesis_timestamp: 1655733600,
             initial_validator_state: LidoValidatorStateRust {
-                slot: BeaconChainSlot(5832096),
-                merkle_root: hex!("918070ce0cb66881d6839965371f79a600bc26b50a363a17ac00a1b295f89113"),
+                slot: BeaconChainSlot(7643456),
+                merkle_root: hex!("5d22a84a06f79d4b9f4d94769190a9f5afb077607f5084b781c1d996c4bd3c16"),
             },
         }
     }
@@ -387,7 +463,7 @@ mod tests {
     #[test]
     fn deployment_parameters_from_file() {
         let deploy_args_file =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/deploy/anvil-sepolia-5832096-deploy.json");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/deploy/anvil-sepolia-7643456-deploy.json");
         let deploy_params: ContractDeployParametersRust =
             utils::read_json(deploy_args_file).expect("Failed to read deployment args");
 

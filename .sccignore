@@ -22,7 +22,7 @@ __pycache__
 elf
 temp
 data/*
-script/tests/data
+crates/script/tests/data
 
 # Metadata
 metadata/**

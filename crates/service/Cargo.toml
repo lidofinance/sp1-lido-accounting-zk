@@ -1,0 +1,38 @@
+[package]
+name = "sp1-lido-accounting-zk-service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "service"
+path = "src/bin/service.rs"
+test = false
+
+[lib]
+name="sp1_lido_accounting_service_lib"
+path="src/lib/lib.rs"
+
+[dependencies]
+axum = {version="0.8.4", features=["macros"]}
+cron = "0.15"
+chrono.workspace=true
+chrono-tz.workspace=true
+anyhow.workspace = true
+hex.workspace = true
+prometheus.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tower-http = { version = "0.6.4", features = ["trace"] }
+tracing.workspace=true
+serde.workspace = true
+serde_json.workspace = true
+sp1-lido-accounting-zk-scripts.workspace = true
+sp1-lido-accounting-zk-shared.workspace = true
+
+
+[build-dependencies]
+anyhow.workspace=true
+vergen = { version = "9", features = ["build", "cargo"] }
+vergen-git2 = { version = "1.0.0", features = ["build"] }

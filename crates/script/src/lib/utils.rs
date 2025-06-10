@@ -4,6 +4,7 @@ use std::fmt;
 use std::fs::{self, File};
 use std::io::{BufReader, Read};
 use std::path::Path;
+use std::str::FromStr;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -60,6 +61,19 @@ pub fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
         std::fs::create_dir_all(fixture_path).expect("failed to create fixture path");
     }
 
-    std::fs::write(path, serde_json::to_string_pretty(value).unwrap())?;
+    let json = serde_json::to_string_pretty(value)?;
+    std::fs::write(path, json)?;
     Ok(())
+}
+
+pub fn read_env<T: FromStr>(env_var: &str, default: T) -> T {
+    if let Ok(str) = std::env::var(env_var) {
+        if let Ok(value) = T::from_str(&str) {
+            value
+        } else {
+            default
+        }
+    } else {
+        default
+    }
 }

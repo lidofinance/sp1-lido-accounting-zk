@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{env, path::PathBuf};
 
 use eyre::{eyre, Result, WrapErr};
@@ -7,7 +8,7 @@ use sp1_lido_accounting_scripts::consts::NetworkInfo;
 use sp1_lido_accounting_scripts::eth_client::ContractDeployParametersRust;
 use sp1_lido_accounting_scripts::proof_storage::StoredProof;
 use sp1_lido_accounting_scripts::utils::read_json;
-use sp1_lido_accounting_scripts::{proof_storage, utils};
+use sp1_lido_accounting_scripts::{prometheus_metrics, proof_storage, utils};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
 use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
@@ -60,19 +61,35 @@ impl TestFiles {
     }
 
     pub async fn read_beacon_state(&self, state_id: &StateId) -> Result<BeaconState> {
-        let file_reader = FileBasedBeaconStateReader::new(&self.beacon_states());
+        let file_reader = FileBasedBeaconStateReader::new(
+            &self.beacon_states(),
+            Arc::new(prometheus_metrics::build_service_metrics(
+                "irrelevant",
+                "file_reader",
+                None,
+            )),
+        )
+        .expect("Failed to create file reader");
         file_reader
             .read_beacon_state(state_id)
             .await
-            .map_err(|err| eyre!("Failed to read beacon state {:#?}", err))
+            .map_err(|err| eyre!("Failed to read beacon state {:?} {:#?}", state_id, err))
     }
 
     pub async fn read_beacon_block_header(&self, state_id: &StateId) -> Result<BeaconBlockHeader> {
-        let file_reader = FileBasedBeaconStateReader::new(&self.beacon_states());
+        let file_reader = FileBasedBeaconStateReader::new(
+            &self.beacon_states(),
+            Arc::new(prometheus_metrics::build_service_metrics(
+                "irrelevant",
+                "file_reader",
+                None,
+            )),
+        )
+        .expect("Failed to create file reader");
         file_reader
             .read_beacon_block_header(state_id)
             .await
-            .map_err(|err| eyre!("Failed to read beacon block header {:#?}", err))
+            .map_err(|err| eyre!("Failed to read beacon block header {:?} {:#?}", state_id, err))
     }
 
     pub async fn read_withdrawal_vault_data(&self, state_id: &StateId) -> Result<WithdrawalVaultData> {
@@ -81,7 +98,7 @@ impl TestFiles {
             .get_permanent_str()
             .map_err(|err| eyre!("Failed to get permanent str for StateId {:#?}", err))?;
         let file_path = folder.join(format!("vault_data_{}.json", permanent_state_id));
-        log::info!("Reading WithdrawalVault account proof from file {:?}", &file_path);
+        tracing::info!("Reading WithdrawalVault account proof from file {:?}", &file_path);
         let res: WithdrawalVaultData = read_json(&file_path)?;
         Ok(res)
     }

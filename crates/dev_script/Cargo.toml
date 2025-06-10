@@ -1,0 +1,104 @@
+[package]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+name = "sp1-lido-accounting-zk-dev-script"
+default-run = "execute"
+
+[[bin]]
+name = "write_test_fixture"
+path = "src/bin/write_test_fixture.rs"
+test = false
+
+[[bin]]
+name = "execute"
+path = "src/bin/execute.rs"
+test = false
+
+[[bin]]
+name = "store_report"
+path = "src/bin/store_report.rs"
+test = false
+
+
+[[bin]]
+name = "submit_cached"
+path = "src/bin/submit_cached.rs"
+test = false
+
+[[bin]]
+name = "deploy"
+path = "src/bin/deploy.rs"
+test = false
+
+[[example]]
+name = "ssz_e2e_test"
+path = "examples/ssz_e2e_test.rs"
+required-features = ["synthetic"]
+test = false
+
+[[example]]
+name = "report_e2e_test"
+path = "examples/report.rs"
+required-features = ["synthetic"]
+test = false
+
+[[example]]
+name = "lido_state_e2e_test"
+path = "examples/lido_state.rs"
+required-features = ["synthetic"]
+test = false
+
+[[example]]
+name = "gen_pair"
+path = "examples/gen_synthetic_bs_pair.rs"
+required-features = ["synthetic"]
+test = false
+
+[[example]]
+name = "list_multiproofs"
+path = "examples/list_multiproofs.rs"
+required-features = ["synthetic"]
+test = false
+
+[[example]]
+name = "read_bs_pair"
+path = "examples/read_bs_pair.rs"
+test = false
+
+[[example]]
+name = "balance_proof"
+path = "examples/balance_proof.rs"
+test = false
+
+[lib]
+name = "sp1_lido_accounting_dev_scripts"
+path = "src/lib/lib.rs"
+
+[dependencies]
+alloy.workspace = true
+alloy-primitives.workspace = true
+anyhow.workspace = true
+hex.workspace = true
+hex-literal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tree_hash.workspace = true
+sp1-sdk.workspace = true
+
+clap = { version = "4.0", features = ["derive", "env"] }
+sp1-lido-accounting-zk-shared.workspace = true
+sp1-lido-accounting-zk-scripts.workspace = true
+
+[dev-dependencies]
+alloy-rlp.workspace = true
+typenum.workspace = true
+dotenvy.workspace = true
+eth_trie.workspace = true
+simple_logger.workspace = true
+
+
+[features]
+synthetic = []

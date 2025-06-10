@@ -1,10 +1,11 @@
-use std::process::Command;
+use std::{path::PathBuf, process::Command};
 
 use sp1_helper::build_program;
 
-fn build_contract_abi(path: &str) {
-    let constracts_dir = std::path::Path::new(path);
-    print!("Building contracts in {:#?}", constracts_dir.as_os_str());
+fn build_contract_abi(rel_path: &str) {
+    let constracts_dir_path_buf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel_path);
+    let constracts_dir = constracts_dir_path_buf.as_path();
+    println!("Building contracts in {:#?}", constracts_dir.as_os_str());
 
     let mut command = Command::new("forge");
     command.arg("build").current_dir(constracts_dir);
@@ -27,5 +28,5 @@ fn main() {
     print!("Running custom build commands");
     build_contract_abi("../../contracts");
     build_program("../program");
-    print!("Custom build successful");
+    println!("Custom build successful");
 }

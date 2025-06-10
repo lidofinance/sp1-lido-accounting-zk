@@ -7,7 +7,7 @@ use crate::{
     },
     io::eth_io::{BeaconChainSlot, ReferenceSlot},
     io::serde_utils::serde_hex_as_string,
-    lido::{LidoValidatorState, ValidatorDelta},
+    lido::{Error, LidoValidatorState, ValidatorDelta},
     merkle_proof::FieldProof,
 };
 
@@ -30,7 +30,7 @@ pub struct ProgramInput {
 }
 
 impl ProgramInput {
-    pub fn compute_new_state(&self) -> LidoValidatorState {
+    pub fn compute_new_state(&self) -> Result<LidoValidatorState, Error> {
         self.old_lido_validator_state.merge_validator_delta(
             self.bc_slot,
             &self.validators_and_balances.validators_delta,
@@ -72,7 +72,7 @@ pub struct ExecutionPayloadHeaderData {
 }
 
 impl ExecutionPayloadHeaderData {
-    pub fn new(exec_payload: &ExecutionPayloadHeader) -> Self {
+    pub fn new(exec_payload: &ExecutionPayloadHeader) -> ExecutionPayloadHeaderData {
         Self {
             state_root: exec_payload.state_root,
             state_root_inclusion_proof: exec_payload

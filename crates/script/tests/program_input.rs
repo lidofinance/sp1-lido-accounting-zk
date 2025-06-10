@@ -1,9 +1,11 @@
 mod test_utils;
 
 use sp1_lido_accounting_scripts::{
-    beacon_state_reader::StateId, consts::NetworkInfo, scripts::shared::prepare_program_input,
+    beacon_state_reader::StateId, consts::NetworkInfo, scripts::shared::prepare_program_input, tracing,
 };
-use test_utils::{files::TestFiles, mark_as_refslot, DEPLOY_SLOT, REPORT_COMPUTE_SLOT};
+use test_utils::{
+    env::IntegrationTestEnvironment, files::TestFiles, mark_as_refslot, DEPLOY_SLOT, REPORT_COMPUTE_SLOT,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -30,10 +32,9 @@ type Result<T> = std::result::Result<T, TestError>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn program_input_integration_test() -> Result<()> {
+    tracing::setup_logger(tracing::LoggingConfig::default());
+    let env = IntegrationTestEnvironment::default().await?;
     let test_files = TestFiles::new_from_manifest_dir();
-
-    let network = &test_utils::NETWORK;
-    let network_config = network.get_config();
 
     let old_state_id = StateId::Slot(DEPLOY_SLOT);
     let report_state_id = StateId::Slot(REPORT_COMPUTE_SLOT);
@@ -47,7 +48,7 @@ async fn program_input_integration_test() -> Result<()> {
     let lido_validator_ids = [1973, 1974, 1975, 1976, 1977, 1978];
     let balances: Vec<u64> = lido_validator_ids.iter().map(|idx| new_bs.balances[*idx]).collect();
     let cl_balance_sum: u64 = balances.iter().sum();
-    assert_eq!(cl_balance_sum, 96000663228);
+    assert_eq!(cl_balance_sum, 96000491967);
 
     let withdrawal_vault_data = test_files.read_withdrawal_vault_data(&report_state_id).await?;
     let expected_wv_balance = withdrawal_vault_data.balance;
@@ -57,10 +58,11 @@ async fn program_input_integration_test() -> Result<()> {
         &new_bs,
         &new_bh,
         &old_bs,
-        &network_config.lido_withdrawal_credentials.into(),
+        &env.script_runtime.lido_settings.withdrawal_credentials,
         withdrawal_vault_data,
         true,
-    );
+    )
+    .expect("Failed to prepare program input");
 
     assert_eq!(public_values.report.lido_cl_balance, cl_balance_sum);
     assert_eq!(public_values.report.deposited_lido_validators, 6);

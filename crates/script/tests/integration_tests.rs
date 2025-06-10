@@ -14,9 +14,10 @@ use test_utils::{eyre_to_anyhow, files::TestFiles, mark_as_refslot};
 use typenum::Unsigned;
 
 const DEFAULT_FLAGS: scripts::submit::Flags = scripts::submit::Flags {
-    verify: true,
-    store_proof: false,
-    store_input: false,
+    verify_input: true,
+    verify_proof: false,
+    dry_run: false,
+    report_cycles: false,
 };
 
 #[tokio::test]
@@ -35,7 +36,7 @@ async fn deploy() -> Result<()> {
     let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::new(provider), &deploy_params)
         .await
         .map_err(eyre_to_anyhow)?;
-    log::info!("Deployed contract at {}", contract.address());
+    tracing::info!("Deployed contract at {}", contract.address());
 
     let latest_report_slot_response = contract.get_latest_validator_state_slot().await?;
     assert_eq!(latest_report_slot_response, deploy_slot);
@@ -51,14 +52,10 @@ async fn submission_success() -> Result<()> {
     let finalized_slot = env.get_finalized_slot().await?;
 
     scripts::submit::run(
-        env.sp1_client,
-        env.bs_reader.as_ref(),
-        &env.contract,
-        &env.eth_el_client,
-        mark_as_refslot(finalized_slot),
+        &env.script_runtime,
+        Some(mark_as_refslot(finalized_slot)),
         None, // alternatively Some(deploy_slot) should do the same
-        env.network,
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .expect("Failed to execute script");
@@ -75,27 +72,19 @@ async fn two_submission_success() -> Result<()> {
     let intermediate_slot = finalized_slot - eth_spec::SlotsPerEpoch::to_u64();
 
     scripts::submit::run(
-        env.sp1_client,
-        env.bs_reader.as_ref(),
-        &env.contract,
-        &env.eth_el_client,
-        mark_as_refslot(intermediate_slot),
+        &env.script_runtime,
+        Some(mark_as_refslot(intermediate_slot)),
         None, // alternatively Some(deploy_slot) should do the same
-        env.network.clone(),
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to perform deploy -> intermediate update")?;
 
     scripts::submit::run(
-        env.sp1_client,
-        env.bs_reader.as_ref(),
-        &env.contract,
-        &env.eth_el_client,
-        mark_as_refslot(finalized_slot),
-        None, // alternatively Some(first_run_slot) should do the same
-        env.network.clone(),
-        DEFAULT_FLAGS,
+        &env.script_runtime,
+        Some(mark_as_refslot(finalized_slot)),
+        None, // alternatively Some(deploy_slot) should do the same
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to perform intermediate -> finalized update")?;
@@ -113,27 +102,19 @@ async fn non_latest_state_success() -> Result<()> {
     let intermediate_slot: BeaconChainSlot = finalized_slot - eth_spec::SlotsPerEpoch::to_u64();
 
     scripts::submit::run(
-        env.sp1_client,
-        env.bs_reader.as_ref(),
-        &env.contract,
-        &env.eth_el_client,
-        mark_as_refslot(intermediate_slot),
+        &env.script_runtime,
+        Some(mark_as_refslot(intermediate_slot)),
         Some(mark_as_refslot(deploy_slot)),
-        env.network.clone(),
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to run perform deploy -> intermediate update")?;
 
     scripts::submit::run(
-        env.sp1_client,
-        env.bs_reader.as_ref(),
-        &env.contract,
-        &env.eth_el_client,
-        mark_as_refslot(finalized_slot),
+        &env.script_runtime,
+        Some(mark_as_refslot(finalized_slot)),
         Some(mark_as_refslot(deploy_slot)),
-        env.network.clone(),
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to perform deploy -> finalized update")?;
@@ -150,27 +131,19 @@ async fn resubmit_success() -> Result<()> {
     let finalized_slot = env.get_finalized_slot().await?;
 
     scripts::submit::run(
-        env.sp1_client,
-        env.bs_reader.as_ref(),
-        &env.contract,
-        &env.eth_el_client,
-        mark_as_refslot(finalized_slot),
+        &env.script_runtime,
+        Some(mark_as_refslot(finalized_slot)),
         Some(mark_as_refslot(deploy_slot)),
-        env.network.clone(),
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to run perform initial deploy -> finalized update")?;
 
     scripts::submit::run(
-        env.sp1_client,
-        env.bs_reader.as_ref(),
-        &env.contract,
-        &env.eth_el_client,
-        mark_as_refslot(finalized_slot),
+        &env.script_runtime,
+        Some(mark_as_refslot(finalized_slot)),
         Some(mark_as_refslot(deploy_slot)),
-        env.network.clone(),
-        DEFAULT_FLAGS,
+        &DEFAULT_FLAGS,
     )
     .await
     .context("Failed to run perform repeated deploy -> finalized update")?;
