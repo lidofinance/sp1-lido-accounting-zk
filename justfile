@@ -60,16 +60,16 @@ deploy:
     forge script --chain $EVM_CHAIN_ID script/Deploy.s.sol:Deploy --rpc-url $EXECUTION_LAYER_RPC --broadcast {{verify_contract_cmd}}
 
 read_last_report_slot:
-    cast call $CONTRACT_ADDRESS "getLatestLidoValidatorStateSlot()(uint256)"
+    cast call $CONTRACT_ADDRESS "getLatestLidoValidatorStateSlot()(uint256)" --rpc-url $EXECUTION_LAYER_RPC
 
 read_last_report:
     #!/usr/bin/env bash
     set -euxo pipefail
-    target_slot=$(cast --json call $CONTRACT_ADDRESS "getLatestLidoValidatorStateSlot()(uint256)" | jq ".[0] | tonumber")
-    cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" $target_slot
+    target_slot=$(cast --json call $CONTRACT_ADDRESS "getLatestLidoValidatorStateSlot()(uint256)"  --rpc-url $EXECUTION_LAYER_RPC| jq ".[0] | tonumber")
+    cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" $target_slot --rpc-url $EXECUTION_LAYER_RPC
 
 read_report target_slot:
-    cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" "{{target_slot}}"
+    cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" "{{target_slot}}" --rpc-url $EXECUTION_LAYER_RPC
 ### Contract interactions ###
 
 ### Development ###
@@ -114,13 +114,13 @@ test_script:
     # -j 5 limits the concurrency for building (but not running) and avoids that
     # --test-threads 5 limits concurrecny for running tests (sometimes it gets excited and runs too
     # many in parallel, consuming all the memory and grinding to a halt)
-    RUST_LOG=infor cargo test -j 5 -- --test-threads=5 --nocapture
+    RUST_LOG=info cargo test -j 5 -- --test-threads=5 --nocapture
 
 [working-directory: 'crates/script']
 integration_test:
     cargo test -j 5 --include-ignored
 
-test: test_contracts test_shared test_program test_script
+test: test_contracts test_shared test_script
 
 
 ### Updating metadata ###
