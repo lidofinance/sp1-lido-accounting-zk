@@ -18,6 +18,7 @@ contract Deploy is Script {
         address withdrawal_vault_address;
         uint256 genesis_timestamp;
         Sp1LidoAccountingReportContract.LidoValidatorState initial_lido_validator_state;
+        address owner;
     }
 
     function stringsEqual(string memory _a, string memory _b) public pure returns(bool) {
@@ -43,7 +44,8 @@ contract Deploy is Script {
                 Sp1LidoAccountingReportContract.LidoValidatorState(
                     json.readUint(".initial_validator_state.slot"),
                     json.readBytes32(".initial_validator_state.merkle_root")
-                )
+                ),
+                json.readAddress(".owner")
         );
 
         // sanity check
@@ -66,7 +68,8 @@ contract Deploy is Script {
             manifesto.withdrawal_credentials,
             manifesto.withdrawal_vault_address,
             manifesto.genesis_timestamp,
-            manifesto.initial_lido_validator_state
+            manifesto.initial_lido_validator_state,
+            manifesto.owner
         );
 
         vm.stopBroadcast();

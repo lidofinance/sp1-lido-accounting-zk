@@ -3,8 +3,10 @@ pragma solidity 0.8.27;
 
 import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {PausableUntil} from "./PausableUntil.sol";
 
-contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
+contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, PausableUntil {
     /// @notice The address of the beacon roots precompile.
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
     address public constant BEACON_ROOTS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
@@ -75,7 +77,13 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     /// @dev Verification failed
     error VerificationError(string error_message);
 
-    error IllegalReferenceSlotError(uint256 bc_slot, uint256 bc_slot_timestamp, uint256 reference_slot, uint256 reference_slot_timestamp, string error_message);
+    error IllegalReferenceSlotError(
+        uint256 bc_slot,
+        uint256 bc_slot_timestamp,
+        uint256 reference_slot,
+        uint256 reference_slot_timestamp,
+        string error_message
+    );
 
     constructor(
         address _verifier,
@@ -83,8 +91,9 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         bytes32 _lido_withdrawal_credentials,
         address _withdrawal_vault_address,
         uint256 _genesis_timestamp,
-        LidoValidatorState memory _initial_state
-    ) {
+        LidoValidatorState memory _initial_state,
+        address _owner
+    ) Ownable(_owner) {
         VERIFIER = _verifier;
         VKEY = _vkey;
         WITHDRAWAL_CREDENTIALS = _lido_withdrawal_credentials;
@@ -143,7 +152,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
     ///         This function is INTENTIONALLY public and have no access modifiers - ANYONE
     ///         should be allowed to call it, and bring the report+proof to the contract - it is the responsibility
     ///         of this contract and SP1 verifier to reject invalid reports.
-    function submitReportData(bytes calldata proof, bytes calldata publicValues) public {
+    function submitReportData(bytes calldata proof, bytes calldata publicValues) public whenResumed {
         PublicValues memory public_values = abi.decode(publicValues, (PublicValues));
         Report memory report = public_values.report;
         ReportMetadata memory metadata = public_values.metadata;
@@ -165,6 +174,31 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         _recordLidoValidatorStateHash(metadata.new_state.slot, metadata.new_state.merkle_root);
     }
 
+    /// @notice Pause submit report data
+    /// @param _duration pause duration in seconds (use `PAUSE_INFINITELY` for unlimited)
+    /// @dev Reverts if contract is already paused
+    /// @dev Reverts reason if sender is not the owner
+    /// @dev Reverts if zero duration is passed
+    function pauseFor(uint256 _duration) external onlyOwner {
+        _pauseFor(_duration);
+    }
+
+    /// @notice Pause submit report data
+    /// @param _pauseUntilInclusive the last second to pause until inclusive
+    /// @dev Reverts if the timestamp is in the past
+    /// @dev Reverts if sender is not the owner
+    /// @dev Reverts if contract is already paused
+    function pauseUntil(uint256 _pauseUntilInclusive) external onlyOwner {
+        _pauseUntil(_pauseUntilInclusive);
+    }
+
+    /// @notice Resume submit report data
+    /// @dev Reverts if sender is not the owner
+    /// @dev Reverts if contract is not paused
+    function resume() external onlyOwner {
+        _resume();
+    }
+
     /// @notice Verifies that reference slot and beacon state slot are correct:
     /// * If reference slot had a block, beacon state slot must be equal to reference slot
     /// * If reference slot did not have a block, beacon state slot must be the first preceding slot that had a block
@@ -177,25 +211,29 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         }
 
         _require_for_refslot(
-            bc_slot < reference_slot,
-            bc_slot, reference_slot, "Reference slot must be after beacon state slot"
+            bc_slot < reference_slot, bc_slot, reference_slot, "Reference slot must be after beacon state slot"
         );
 
-        
         _require_for_refslot(
             _slotToTimestamp(reference_slot) <= block.timestamp,
-            bc_slot, reference_slot, "Reference slot must not be in the future"
+            bc_slot,
+            reference_slot,
+            "Reference slot must not be in the future"
         );
 
         _require_for_refslot(
             !_blockExists(reference_slot),
-            bc_slot, reference_slot, "Reference slot has a block, but beacon state slot != reference slot"
+            bc_slot,
+            reference_slot,
+            "Reference slot has a block, but beacon state slot != reference slot"
         );
 
         for (uint256 slot_to_check = reference_slot - 1; slot_to_check > bc_slot; slot_to_check--) {
             _require_for_refslot(
                 !_blockExists(slot_to_check),
-                bc_slot, reference_slot, "Beacon state slot should be the first preceding non-empty slot before reference"
+                bc_slot,
+                reference_slot,
+                "Beacon state slot should be the first preceding non-empty slot before reference"
             );
         }
     }
@@ -218,7 +256,10 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         require(old_state_hash != 0, VerificationError("Old state merkle_root not found"));
         require(metadata.old_state.merkle_root == old_state_hash, VerificationError("Old state merkle_root mismatch"));
 
-        require(metadata.bc_slot == metadata.new_state.slot, VerificationError("New state slot must match beacon state slot"));
+        require(
+            metadata.bc_slot == metadata.new_state.slot,
+            VerificationError("New state slot must match beacon state slot")
+        );
 
         require(
             metadata.withdrawal_vault_data.vault_address == WITHDRAWAL_VAULT_ADDRESS,
@@ -286,17 +327,16 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle {
         }
     }
 
-    function _require_for_refslot(bool condition, uint256 bc_slot, uint256 refslot, string memory error_message) private view {
+    function _require_for_refslot(bool condition, uint256 bc_slot, uint256 refslot, string memory error_message)
+        private
+        view
+    {
         if (condition) {
             return;
         }
         uint256 bc_slot_timestamp = _slotToTimestamp(bc_slot);
         uint256 refslot_timestamp = _slotToTimestamp(refslot);
-        revert IllegalReferenceSlotError(
-            bc_slot, bc_slot_timestamp,
-            refslot, refslot_timestamp, 
-            error_message
-        );
+        revert IllegalReferenceSlotError(bc_slot, bc_slot_timestamp, refslot, refslot_timestamp, error_message);
     }
 
     function _slotToTimestamp(uint256 slot) internal view returns (uint256) {

@@ -13,6 +13,7 @@ pub fn prepare_deploy_params(
     verifier_address: Address,
     withdrawal_vault_address: Address,
     lido_withdrawal_credentials: Hash256,
+    owner_address: Address,
 ) -> ContractDeployParametersRust {
     let network_config = network.get_config();
     let network_name = network.as_str();
@@ -29,5 +30,6 @@ pub fn prepare_deploy_params(
             slot: lido_validator_state.slot,
             merkle_root: lido_validator_state.tree_hash_root().0,
         },
+        owner: owner_address.into(),
     }
 }

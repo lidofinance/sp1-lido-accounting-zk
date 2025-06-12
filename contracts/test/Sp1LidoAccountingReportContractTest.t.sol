@@ -75,7 +75,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
             fixture.metadata.lido_withdrawal_credentials,
             fixture.metadata.withdrawal_vault_data.vault_address,
             GENESIS_BLOCK_TIMESTAMP,
-            fixture.metadata.old_state
+            fixture.metadata.old_state,
+            address(12345678901234567890)
         );
     }
 
@@ -91,7 +92,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
             uint256 target_slot = start_slot + idx;
             _setHash(target_slot, hashes[idx]);
         }
-        console.log("Warp to slot %d", end_slot+2);
+        console.log("Warp to slot %d", end_slot + 2);
         vm.warp(getSlotTimestamp(end_slot + 2));
     }
 
@@ -163,7 +164,12 @@ contract Sp1LidoAccountingReportContractTest is Test {
         returns (bytes memory)
     {
         return abi.encodeWithSelector(
-            Sp1LidoAccountingReportContract.IllegalReferenceSlotError.selector, bc_slot, getSlotTimestamp(bc_slot), ref_slot, getSlotTimestamp(ref_slot), message
+            Sp1LidoAccountingReportContract.IllegalReferenceSlotError.selector,
+            bc_slot,
+            getSlotTimestamp(bc_slot),
+            ref_slot,
+            getSlotTimestamp(ref_slot),
+            message
         );
     }
 
@@ -376,7 +382,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
         setBeaconHashSequence(public_values.metadata.bc_slot, public_values.report.reference_slot, hashes);
         vm.expectRevert(
             illegal_ref_slot_error(
-                public_values.metadata.bc_slot, public_values.report.reference_slot,
+                public_values.metadata.bc_slot,
+                public_values.report.reference_slot,
                 "Reference slot has a block, but beacon state slot != reference slot"
             )
         );
@@ -457,7 +464,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
         setBeaconHashSequence(public_values.metadata.bc_slot, public_values.report.reference_slot, hashes);
         vm.expectRevert(
             illegal_ref_slot_error(
-                public_values.metadata.bc_slot, public_values.report.reference_slot,
+                public_values.metadata.bc_slot,
+                public_values.report.reference_slot,
                 "Beacon state slot should be the first preceding non-empty slot before reference"
             )
         );
@@ -487,7 +495,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
         vm.expectRevert(
             illegal_ref_slot_error(
-                public_values.metadata.bc_slot, public_values.report.reference_slot,
+                public_values.metadata.bc_slot,
+                public_values.report.reference_slot,
                 "Reference slot must be after beacon state slot"
             )
         );
@@ -518,7 +527,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
         vm.expectRevert(
             illegal_ref_slot_error(
-                public_values.metadata.bc_slot, public_values.report.reference_slot,
+                public_values.metadata.bc_slot,
+                public_values.report.reference_slot,
                 "Reference slot must not be in the future"
             )
         );

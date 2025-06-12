@@ -21,6 +21,7 @@ pub enum Source {
     Network {
         slot: BeaconChainSlot,
         verifier: Address,
+        owner: Address,
     },
     File {
         slot: u64,
@@ -30,6 +31,7 @@ pub enum Source {
 
 async fn compute_from_network(
     verifier_address: Address,
+    owner_address: Address,
     runtime: &ScriptRuntime,
     target_slot: BeaconChainSlot,
 ) -> anyhow::Result<ContractDeployParametersRust> {
@@ -47,6 +49,7 @@ async fn compute_from_network(
         verifier_address,
         runtime.lido_settings.withdrawal_vault_address,
         runtime.lido_settings.withdrawal_credentials,
+        owner_address,
     ))
 }
 
@@ -107,7 +110,11 @@ pub async fn run(
         panic!("Verification is not yet supported");
     }
     let deploy_params = match source {
-        Source::Network { slot, verifier } => compute_from_network(verifier, runtime, slot).await?,
+        Source::Network {
+            slot,
+            verifier,
+            owner,
+        } => compute_from_network(verifier, owner, runtime, slot).await?,
         Source::File { slot, path } => read_from_file(slot, &path).await?,
     };
 

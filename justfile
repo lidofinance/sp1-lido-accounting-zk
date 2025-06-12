@@ -138,10 +138,10 @@ docker_build:
 docker_run:
     # network: host is to allow connecting to anvil when run locally
     # Practically just docker-compose for lazy
-    docker run --env-file .env --network host -v /tmp/lido-sp1-oracle:/tmp/lido-sp1-oracle lido_sp1_oracle:latest
+    docker run --env-file .env --network host -v $BS_FILE_STORE:$BS_FILE_STORE lido_sp1_oracle:latest
 
 docker_shell:
-    docker run --env-file .env -it --network host -v /tmp/lido-sp1-oracle:/tmp/lido-sp1-oracle --rm --entrypoint /bin/bash lido_sp1_oracle:latest 
+    docker run --env-file .env -it --network host -v $BS_FILE_STORE:$BS_FILE_STORE --rm --entrypoint /bin/bash lido_sp1_oracle:latest 
 
 docker_env:
     docker run --env-file .env -it --rm lido_sp1_oracle:latest env
