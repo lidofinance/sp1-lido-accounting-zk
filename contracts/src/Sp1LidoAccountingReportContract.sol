@@ -71,7 +71,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
     }
 
     event ReportAccepted(Report report);
-    event LidoValidatorStateHashRecorded(uint256 slot, bytes32 merkle_root);
+    event LidoValidatorStateHashRecorded(uint256 indexed slot, bytes32 merkle_root);
     event PauserSet(address pauserAddr);
 
     /// @dev Timestamp out of range for the the beacon roots precompile.
