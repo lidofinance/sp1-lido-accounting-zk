@@ -11,3 +11,7 @@ fs_permissions = [
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 [fmt]
 line_length = 120
+
+#[dependencies]
+#sp1-contracts = { git = "https://github.com/succinctlabs/sp1-contracts", tag = "v5.0.0" }
+#openzeppelin-contracts = { git = "https://github.com/OpenZeppelin/openzeppelin-contracts", tag = "v5.3.0" }

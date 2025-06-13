@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lido <info@lido.fi>
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
@@ -30,11 +31,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
     /// @notice The genesis block timestamp.
     uint256 public immutable GENESIS_BLOCK_TIMESTAMP;
 
-    mapping(uint256 => Report) private _reports;
-    mapping(uint256 => bytes32) private _states;
+    mapping(uint256 refSlot => Report) private _reports;
+    mapping(uint256 refSlot => bytes32 state) private _states;
     uint256 private _latestValidatorStateSlot;
 
-    address public _gateSeal;
+    address public _pauser;
 
     struct Report {
         uint256 reference_slot;
@@ -70,8 +71,8 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
     }
 
     event ReportAccepted(Report report);
-    event LidoValidatorStateHashRecorded(uint256 slot, bytes32 merkle_root);
-    event GateSealSet(address gateSeal);
+    event LidoValidatorStateHashRecorded(uint256 indexed slot, bytes32 merkle_root);
+    event PauserSet(address pauserAddr);
 
     /// @dev Timestamp out of range for the the beacon roots precompile.
     error TimestampOutOfRange(uint256 target_slot, uint256 target_timestamp, uint256 earliest_available_timestamp);
@@ -81,8 +82,8 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
     /// @dev Verification failed
     error VerificationError(string error_message);
 
-    /// @dev Caller have to be authorized to call PauseFor
-    error PauseForUnauthorizedAccount();
+    /// @dev Caller have to be authorized to call pause
+    error UnauthorizedPauseAccount();
 
     error IllegalReferenceSlotError(
         uint256 bc_slot,
@@ -121,6 +122,9 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
             uint256 totalExitedValidators
         )
     {
+        if (isPaused()) {
+            return (false, 0, 0, 0, 0);
+        }
         Report storage report = _reports[refSlot];
         // This check handles two conditions:
         // 1. Report is not found for a given slot - report.slot will be 0
@@ -181,9 +185,9 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
         _recordLidoValidatorStateHash(metadata.new_state.slot, metadata.new_state.merkle_root);
     }
 
-    function setGateSeal(address gateSeal) external onlyOwner {
-        _gateSeal = gateSeal;
-        emit GateSealSet(gateSeal);
+    function setPauser(address pauser) external onlyOwner {
+        _pauser = pauser;
+        emit PauserSet(pauser);
     }
 
     /// @notice Pause submit report data
@@ -192,8 +196,8 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
     /// @dev Reverts reason if sender is not the owner
     /// @dev Reverts if zero duration is passed
     function pauseFor(uint256 _duration) external {
-        if (msg.sender != _gateSeal && msg.sender != owner()) {
-            revert PauseForUnauthorizedAccount();
+        if (msg.sender != _pauser && msg.sender != owner()) {
+            revert UnauthorizedPauseAccount();
         }
         _pauseFor(_duration);
     }
@@ -203,7 +207,10 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
     /// @dev Reverts if the timestamp is in the past
     /// @dev Reverts if sender is not the owner
     /// @dev Reverts if contract is already paused
-    function pauseUntil(uint256 _pauseUntilInclusive) external onlyOwner {
+    function pauseUntil(uint256 _pauseUntilInclusive) external {
+        if (msg.sender != _pauser && msg.sender != owner()) {
+            revert UnauthorizedPauseAccount();
+        }
         _pauseUntil(_pauseUntilInclusive);
     }
 
