@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.27;
 
-import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {PausableUntil} from "./PausableUntil.sol";
 
 contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, PausableUntil {
@@ -32,6 +33,8 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
     mapping(uint256 => Report) private _reports;
     mapping(uint256 => bytes32) private _states;
     uint256 private _latestValidatorStateSlot;
+
+    address public _gateSeal;
 
     struct Report {
         uint256 reference_slot;
@@ -68,6 +71,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
 
     event ReportAccepted(Report report);
     event LidoValidatorStateHashRecorded(uint256 slot, bytes32 merkle_root);
+    event GateSealSet(address gateSeal);
 
     /// @dev Timestamp out of range for the the beacon roots precompile.
     error TimestampOutOfRange(uint256 target_slot, uint256 target_timestamp, uint256 earliest_available_timestamp);
@@ -76,6 +80,9 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
 
     /// @dev Verification failed
     error VerificationError(string error_message);
+
+    /// @dev Caller have to be authorized to call PauseFor
+    error PauseForUnauthorizedAccount();
 
     error IllegalReferenceSlotError(
         uint256 bc_slot,
@@ -174,12 +181,20 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
         _recordLidoValidatorStateHash(metadata.new_state.slot, metadata.new_state.merkle_root);
     }
 
+    function setGateSeal(address gateSeal) external onlyOwner {
+        _gateSeal = gateSeal;
+        emit GateSealSet(gateSeal);
+    }
+
     /// @notice Pause submit report data
     /// @param _duration pause duration in seconds (use `PAUSE_INFINITELY` for unlimited)
     /// @dev Reverts if contract is already paused
     /// @dev Reverts reason if sender is not the owner
     /// @dev Reverts if zero duration is passed
-    function pauseFor(uint256 _duration) external onlyOwner {
+    function pauseFor(uint256 _duration) external {
+        if (msg.sender != _gateSeal && msg.sender != owner()) {
+            revert PauseForUnauthorizedAccount();
+        }
         _pauseFor(_duration);
     }
 
