@@ -348,7 +348,7 @@ impl Metrics {
                 namespace,
                 "metadata__app_build_info",
                 "Application Build Info",
-                &["version", "git_sha", "git_branch", "build_timestamp", "target"],
+                &["version", "git_sha", "build_timestamp"],
             ),
 
             run_report_counter: counter_vec(namespace, "metadata__report_runs", "Number of report runs", &["caller"]),

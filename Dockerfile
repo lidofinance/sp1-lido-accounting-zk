@@ -8,11 +8,17 @@ RUN ./docker_build_bootstrap.sh
 # See .dockerignore for list of copied files
 COPY . .
 ENV PATH="$PATH:/root/.sp1/bin:/root/.foundry/bin"
+ARG VERGEN_GIT_SHA
+ENV VERGEN_GIT_SHA=${VERGEN_GIT_SHA}
 RUN cargo build --release --locked
+# this needs to be after build step above, to avoid cache-busting it
+ARG PRINT_ELF_SHA
+RUN echo "$PRINT_ELF_SHA" && sha256sum target/elf-compilation/riscv32im-succinct-zkvm-elf/release/sp1-lido-accounting-zk-program
 
 # Cannot use alpine because we need glibc, and alpine uses musl. Between compiling for musl
 # (only for docker), and using slightly larger base image, the latter seems a lesser evil
 FROM debian:stable-slim AS lido_sp1_oracle
+WORKDIR /usr/data/sp1-lido-zk
 RUN apt-get update && apt install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/src/sp1-lido-zk/target/release/service /usr/local/bin/service
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh

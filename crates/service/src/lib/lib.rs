@@ -83,9 +83,7 @@ pub async fn service_main() {
         .with_label_values(&[
             env!("CARGO_PKG_VERSION"),
             env!("VERGEN_GIT_SHA"),
-            env!("VERGEN_GIT_BRANCH"),
             env!("VERGEN_BUILD_TIMESTAMP"),
-            env!("VERGEN_CARGO_TARGET_TRIPLE"),
         ])
         .set(1.0);
 

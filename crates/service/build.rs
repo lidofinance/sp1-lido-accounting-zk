@@ -6,6 +6,6 @@ pub fn main() -> Result<()> {
     Emitter::default()
         .add_instructions(&BuildBuilder::all_build()?)?
         .add_instructions(&CargoBuilder::all_cargo()?)?
-        .add_instructions(&Git2Builder::all_git()?)?
+        .add_instructions(&Git2Builder::default().sha(false).build()?)?
         .emit()
 }

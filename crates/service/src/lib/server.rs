@@ -1,5 +1,4 @@
 use axum::{
-    debug_handler,
     extract::{Json, Query},
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -8,10 +7,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use sp1_lido_accounting_scripts::{
-    eth_client::Sp1LidoAccountingReportContract::Report, utils::read_env,
-};
-use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot, ReportRust};
+use sp1_lido_accounting_scripts::utils::read_env;
+use sp1_lido_accounting_zk_shared::io::eth_io::{ReferenceSlot, ReportRust};
 use std::{any::type_name_of_val, net::SocketAddr, sync::Arc, thread};
 use tracing::{Instrument, Span};
 

@@ -104,6 +104,7 @@ impl IntegrationTestEnvironment {
             verifier_address,
             withdrawal_vault_address,
             withdrawal_credentials,
+            [1; 20].into(),
         );
 
         tracing::info!("Deploying contract with parameters {:?}", deploy_params);
