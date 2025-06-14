@@ -1,4 +1,6 @@
-FROM rust:1.85 AS builder
+# FromPlatformFlagConstDisallowed warning intentional - otherwise program ELF files differ when built on different host 
+# platforms
+FROM --platform=linux/amd64 rust:1.85 AS builder
 WORKDIR /usr/src/sp1-lido-zk
 # copying this file separately to avoid busting cache and rerunning bootstrap on every file change
 COPY docker/docker_build_bootstrap.sh ./docker_build_bootstrap.sh
