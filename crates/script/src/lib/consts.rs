@@ -15,6 +15,7 @@ pub enum Network {
     Mainnet,
     Sepolia,
     Holesky,
+    Hoodi,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +32,7 @@ impl FromStr for Network {
             "mainnet" => Ok(Self::Mainnet),
             "sepolia" => Ok(Self::Sepolia),
             "holesky" => Ok(Self::Holesky),
+            "hoodi" => Ok(Self::Hoodi),
             val => Err(NetworkParseError::FailedToParseNetwork {
                 value: val.to_string(),
                 error: "Unknown network".to_string(),
@@ -45,6 +47,7 @@ impl NetworkInfo for Network {
             Self::Mainnet => "mainnet",
             Self::Sepolia => "sepolia",
             Self::Holesky => "holesky",
+            Self::Hoodi => "hoodi",
         };
         val.to_owned()
     }
@@ -62,6 +65,10 @@ impl NetworkInfo for Network {
             Self::Holesky => NetworkConfig {
                 chain_id: 17000,
                 genesis_block_timestamp: 1695902400,
+            },
+            Self::Hoodi => NetworkConfig {
+                chain_id: 560048,
+                genesis_block_timestamp: 1742213400,
             },
         }
     }
