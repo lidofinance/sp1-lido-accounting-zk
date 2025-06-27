@@ -103,7 +103,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         address _withdrawal_vault_address,
         uint256 _genesis_timestamp,
         LidoValidatorState memory _initial_state,
-        address _owner
+        address _admin
     ) {
         VERIFIER = _verifier;
         VKEY = _vkey;
@@ -111,7 +111,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         WITHDRAWAL_VAULT_ADDRESS = _withdrawal_vault_address;
         GENESIS_BLOCK_TIMESTAMP = _genesis_timestamp;
         _recordLidoValidatorStateHash(_initial_state.slot, _initial_state.merkle_root);
-        _grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
     function getReport(uint256 refSlot)
