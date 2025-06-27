@@ -3,12 +3,12 @@
 pragma solidity 0.8.27;
 
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 
 import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {PausableUntil} from "./PausableUntil.sol";
 
-contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControl, PausableUntil {
+contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEnumerable, PausableUntil {
     /// @notice The address of the beacon roots precompile.
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
     address public constant BEACON_ROOTS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
