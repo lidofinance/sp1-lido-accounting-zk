@@ -75,7 +75,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
 
     event ReportAccepted(Report report);
     event LidoValidatorStateHashRecorded(uint256 indexed slot, bytes32 merkle_root);
-    event PauserSet(address pauserAddr);
 
     /// @dev Timestamp out of range for the the beacon roots precompile.
     error TimestampOutOfRange(uint256 target_slot, uint256 target_timestamp, uint256 earliest_available_timestamp);
@@ -84,9 +83,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
 
     /// @dev Verification failed
     error VerificationError(string error_message);
-
-    /// @dev Caller have to be authorized to call pause
-    error UnauthorizedPauseAccount();
 
     error IllegalReferenceSlotError(
         uint256 bc_slot,
@@ -192,7 +188,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @notice Pause submit report data
     /// @param _duration pause duration in seconds (use `PAUSE_INFINITELY` for unlimited)
     /// @dev Reverts if contract is already paused
-    /// @dev Reverts reason if sender is not the owner
+    /// @dev Reverts if sender don't have PAUSE_ROLE
     /// @dev Reverts if zero duration is passed
     function pauseFor(uint256 _duration) external onlyRole(PAUSE_ROLE) {
         _pauseFor(_duration);
@@ -201,14 +197,14 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @notice Pause submit report data
     /// @param _pauseUntilInclusive the last second to pause until inclusive
     /// @dev Reverts if the timestamp is in the past
-    /// @dev Reverts if sender is not the owner
+    /// @dev Reverts if sender don't have PAUSE_ROLE
     /// @dev Reverts if contract is already paused
     function pauseUntil(uint256 _pauseUntilInclusive) external onlyRole(PAUSE_ROLE) {
         _pauseUntil(_pauseUntilInclusive);
     }
 
     /// @notice Resume submit report data
-    /// @dev Reverts if sender is not the owner
+    /// @dev Reverts if sender don't have RESUME_ROLE
     /// @dev Reverts if contract is not paused
     function resume() external onlyRole(RESUME_ROLE) {
         _resume();
