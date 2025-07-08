@@ -47,6 +47,11 @@ delivered via env vars - see [.env.example](.env.example) (and comments in it) f
 
 ## Development
 
+**NOTE:** This project uses gitmodules. Please make sure to clone with `--recurse-submodules` and/or 
+`git submodules update --init --recursive`, and/or any other means to make sure `contracts/lib/sp1-contracts` exists
+and is not empty. Otherwise, building contracts (`forge build`, also run by cargo build via `crates/script/build.rs`)
+will not produce the `contracts/out`, which in turn will fail generating code for accessing the contract (`eth_client.rs`).
+
 ### Requirements
 
 - [Rust](https://rustup.rs/)
