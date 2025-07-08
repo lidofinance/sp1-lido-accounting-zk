@@ -70,7 +70,7 @@ tree_hash = "0.10"
 tree_hash_derive = "0.10"
 typenum = "1.18"
 # ssz_types = { version = "0.12.0", features = ["arbitrary", "cap-typenum-to-usize-overflow"], path = "../../ssz_types"  }
-ssz_types = { git = "https://github.com/color-typea/ssz_types", features = ["arbitrary", "cap-typenum-to-usize-overflow"] }
+ssz_types = { git = "https://github.com/lidofinance/ssz_types", features = ["arbitrary", "cap-typenum-to-usize-overflow"] }
 
 sp1-lido-accounting-zk-shared = { path = "crates/shared" }
 sp1-lido-accounting-zk-scripts = { path = "crates/script" }
