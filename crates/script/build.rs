@@ -9,7 +9,21 @@ fn build_contract_abi(rel_path: &str) {
 
     let mut command = Command::new("forge");
     command.arg("build").current_dir(constracts_dir);
-    command.status().expect("Failed to forge build");
+    let output = command.output().expect("Failed to initiate forge build");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    println!(
+        "====== Forge stdout ======\n {}\n====== Forge stdout end ======",
+        stdout
+    );
+    if !output.status.success() {
+        eprintln!(
+            "====== Forge stderr ======\n {}\n====== Forge stderr end ======",
+            stderr
+        );
+        panic!("Forge build failed: {}", output.status);
+    }
 
     let dirs = vec![
         constracts_dir.join("src"),
@@ -25,7 +39,7 @@ fn build_contract_abi(rel_path: &str) {
 }
 
 fn main() {
-    print!("Running custom build commands");
+    println!("Running custom build commands");
     build_contract_abi("../../contracts");
     build_program("../program");
     println!("Custom build successful");
