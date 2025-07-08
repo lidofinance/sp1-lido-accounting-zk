@@ -140,7 +140,7 @@ docker_build_print_elf_sha: (docker_build "--build-arg PRINT_ELF_SHA=$(date +%s)
 # network: host is to allow connecting to anvil when run locally
 # Practically just docker-compose for lazy
 docker_run:    
-    docker run --env-file .env --platform linux/amd64 --network host -v $BS_FILE_STORE:/usr/data/sp1-lido-zk/$BS_FILE_STORE lido_sp1_oracle:latest
+    docker run --env-file .env --platform linux/amd64 -p 8080:8080 -v $BS_FILE_STORE:/usr/data/sp1-lido-zk/$BS_FILE_STORE lido_sp1_oracle:latest
 
 docker_shell:
     docker run --env-file .env --platform linux/amd64 -it --network host -v $BS_FILE_STORE:/usr/data/sp1-lido-zk/$BS_FILE_STORE --rm --entrypoint /bin/bash lido_sp1_oracle:latest 
