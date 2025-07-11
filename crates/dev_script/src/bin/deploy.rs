@@ -64,14 +64,14 @@ async fn main() {
             .expect("SP1_VERIFIER_ADDRESS not set")
             .parse()
             .expect("Failed to parse SP1_VERIFIER_ADDRESS to Address");
-        let owner_address = std::env::var("OWNER_ADDRESS")
-            .expect("OWNER_ADDRESS not set")
+        let admin_address = std::env::var("ADMIN_ADDRESS")
+            .expect("ADMIN_ADDRESS not set")
             .parse()
-            .expect("Failed to parse OWNER_ADDRESS to Address");
+            .expect("Failed to parse ADMIN_ADDRESS to Address");
         dev_scripts::deploy::Source::Network {
             slot: BeaconChainSlot(args.target_slot),
             verifier: verifier_address,
-            owner: owner_address,
+            admin: admin_address,
         }
     };
 

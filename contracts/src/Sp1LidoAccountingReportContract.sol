@@ -3,15 +3,20 @@
 pragma solidity 0.8.27;
 
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 
 import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {PausableUntil} from "./PausableUntil.sol";
 
-contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, PausableUntil {
+contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEnumerable, PausableUntil {
     /// @notice The address of the beacon roots precompile.
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
     address public constant BEACON_ROOTS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
+
+    /// @notice role that allows to pause the contract
+    bytes32 public constant PAUSE_ROLE = keccak256("Sp1LidoAccountingReportContract.PauseRole");
+    /// @notice role that allows to resume the contract
+    bytes32 public constant RESUME_ROLE = keccak256("Sp1LidoAccountingReportContract.ResumeRole");
 
     /// @notice The length of the beacon roots ring buffer.
     uint256 internal constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;
@@ -34,8 +39,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
     mapping(uint256 refSlot => Report) private _reports;
     mapping(uint256 refSlot => bytes32 state) private _states;
     uint256 private _latestValidatorStateSlot;
-
-    address public _pauser;
 
     struct Report {
         uint256 reference_slot;
@@ -72,7 +75,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
 
     event ReportAccepted(Report report);
     event LidoValidatorStateHashRecorded(uint256 indexed slot, bytes32 merkle_root);
-    event PauserSet(address pauserAddr);
 
     /// @dev Timestamp out of range for the the beacon roots precompile.
     error TimestampOutOfRange(uint256 target_slot, uint256 target_timestamp, uint256 earliest_available_timestamp);
@@ -81,9 +83,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
 
     /// @dev Verification failed
     error VerificationError(string error_message);
-
-    /// @dev Caller have to be authorized to call pause
-    error UnauthorizedPauseAccount();
 
     error IllegalReferenceSlotError(
         uint256 bc_slot,
@@ -100,14 +99,15 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
         address _withdrawal_vault_address,
         uint256 _genesis_timestamp,
         LidoValidatorState memory _initial_state,
-        address _owner
-    ) Ownable(_owner) {
+        address _admin
+    ) {
         VERIFIER = _verifier;
         VKEY = _vkey;
         WITHDRAWAL_CREDENTIALS = _lido_withdrawal_credentials;
         WITHDRAWAL_VAULT_ADDRESS = _withdrawal_vault_address;
         GENESIS_BLOCK_TIMESTAMP = _genesis_timestamp;
         _recordLidoValidatorStateHash(_initial_state.slot, _initial_state.merkle_root);
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
     function getReport(uint256 refSlot)
@@ -185,39 +185,28 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
         _recordLidoValidatorStateHash(metadata.new_state.slot, metadata.new_state.merkle_root);
     }
 
-    function setPauser(address pauser) external onlyOwner {
-        _pauser = pauser;
-        emit PauserSet(pauser);
-    }
-
     /// @notice Pause submit report data
     /// @param _duration pause duration in seconds (use `PAUSE_INFINITELY` for unlimited)
     /// @dev Reverts if contract is already paused
-    /// @dev Reverts reason if sender is not the owner
+    /// @dev Reverts if sender don't have PAUSE_ROLE
     /// @dev Reverts if zero duration is passed
-    function pauseFor(uint256 _duration) external {
-        if (msg.sender != _pauser && msg.sender != owner()) {
-            revert UnauthorizedPauseAccount();
-        }
+    function pauseFor(uint256 _duration) external onlyRole(PAUSE_ROLE) {
         _pauseFor(_duration);
     }
 
     /// @notice Pause submit report data
     /// @param _pauseUntilInclusive the last second to pause until inclusive
     /// @dev Reverts if the timestamp is in the past
-    /// @dev Reverts if sender is not the owner
+    /// @dev Reverts if sender don't have PAUSE_ROLE
     /// @dev Reverts if contract is already paused
-    function pauseUntil(uint256 _pauseUntilInclusive) external {
-        if (msg.sender != _pauser && msg.sender != owner()) {
-            revert UnauthorizedPauseAccount();
-        }
+    function pauseUntil(uint256 _pauseUntilInclusive) external onlyRole(PAUSE_ROLE) {
         _pauseUntil(_pauseUntilInclusive);
     }
 
     /// @notice Resume submit report data
-    /// @dev Reverts if sender is not the owner
+    /// @dev Reverts if sender don't have RESUME_ROLE
     /// @dev Reverts if contract is not paused
-    function resume() external onlyOwner {
+    function resume() external onlyRole(RESUME_ROLE) {
         _resume();
     }
 
