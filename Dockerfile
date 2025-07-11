@@ -22,6 +22,7 @@ WORKDIR /usr/data/sp1-lido-zk
 RUN apt-get update && apt install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/src/sp1-lido-zk/target/release/service /usr/local/bin/service
 COPY --from=builder /usr/src/sp1-lido-zk/target/release/deploy /usr/local/bin/deploy
+COPY --from=builder /usr/src/sp1-lido-zk/target/release/store_report /usr/local/bin/store_report
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY docker/healthcheck.sh /usr/local/bin/healthcheck.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh

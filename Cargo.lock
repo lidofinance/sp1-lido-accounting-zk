@@ -6074,7 +6074,7 @@ dependencies = [
 [[package]]
 name = "ssz_types"
 version = "0.11.0"
-source = "git+https://github.com/color-typea/ssz_types#c81e87812a9449b89d6d7a31a375090466b90544"
+source = "git+https://github.com/lidofinance/ssz_types#c81e87812a9449b89d6d7a31a375090466b90544"
 dependencies = [
  "arbitrary",
  "ethereum_hashing",
