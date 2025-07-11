@@ -1,7 +1,7 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Language                              Files     Lines   Blanks  Comments     Code Complexity Complexity/Lines
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Rust                                     70     13997     1800       394    11803        435           216.17
+Rust                                     70     14018     1801       394    11823        436           215.40
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ~ipt/tests/program_input_tampering_tests.rs      1403      292        62     1049         18             1.72
 crates/shared/src/lib/merkle_proof.rs             913      127        29      757         47             6.21
@@ -25,8 +25,8 @@ crates/script/src/lib/scripts/shared.rs           272       31         1      24
 crates/dev_script/src/lib/synthetic.rs            200       18         0      182          9             4.95
 crates/service/src/lib/server.rs                  181       17         1      163          7             4.29
 crates/dev_script/examples/report.rs              168       17         6      145          0             0.00
-~rates/dev_script/src/lib/scripts/deploy.rs       165       18         1      146          9             6.16
 crates/dev_script/examples/lido_state.rs          165       17         5      143          7             4.90
+~rates/dev_script/src/lib/scripts/deploy.rs       165       18         1      146          9             6.16
 crates/script/src/lib/env.rs                      161       10         0      151          5             3.31
 crates/shared/src/lib/circuit_logic/io.rs         156       13         1      142          0             0.00
 crates/script/tests/integration_tests.rs          154       16         8      130          0             0.00
@@ -34,16 +34,16 @@ crates/script/tests/integration_tests.rs          154       16         8      13
 ~dev_script/src/lib/scripts/store_report.rs       134       14         0      120          5             4.17
 ~v_script/examples/gen_synthetic_bs_pair.rs       132       12         1      119          0             0.00
 ~rates/script/src/lib/sp1_client_wrapper.rs       123       21         0      102          4             3.92
-crates/script/src/lib/consts.rs                   111       13         0       98         10            10.20
+crates/script/src/lib/consts.rs                   118       13         0      105         10             9.52
 crates/script/tests/test_utils/files.rs           108       12         0       96          0             0.00
 crates/service/src/lib/lib.rs                     100       16         4       80          1             1.25
 crates/dev_script/src/bin/deploy.rs                99       11        14       74          4             5.41
 ~ript/src/lib/scripts/write_test_fixture.rs        97       16         0       81          2             2.47
 crates/service/src/lib/common.rs                   94        8         1       85          1             1.18
 crates/script/src/lib/tracing.rs                   91       11         0       80          5             6.25
+~ates/dev_script/src/lib/scripts/execute.rs        88       12         0       76          1             1.32
 crates/script/tests/program_input.rs               88       14         1       73          5             6.85
 crates/shared/src/lib/io/program_io.rs             88       11         8       69          1             1.45
-~ates/dev_script/src/lib/scripts/execute.rs        88       12         0       76          1             1.32
 crates/service/src/lib/scheduler.rs                87       11         2       74          5             6.76
 ~s/dev_script/src/bin/write_test_fixture.rs        84       12         0       72          2             2.78
 crates/dev_script/examples/read_bs_pair.rs         83        9         0       74          0             0.00
@@ -51,11 +51,11 @@ crates/dev_script/examples/read_bs_pair.rs         83        9         0       7
 crates/script/src/lib/utils.rs                     79       11         1       67          9            13.43
 crates/shared/src/lib/io/serde_utils.rs            79        8         0       71          2             2.82
 crates/program/src/bin/main.rs                     77       12         0       65          1             1.54
+crates/script/build.rs                             72        9         1       62          5             8.06
 ~ates/script/src/lib/beacon_state_reader.rs        65       10         0       55          2             3.64
 ~merkle_tree_field_leaves_derive/src/lib.rs        65       11         0       54          4             7.41
 crates/script/src/bin/submit.rs                    60        8         2       50          0             0.00
 ~rates/dev_script/examples/balance_proof.rs        59        9         0       50          2             4.00
-crates/script/build.rs                             58        8         1       49          4             8.16
 crates/script/src/lib/proof_storage.rs             57       10         0       47          0             0.00
 crates/dev_script/src/bin/execute.rs               55        8         1       46          0             0.00
 crates/dev_script/src/bin/submit_cached.rs         45        6         0       39          0             0.00
@@ -65,14 +65,14 @@ crates/shared/src/lib/eth_spec.rs                  24        6         0       1
 crates/shared/src/lib/util.rs                      19        1         4       14          2            14.29
 crates/script/src/lib/lib.rs                       12        0         0       12          0             0.00
 ~ates/shared/src/lib/eth_execution_layer.rs        12        2         0       10          0             0.00
-crates/dev_script/src/lib/lib.rs                   11        1         0       10          0             0.00
 crates/service/build.rs                            11        1         0       10          0             0.00
+crates/dev_script/src/lib/lib.rs                   11        1         0       10          0             0.00
 crates/shared/src/lib/lib.rs                        8        0         0        8          0             0.00
 crates/service/src/bin/service.rs                   6        1         0        5          0             0.00
 crates/dev_script/src/lib/scripts.rs                4        0         0        4          0             0.00
+crates/shared/src/lib/circuit_logic.rs              3        0         0        3          0             0.00
 crates/script/src/lib/scripts.rs                    3        0         0        3          0             0.00
 crates/shared/src/lib/io.rs                         3        0         0        3          0             0.00
-crates/shared/src/lib/circuit_logic.rs              3        0         0        3          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Python                                    7       951      118        43      790         59            44.88
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -100,13 +100,13 @@ docker/entrypoint.sh                               32        9         9       1
 docker/docker_build_bootstrap.sh                   15        2         3       10          0             0.00
 docker/healthcheck.sh                               3        0         1        2          1            50.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Docker ignore                             1         7        0         0        7          0             0.00
+Docker ignore                             1         8        0         0        8          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-.dockerignore                                       7        0         0        7          0             0.00
+.dockerignore                                       8        0         0        8          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Dockerfile                                1        30        1         7       22          3            13.64
+Dockerfile                                1        32        1         7       24          3            12.50
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Dockerfile                                         30        1         7       22          3            13.64
+Dockerfile                                         32        1         7       24          3            12.50
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 JSON                                      1        30        0         0       30          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -120,10 +120,10 @@ YAML                                      1        34        7         0       2
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 contracts/.github/workflows/test.yml               34        7         0       27          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Total                                    92     16285     2118       579    13588        555           381.54
+Total                                    92     16309     2119       579    13611        556           379.63
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Estimated Cost to Develop (organic) $418,223
+Estimated Cost to Develop (organic) $418,967
 Estimated Schedule Effort (organic) 9.88 months
-Estimated People Required (organic) 3.76
-Processed 605342 bytes, 0.605 megabytes (SI)
+Estimated People Required (organic) 3.77
+Processed 606270 bytes, 0.606 megabytes (SI)
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────

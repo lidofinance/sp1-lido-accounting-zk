@@ -3,8 +3,10 @@ set dotenv-required := false
 
 local_verify_proof:="false"
 verify_contract:="false"
-# need to limit number of concurrent tests to avoid OOM during build and execution
-test_threads:="8"
+
+# need to limit number of concurrent compile and test threads to avoid OOM during build and execution
+compile_threads:="8"
+test_threads:="16"
 
 verify_contract_cmd:=if verify_contract == "true" { "--verify" } else { "" }
 local_verify_cmd:=if local_verify_proof == "true" { "--local-verify" } else { "" }
@@ -136,11 +138,11 @@ test_program:
 # many in parallel, consuming all the memory and grinding to a halt)
 [working-directory: 'crates/script']
 test_script:
-    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG=info cargo test -j {{test_threads}} --no-fail-fast -- --test-threads={{test_threads}}
+    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG=info cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads={{test_threads}}
 
 [working-directory: 'crates/script']
 integration_test:
-    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG=info cargo test -j {{test_threads}} --no-fail-fast -- --test-threads {{test_threads}} --include-ignored 2>&1 | tee test.log
+    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG=info cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads {{test_threads}} --include-ignored 2>&1 | tee test.log
 
 test: test_contracts test_shared test_script
 
