@@ -80,6 +80,18 @@ impl Sub<u64> for ReferenceSlot {
     }
 }
 
+impl AddAssign<u64> for ReferenceSlot {
+    fn add_assign(&mut self, rhs: u64) {
+        self.0 += rhs;
+    }
+}
+
+impl SubAssign<u64> for ReferenceSlot {
+    fn sub_assign(&mut self, rhs: u64) {
+        self.0 -= rhs;
+    }
+}
+
 impl fmt::Display for ReferenceSlot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
@@ -316,7 +328,7 @@ impl TryFrom<LidoValidatorStateRust> for LidoValidatorStateSolidity {
 pub struct LidoValidatorStateRust {
     pub slot: BeaconChainSlot,
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
-    #[debug("0x{:?}", hex::encode(merkle_root))]
+    #[debug("{:#?}", hex::encode(merkle_root))]
     pub merkle_root: [u8; 32],
 }
 
@@ -379,10 +391,10 @@ pub struct ReportMetadataRust {
     pub bc_slot: BeaconChainSlot,
     pub epoch: u64,
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
-    #[debug("0x{:?}", hex::encode(lido_withdrawal_credentials))]
+    #[debug("{:#?}", hex::encode(lido_withdrawal_credentials))]
     pub lido_withdrawal_credentials: [u8; 32],
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<32>")]
-    #[debug("0x{:?}", hex::encode(beacon_block_hash))]
+    #[debug("{:#?}", hex::encode(beacon_block_hash))]
     pub beacon_block_hash: [u8; 32],
     pub state_for_previous_report: LidoValidatorStateRust,
     pub new_state: LidoValidatorStateRust,

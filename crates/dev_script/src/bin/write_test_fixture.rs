@@ -62,7 +62,7 @@ async fn main() {
     let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
     let fixture_files = vec![
-        project_root.join("../contracts/test/fixtures/fixture.json"),
+        project_root.join("../../contracts/test/fixtures/fixture.json"),
         project_root.join("../script/tests/data/proofs/fixture.json"),
     ];
 

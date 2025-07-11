@@ -28,9 +28,9 @@ pub enum Error {
     #[error("Validators at index {index} in old and new beacon state have different pubkeys {old:?} != {new:?}")]
     ValidatorPubkeyMismatch {
         index: ValidatorIndex,
-        #[debug("0x{:?}", hex::encode(old.to_vec()))]
+        #[debug("{:#?}", old.to_vec())]
         old: BlsPublicKey,
-        #[debug("0x{:?}", hex::encode(new.to_vec()))]
+        #[debug("{:#?}", new.to_vec())]
         new: BlsPublicKey,
     },
 }

@@ -81,6 +81,10 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
 
     /// @dev Verification failed
     error VerificationError(string error_message);
+    /// @dev SP1 verifier rejected the proof
+    error Sp1VerificationError(string error_message);
+
+    error BeaconBlockHashMismatch(bytes32 expected, bytes32 actual);
 
     /// @dev Caller have to be authorized to call pause
     error UnauthorizedPauseAccount();
@@ -178,7 +182,14 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
         _verify_public_values(public_values);
 
         // Verify ZK-program and public values
-        ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof);
+        try ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof) {
+            // If SP1 verifier didn't revert - it means that proof is valid
+        } catch (bytes memory reason) {
+            if (reason.length > 0) {
+                revert Sp1VerificationError(string(reason));
+            }
+            revert Sp1VerificationError("SP1 verifier reverted without a reason");
+        }
 
         // If all checks pass - record report and state
         _recordReport(report);
@@ -265,7 +276,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, Ownable, Pausab
         // Check that passed beacon_block_hash matches the one observed on the blockchain for
         // the target slot
         bytes32 expected_block_hash = _findBeaconBlockHash(metadata.bc_slot);
-        require(metadata.beacon_block_hash == expected_block_hash, VerificationError("BeaconBlockHash mismatch"));
+        require(metadata.beacon_block_hash == expected_block_hash, BeaconBlockHashMismatch(expected_block_hash, metadata.beacon_block_hash));
 
         // Check that correct withdrawal credentials were used
         require(
