@@ -107,6 +107,10 @@ impl IntegrationTestEnvironment {
         Self::new(test_utils::NETWORK.clone(), test_utils::DEPLOY_SLOT, None).await
     }
 
+    pub async fn default_with_fork_slot(fork_bs_slot: BeaconChainSlot) -> anyhow::Result<Self> {
+        Self::new(test_utils::NETWORK.clone(), test_utils::DEPLOY_SLOT, Some(fork_bs_slot)).await
+    }
+
     fn parse_envs() -> anyhow::Result<(PathBuf, String, String, String, Address, Address)> {
         let file_store_location = PathBuf::from(env::var("BS_FILE_STORE")?);
         let rpc_endpoint = env::var("CONSENSUS_LAYER_RPC")?;
@@ -173,7 +177,7 @@ impl IntegrationTestEnvironment {
         fork_bs_slot: Option<BeaconChainSlot>,
     ) -> anyhow::Result<Self> {
         if !SUPPRESS_LOGS {
-            tracing_config::setup_logger(tracing_config::LoggingConfig::default());
+            tracing_config::setup_logger(tracing_config::LoggingConfig::default_for_test());
         }
 
         let (file_store_location, rpc_endpoint, bs_endpoint, fork_url, verifier_address, hash_consensus_address) =
