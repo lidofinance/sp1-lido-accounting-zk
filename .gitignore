@@ -31,3 +31,6 @@ __pycache__
 # Generated
 elf
 temp
+
+#testing
+**/test.log

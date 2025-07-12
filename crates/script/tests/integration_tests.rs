@@ -1,6 +1,6 @@
 use alloy::node_bindings::Anvil;
 use alloy::transports::http::reqwest::Url;
-use anyhow::{Context, Result};
+use anyhow::{self, Context, Result};
 use sp1_lido_accounting_scripts::{
     eth_client::{ProviderFactory, Sp1LidoAccountingReportContractWrapper},
     scripts,
@@ -150,5 +150,42 @@ mod success_tests {
         .await
         .context("Failed to run perform repeated deploy -> finalized update")?;
         Ok(())
+    }
+}
+
+mod failure_tests {
+    use super::*;
+    #[ignore]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn previous_slot_in_future() -> Result<()> {
+        let deploy_slot = DEPLOY_SLOT;
+        let env = IntegrationTestEnvironment::new(test_utils::NETWORK.clone(), deploy_slot, None).await?;
+        let finalized_slot = env.get_finalized_slot().await?;
+        let intermediate_slot = finalized_slot - eth_spec::SlotsPerEpoch::to_u64();
+
+        scripts::submit::run(
+            &env.script_runtime,
+            Some(mark_as_refslot(finalized_slot)),
+            Some(mark_as_refslot(deploy_slot)),
+            &DEFAULT_FLAGS,
+        )
+        .await
+        .context("Failed to perform deploy -> intermediate update")?;
+
+        let result = scripts::submit::run(
+            &env.script_runtime,
+            Some(mark_as_refslot(intermediate_slot)),
+            Some(mark_as_refslot(finalized_slot)),
+            &DEFAULT_FLAGS,
+        )
+        .await;
+
+        match result {
+            Err(err) => {
+                tracing::info!("As expected, submission failed {:#?}", err);
+                Ok(())
+            }
+            Ok(_) => Err(anyhow::anyhow!("Report accepted")),
+        }
     }
 }
