@@ -1,56 +1,57 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Language                              Files     Lines   Blanks  Comments     Code Complexity Complexity/Lines
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Rust                                     70     13067     1659       423    10985        385           205.58
+Rust                                     70     14018     1801       394    11823        436           215.40
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-~ipt/tests/program_input_tampering_tests.rs      1300      269        97      934         18             1.93
+~ipt/tests/program_input_tampering_tests.rs      1403      292        62     1049         18             1.72
 crates/shared/src/lib/merkle_proof.rs             913      127        29      757         47             6.21
-~rates/script/tests/data_tampering_tests.rs       793       83        44      666         19             2.85
+~rates/script/tests/data_tampering_tests.rs       836      110        40      686         25             3.64
 ~rc/lib/circuit_logic/input_verification.rs       642       71        26      545         33             6.06
-~ates/shared/src/lib/eth_consensus_layer.rs       535       67        58      410          7             1.71
-crates/script/src/lib/eth_client.rs               472       54         2      416         14             3.37
-crates/shared/src/lib/io/eth_io.rs                462       74         0      388         31             7.99
-~tes/script/tests/report_tampering_tests.rs       436       60        24      352          2             0.57
+crates/script/tests/test_utils/env.rs             618       79         6      533         27             5.07
+~ates/shared/src/lib/eth_consensus_layer.rs       536       67        58      411          7             1.70
+~tes/script/tests/report_tampering_tests.rs       487       66        28      393          1             0.25
+crates/script/src/lib/eth_client.rs               476       54         2      420         14             3.33
+crates/shared/src/lib/io/eth_io.rs                474       76         0      398         33             8.29
 ~rates/script/src/lib/prometheus_metrics.rs       432       46         1      385          8             2.08
+crates/script/tests/test_utils/mod.rs             423       53         6      364         15             4.12
 crates/dev_script/examples/ssz_e2e_test.rs        378       21        11      346          2             0.58
 crates/script/src/lib/validator_delta.rs          376       45        14      317         11             3.47
-~ipt/src/lib/beacon_state_reader/reqwest.rs       366       47         0      319         21             6.58
-crates/script/src/lib/scripts/prelude.rs          364       37         1      326          8             2.45
+~ipt/src/lib/beacon_state_reader/reqwest.rs       371       47         0      324         21             6.48
+crates/script/src/lib/scripts/prelude.rs          368       39         1      328          8             2.44
 crates/script/src/lib/scripts/submit.rs           346       33         7      306         11             3.59
 crates/shared/src/lib/lido.rs                     335       39        19      277         19             6.86
 crates/script/src/lib/scripts/shared.rs           272       31         1      240          7             2.92
-crates/script/tests/test_utils/mod.rs             233       30         4      199          5             2.51
-crates/script/tests/test_utils/env.rs             224       33         3      188          4             2.13
+~script/src/lib/beacon_state_reader/file.rs       250       30         0      220         13             5.91
 crates/dev_script/src/lib/synthetic.rs            200       18         0      182          9             4.95
-~script/src/lib/beacon_state_reader/file.rs       193       27         0      166          9             5.42
-crates/service/src/lib/server.rs                  184       17         1      166          7             4.22
+crates/service/src/lib/server.rs                  181       17         1      163          7             4.29
 crates/dev_script/examples/report.rs              168       17         6      145          0             0.00
 crates/dev_script/examples/lido_state.rs          165       17         5      143          7             4.90
+~rates/dev_script/src/lib/scripts/deploy.rs       165       18         1      146          9             6.16
 crates/script/src/lib/env.rs                      161       10         0      151          5             3.31
-~rates/dev_script/src/lib/scripts/deploy.rs       158       18         1      139          9             6.47
 crates/shared/src/lib/circuit_logic/io.rs         156       13         1      142          0             0.00
-crates/script/tests/integration_tests.rs          151       16         8      127          0             0.00
+crates/script/tests/integration_tests.rs          154       16         8      130          0             0.00
 ~es/dev_script/examples/list_multiproofs.rs       138       13        18      107          0             0.00
 ~dev_script/src/lib/scripts/store_report.rs       134       14         0      120          5             4.17
 ~v_script/examples/gen_synthetic_bs_pair.rs       132       12         1      119          0             0.00
 ~rates/script/src/lib/sp1_client_wrapper.rs       123       21         0      102          4             3.92
-crates/script/src/lib/consts.rs                   111       13         0       98         10            10.20
-crates/script/tests/test_utils/files.rs           105       12         0       93          0             0.00
-crates/service/src/lib/lib.rs                     102       16         4       82          1             1.22
+crates/script/src/lib/consts.rs                   118       13         0      105         10             9.52
+crates/script/tests/test_utils/files.rs           108       12         0       96          0             0.00
+crates/service/src/lib/lib.rs                     100       16         4       80          1             1.25
+crates/dev_script/src/bin/deploy.rs                99       11        14       74          4             5.41
 ~ript/src/lib/scripts/write_test_fixture.rs        97       16         0       81          2             2.47
-crates/dev_script/src/bin/deploy.rs                94       11        14       69          4             5.80
 crates/service/src/lib/common.rs                   94        8         1       85          1             1.18
 crates/script/src/lib/tracing.rs                   91       11         0       80          5             6.25
-~ates/dev_script/src/lib/scripts/execute.rs        87       10         0       77          1             1.30
+~ates/dev_script/src/lib/scripts/execute.rs        88       12         0       76          1             1.32
+crates/script/tests/program_input.rs               88       14         1       73          5             6.85
+crates/shared/src/lib/io/program_io.rs             88       11         8       69          1             1.45
 crates/service/src/lib/scheduler.rs                87       11         2       74          5             6.76
 ~s/dev_script/src/bin/write_test_fixture.rs        84       12         0       72          2             2.78
-crates/dev_script/examples/read_bs_pair.rs         82        9         0       73          0             0.00
-crates/shared/src/lib/io/program_io.rs             82       10         8       64          0             0.00
+crates/dev_script/examples/read_bs_pair.rs         83        9         0       74          0             0.00
 ~tes/shared/src/lib/circuit_logic/report.rs        81        9         2       70          6             8.57
 crates/script/src/lib/utils.rs                     79       11         1       67          9            13.43
 crates/shared/src/lib/io/serde_utils.rs            79        8         0       71          2             2.82
 crates/program/src/bin/main.rs                     77       12         0       65          1             1.54
-crates/script/tests/program_input.rs               73       12         1       60          2             3.33
+crates/script/build.rs                             72        9         1       62          5             8.06
 ~ates/script/src/lib/beacon_state_reader.rs        65       10         0       55          2             3.64
 ~merkle_tree_field_leaves_derive/src/lib.rs        65       11         0       54          4             7.41
 crates/script/src/bin/submit.rs                    60        8         2       50          0             0.00
@@ -59,20 +60,19 @@ crates/script/src/lib/proof_storage.rs             57       10         0       4
 crates/dev_script/src/bin/execute.rs               55        8         1       46          0             0.00
 crates/dev_script/src/bin/submit_cached.rs         45        6         0       39          0             0.00
 crates/dev_script/src/bin/store_report.rs          35        6         1       28          0             0.00
-crates/script/src/lib/deploy.rs                    33        4         0       29          0             0.00
-crates/script/build.rs                             32        5         0       27          2             7.41
-crates/shared/src/lib/eth_spec.rs                  22        5         0       17          0             0.00
+crates/script/src/lib/deploy.rs                    35        4         0       31          0             0.00
+crates/shared/src/lib/eth_spec.rs                  24        6         0       18          0             0.00
 crates/shared/src/lib/util.rs                      19        1         4       14          2            14.29
-~ates/shared/src/lib/eth_execution_layer.rs        12        2         0       10          0             0.00
 crates/script/src/lib/lib.rs                       12        0         0       12          0             0.00
-crates/dev_script/src/lib/lib.rs                   11        1         0       10          0             0.00
+~ates/shared/src/lib/eth_execution_layer.rs        12        2         0       10          0             0.00
 crates/service/build.rs                            11        1         0       10          0             0.00
+crates/dev_script/src/lib/lib.rs                   11        1         0       10          0             0.00
 crates/shared/src/lib/lib.rs                        8        0         0        8          0             0.00
 crates/service/src/bin/service.rs                   6        1         0        5          0             0.00
 crates/dev_script/src/lib/scripts.rs                4        0         0        4          0             0.00
 crates/shared/src/lib/circuit_logic.rs              3        0         0        3          0             0.00
-crates/shared/src/lib/io.rs                         3        0         0        3          0             0.00
 crates/script/src/lib/scripts.rs                    3        0         0        3          0             0.00
+crates/shared/src/lib/io.rs                         3        0         0        3          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Python                                    7       951      118        43      790         59            44.88
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -84,25 +84,33 @@ synthetic_beacon_state_gen/constants.py            40        2        10       2
 synthetic_beacon_state_gen/read_bs.py              35        9         0       26          3            11.54
 synthetic_beacon_state_gen/__init__.py              0        0         0        0          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Solidity                                  4       931      147        83      701         30            15.23
+Solidity                                  7      1185      181       122      882         55            42.57
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-~/Sp1LidoAccountingReportContractTest.t.sol       527       84        23      420          6             1.43
-~ts/src/Sp1LidoAccountingReportContract.sol       318       51        52      215         22            10.23
-contracts/script/Deploy.s.sol                      74       11         7       56          2             3.57
-contracts/src/ISecondOpinionOracle.sol             12        1         1       10          0             0.00
+~/Sp1LidoAccountingReportContractTest.t.sol       549       85        23      441          6             1.36
+~ts/src/Sp1LidoAccountingReportContract.sol       391       58        69      264         32            12.12
+contracts/src/PausableUntil.sol                   102       16        14       72         14            19.44
+contracts/script/Deploy.s.sol                      77       11         7       59          2             3.39
+test_contracts/src/BeaconRootsMock.sol             27        5         5       17          0             0.00
+test_contracts/script/Deploy.s.sol                 23        5         2       16          1             6.25
+contracts/src/ISecondOpinionOracle.sol             16        1         2       13          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Shell                                     2        47       11        12       24          2            14.29
+Shell                                     3        50       11        13       26          3            64.29
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 docker/entrypoint.sh                               32        9         9       14          2            14.29
 docker/docker_build_bootstrap.sh                   15        2         3       10          0             0.00
+docker/healthcheck.sh                               3        0         1        2          1            50.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Docker ignore                             1         7        0         0        7          0             0.00
+Docker ignore                             1         8        0         0        8          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-.dockerignore                                       7        0         0        7          0             0.00
+.dockerignore                                       8        0         0        8          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Dockerfile                                1        20        1         4       15          3            20.00
+Dockerfile                                1        32        1         7       24          3            12.50
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Dockerfile                                         20        1         4       15          3            20.00
+Dockerfile                                         32        1         7       24          3            12.50
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+JSON                                      1        30        0         0       30          0             0.00
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+contracts/test/fixtures/fixture.json               30        0         0       30          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Plain Text                                1         1        0         0        1          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -112,10 +120,10 @@ YAML                                      1        34        7         0       2
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 contracts/.github/workflows/test.yml               34        7         0       27          0             0.00
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Total                                    87     15058     1943       565    12550        479           299.98
+Total                                    92     16309     2119       579    13611        556           379.63
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Estimated Cost to Develop (organic) $384,743
-Estimated Schedule Effort (organic) 9.57 months
-Estimated People Required (organic) 3.57
-Processed 555421 bytes, 0.555 megabytes (SI)
+Estimated Cost to Develop (organic) $418,967
+Estimated Schedule Effort (organic) 9.88 months
+Estimated People Required (organic) 3.77
+Processed 606270 bytes, 0.606 megabytes (SI)
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -31,6 +31,15 @@ pub struct LoggingConfig {
 }
 
 impl LoggingConfig {
+    pub fn default_for_test() -> Self {
+        Self {
+            apply_sp1_suppressions: true,
+            format: LogFormat::Plain,
+            is_test: true,
+            with_thread_names: false,
+        }
+    }
+
     pub fn use_format(mut self, value: LogFormat) -> Self {
         self.format = value;
         self
@@ -50,7 +59,7 @@ impl Default for LoggingConfig {
         Self {
             apply_sp1_suppressions: true,
             format: LogFormat::Plain,
-            is_test: cfg!(test),
+            is_test: false,
             with_thread_names: false,
         }
     }

@@ -80,3 +80,9 @@ impl ExecutionPayloadHeaderData {
         }
     }
 }
+
+impl From<&ExecutionPayloadHeader> for ExecutionPayloadHeaderData {
+    fn from(exec_payload: &ExecutionPayloadHeader) -> Self {
+        Self::new(exec_payload)
+    }
+}

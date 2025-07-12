@@ -16,21 +16,13 @@ license = "MIT"
 
 [workspace.dependencies]
 alloy = { version = "1", features = ["contract", "json", "providers", "signer-local", "signers", "sol-types", "network"] }
-# ==== cargo edition and rustc compatibility ====
-# These dependencies are pinned to a concrete version as a compatibility mechanism between new version of the crates
-# (moving on oo edition=2024 and rust-version=1.85) and sp1 compiler that's based on rustc=1.82
-# This can be unpinned when sp1 rustc moves to at least 1.85
-# 1.2.0 requires rust >= 1.85, sp1 uses 1.82-dev
-# Note: there are overrides in script and service Cargo.toml in dev-dependencies - needs to be updated there as well
-alloy-primitives = { version = "=1.1.3", features = ["serde", "rlp"] }
-syn-solidity = "=1.1.3"
-# ==== cargo edition and rustc compatibility ====
+alloy-primitives = { version = "1.2", features = ["serde", "rlp"] }
 alloy-sol-types = "1"
 arbitrary = "1.4"
 alloy-rlp = { version = "0.3.10", features = ["derive"] }
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["clock"] }
-chrono-tz = "0.10.3"
+chrono-tz = "0.10"
 derive_more = { version = "2.0", features = ["debug"] }
 dotenvy = "0.15.7"
 ethereum_hashing = "0.7.0"
@@ -43,12 +35,12 @@ eyre = "0.6.12"
 hex = "0.4.3"
 hex-literal = "1"
 itertools = "0.14.0"
-json-subscriber = "0.2.4"
+json-subscriber = "0.2"
 k256 = "0.13.3"
 lazy_static = "1.5"
 log = "0.4.27"
 prometheus = "0.14"
-proptest = "1.6"
+proptest = "1.7"
 proptest-arbitrary-interop = "0.1"
 rand = "0.9"
 reqwest = "0.12"
@@ -57,12 +49,13 @@ serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_derive = "1.0"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 simple_logger = "5.0"
-sp1-derive = "5"
-sp1-helper = "5"
-sp1-sdk = {version = "5", features = ["network"] }
-sp1-zkvm = "5"
+sp1-derive = "5.0.8"
+sp1-helper = "5.0.8"
+sp1-sdk = {version = "5.0.8", features = ["network"] }
+sp1-zkvm = "5.0.8"
+syn-solidity = "1.2"
 thiserror = "2.0"
-tokio = "1.45"
+tokio = "1.46.1"
 tracing = "0.1.41"
 tracing-forest = "0.1.6"
 tracing-subscriber = {version="0.3.19", features=["std", "fmt", "json"]}

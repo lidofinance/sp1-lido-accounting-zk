@@ -1,10 +1,10 @@
 use crate::prometheus_metrics;
 use crate::utils::{read_binary, read_json};
 use ssz::{Decode, Encode};
-use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::{env, fs};
+use std::{io, vec};
 
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 
@@ -57,7 +57,8 @@ impl FileBasedBeaconChainStore {
 }
 
 pub struct FileBasedBeaconStateReader {
-    file_store: FileBasedBeaconChainStore,
+    fallthrough_file_stores: Vec<FileBasedBeaconChainStore>,
+    main_file_store: FileBasedBeaconChainStore,
     metrics_reporter: Arc<prometheus_metrics::Service>,
 }
 
@@ -67,16 +68,37 @@ impl FileBasedBeaconStateReader {
         metrics_reporter: Arc<prometheus_metrics::Service>,
     ) -> Result<Self, InitializationError> {
         Ok(Self {
-            file_store: FileBasedBeaconChainStore::new(store_location)?,
+            main_file_store: FileBasedBeaconChainStore::new(store_location)?,
+            fallthrough_file_stores: vec![],
+            metrics_reporter,
+        })
+    }
+
+    pub fn new_with_fallthrough(
+        store_location: &Path,
+        fallthrough_locations: &[&Path],
+        metrics_reporter: Arc<prometheus_metrics::Service>,
+    ) -> Result<Self, InitializationError> {
+        let fallthrough_file_stores: Vec<FileBasedBeaconChainStore> = fallthrough_locations
+            .iter()
+            .map(|&path| FileBasedBeaconChainStore::new(path))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            main_file_store: FileBasedBeaconChainStore::new(store_location)?,
+            fallthrough_file_stores,
             metrics_reporter,
         })
     }
 }
 
 impl FileBasedBeaconStateReader {
-    async fn read_beacon_state_impl(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+    async fn read_beacon_state_impl_single(
+        &self,
+        store: &FileBasedBeaconChainStore,
+        state_id: &StateId,
+    ) -> anyhow::Result<BeaconState> {
         let permanent_state = state_id.get_permanent_str()?;
-        let beacon_state_path = self.file_store.get_beacon_state_path(&permanent_state);
+        let beacon_state_path = store.get_beacon_state_path(&permanent_state);
         tracing::info!(
             state_id = ?state_id,
             "Reading BeaconState {state_id:?} from file {beacon_state_path:?}",
@@ -90,9 +112,26 @@ impl FileBasedBeaconStateReader {
             .inspect_err(|e| tracing::debug!(state_id=?state_id, "{e:?}"))
     }
 
-    async fn read_beacon_block_header_impl(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
+    async fn read_beacon_state_impl(&self, state_id: &StateId) -> anyhow::Result<BeaconState> {
+        for store in &self.fallthrough_file_stores {
+            match self.read_beacon_state_impl_single(store, state_id).await {
+                Ok(beacon_state) => return Ok(beacon_state),
+                Err(e) => {
+                    tracing::debug!(state_id=?state_id, "Failed to read BeaconState for {state_id:?} from store: {e:#?}");
+                }
+            }
+        }
+        self.read_beacon_state_impl_single(&self.main_file_store, state_id)
+            .await
+    }
+
+    async fn read_beacon_block_header_impl_single(
+        &self,
+        store: &FileBasedBeaconChainStore,
+        state_id: &StateId,
+    ) -> anyhow::Result<BeaconBlockHeader> {
         let permanent_state = state_id.get_permanent_str()?;
-        let beacon_block_header_path = self.file_store.get_beacon_block_header_path(&permanent_state);
+        let beacon_block_header_path = store.get_beacon_block_header_path(&permanent_state);
         tracing::info!(
             state_id = ?state_id,
             "Reading BeaconBlockHeader for {state_id:?} from file {beacon_block_header_path:?}",
@@ -101,6 +140,19 @@ impl FileBasedBeaconStateReader {
             .inspect(|bh: &BeaconBlockHeader| tracing::debug!(state_id = ?state_id, slot=bh.slot, "Read BeaconBlockHeader {} for {state_id:?}", bh.slot))
             .inspect_err(|e| tracing::debug!(state_id = ?state_id, "Failed to read BeaconBlockHeader for {state_id:?}: {e:#?}"))?;
         Ok(res)
+    }
+
+    async fn read_beacon_block_header_impl(&self, state_id: &StateId) -> anyhow::Result<BeaconBlockHeader> {
+        for store in &self.fallthrough_file_stores {
+            match self.read_beacon_block_header_impl_single(store, state_id).await {
+                Ok(block_header) => return Ok(block_header),
+                Err(e) => {
+                    tracing::debug!(state_id=?state_id, "Failed to read BeaconBlockHeader for {state_id:?} from store: {e:#?}");
+                }
+            }
+        }
+        self.read_beacon_block_header_impl_single(&self.main_file_store, state_id)
+            .await
     }
 }
 
@@ -169,7 +221,12 @@ impl FileBeaconStateWriter {
     fn write_beacon_block_header_impl(&self, bh: &BeaconBlockHeader) -> anyhow::Result<()> {
         self.ensure_folder_exists()?;
         let file_path = self.file_store.get_beacon_block_header_path(&bh.slot.to_string());
-        tracing::info!(slot = bh.slot, "Writing BeaconState {} to {:?}", bh.slot, file_path);
+        tracing::info!(
+            slot = bh.slot,
+            "Writing BeaconBlockHeader {} to {:?}",
+            bh.slot,
+            file_path
+        );
 
         let mut serialized: Vec<u8> = Vec::new();
 

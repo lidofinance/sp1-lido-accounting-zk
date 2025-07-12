@@ -304,6 +304,7 @@ impl CachedReqwestBeaconStateReader {
         consensus_layer_base_uri: &str,
         beacon_state_base_uri: &str,
         file_store: &Path,
+        fallthrough_file_stores: &[&Path],
         metric_reporter: Arc<prometheus_metrics::Service>,
     ) -> Result<Self, super::InitializationError> {
         let result = Self {
@@ -312,7 +313,11 @@ impl CachedReqwestBeaconStateReader {
                 beacon_state_base_uri,
                 Arc::clone(&metric_reporter),
             )?,
-            file_reader: FileBasedBeaconStateReader::new(file_store, Arc::clone(&metric_reporter))?,
+            file_reader: FileBasedBeaconStateReader::new_with_fallthrough(
+                file_store,
+                fallthrough_file_stores,
+                Arc::clone(&metric_reporter),
+            )?,
             file_writer: FileBeaconStateWriter::new(file_store, Arc::clone(&metric_reporter))?,
         };
         Ok(result)
