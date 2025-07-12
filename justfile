@@ -7,6 +7,7 @@ verify_contract:="false"
 # need to limit number of concurrent compile and test threads to avoid OOM during build and execution
 compile_threads:="8"
 test_threads:="16"
+tests_log_level:="info"
 
 verify_contract_cmd:=if verify_contract == "true" { "--verify" } else { "" }
 local_verify_cmd:=if local_verify_proof == "true" { "--local-verify" } else { "" }
@@ -137,12 +138,12 @@ test_program:
 # --test-threads 5 limits concurrency for running tests (sometimes it gets excited and runs too
 # many in parallel, consuming all the memory and grinding to a halt)
 [working-directory: 'crates/script']
-test_script:
-    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG=info cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads={{test_threads}}
+test_script test_args="":
+    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG={{tests_log_level}} cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads={{test_threads}} {{test_args}}
 
 [working-directory: 'crates/script']
-integration_test:
-    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG=info cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads {{test_threads}} --include-ignored 2>&1 | tee test.log
+integration_test test_args="":
+    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG={{tests_log_level}} cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads {{test_threads}} --include-ignored  {{test_args}} 2>&1 | tee test.log
 
 test: test_contracts test_shared test_script
 
