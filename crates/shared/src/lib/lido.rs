@@ -12,7 +12,7 @@ use crate::eth_spec;
 use crate::io::eth_io::{BeaconChainSlot, HaveEpoch, HaveSlotWithBlock};
 use crate::util::usize_to_u64;
 
-type ValidatorIndexList = VariableList<ValidatorIndex, eth_spec::ReducedValidatorRegistryLimit>;
+pub type ValidatorIndexList = VariableList<ValidatorIndex, eth_spec::ReducedValidatorRegistryLimit>;
 
 #[derive(derive_more::Debug, thiserror::Error)]
 pub enum Error {
@@ -26,6 +26,11 @@ pub enum Error {
     MalformedAllAddedList {
         actual: ValidatorIndex,
         expected: ValidatorIndex,
+    },
+    #[error("Lido changed list contained index {index} that is higher than old state max index {max_allowed}")]
+    DisallowedIndexInLidoChanged {
+        index: ValidatorIndex,
+        max_allowed: ValidatorIndex,
     },
     #[error("Passed non-Lido validator in delta")]
     NonLidoValidatorInDelta {
@@ -163,11 +168,18 @@ impl LidoValidatorState {
 
         for validator_with_index in &validator_delta.lido_changed {
             let validator = &validator_with_index.validator;
-            // It is expected that the caller will filter out non-Lido validators, but worth double-checking
+            // This check protects from malicious caller passing non-lido validators through lido_changed
             if !validator.is_lido(lido_withdrawal_credentials) {
                 return Err(Error::NonLidoValidatorInDelta {
                     index: validator_with_index.index,
                     withdrawal_credentials: validator.withdrawal_credentials,
+                });
+            }
+
+            if validator_with_index.index > self.max_validator_index {
+                return Err(Error::DisallowedIndexInLidoChanged {
+                    index: validator_with_index.index,
+                    max_allowed: self.max_validator_index,
                 });
             }
 
@@ -206,12 +218,9 @@ impl LidoValidatorState {
 
         // Sorts are important to ensure the validator state merkle hash is stable, regardless of the
         // order of validators in delta
-        new_deposited.sort();
-        new_exited.sort();
-
-        let deposited_list: ValidatorIndexList = new_deposited.into();
+        let deposited_list: ValidatorIndexList = new_deposited.into_iter().sorted().collect_vec().into();
         let pending_deposit_list: ValidatorIndexList = new_pending_deposit.into_iter().sorted().collect_vec().into();
-        let exited_list: ValidatorIndexList = new_exited.into();
+        let exited_list: ValidatorIndexList = new_exited.into_iter().sorted().collect_vec().into();
         let added_validator_count: u64 = validator_delta.all_added.len().try_into()?;
 
         let result = Self {
