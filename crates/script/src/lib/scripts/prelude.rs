@@ -81,6 +81,7 @@ impl BeaconStateReaderEnum {
                     &rpc_endpoint,
                     &bs_endpoint,
                     &file_store,
+                    &[],
                     Arc::clone(&metric_reporter),
                 )?;
                 Ok(BeaconStateReaderEnum::RPCCached(cached_reader))
@@ -251,11 +252,11 @@ pub struct EthInfrastructure {
     pub network: WrappedNetwork,
     pub provider: Arc<DefaultProvider>,
     pub eth_client: EthELClient,
-    pub beacon_state_reader: BeaconStateReaderEnum,
+    pub beacon_state_reader: Arc<BeaconStateReaderEnum>,
 }
 
 pub struct Sp1Infrastructure {
-    pub sp1_client: SP1ClientWrapperImpl,
+    pub sp1_client: Arc<SP1ClientWrapperImpl>,
 }
 
 pub struct LidoInfrastructure {
@@ -268,7 +269,7 @@ pub struct ScriptRuntime {
     pub sp1_infra: Sp1Infrastructure,
     pub lido_infra: LidoInfrastructure,
     pub lido_settings: LidoSettings,
-    pub metrics: Metrics,
+    pub metrics: Arc<Metrics>,
     pub flags: Flags,
 }
 
@@ -283,7 +284,7 @@ impl ScriptRuntime {
         sp1_infra: Sp1Infrastructure,
         lido_infra: LidoInfrastructure,
         lido_settings: LidoSettings,
-        metrics: Metrics,
+        metrics: Arc<Metrics>,
         flags: Flags,
     ) -> Self {
         Self {
@@ -301,11 +302,19 @@ impl ScriptRuntime {
             env_vars.private_key.value.clone(),
             env_vars.execution_layer_rpc.value.clone(),
         )?);
-        let metrics = Metrics::new(&env_vars.prometheus_namespace.value);
+
+        let metrics = Arc::new(Metrics::new(&env_vars.prometheus_namespace.value));
 
         let network = env_vars.evm_chain.value.clone().parse::<WrappedNetwork>()?;
-        let beacon_state_reader =
-            BeaconStateReaderEnum::new_from_env(&network, Arc::clone(&metrics.services.beacon_state_client))?;
+        let beacon_state_reader = Arc::new(BeaconStateReaderEnum::new_from_env(
+            &network,
+            Arc::clone(&metrics.services.beacon_state_client),
+        )?);
+
+        let sp1_client = Arc::new(SP1ClientWrapperImpl::new(
+            ProverClient::from_env(),
+            Arc::clone(&metrics.services.sp1_client),
+        ));
 
         let result = Self::new(
             EthInfrastructure {
@@ -314,12 +323,7 @@ impl ScriptRuntime {
                 eth_client: ExecutionLayerClient::new(Arc::clone(&provider), Arc::clone(&metrics.services.eth_client)),
                 beacon_state_reader,
             },
-            Sp1Infrastructure {
-                sp1_client: SP1ClientWrapperImpl::new(
-                    ProverClient::from_env(),
-                    Arc::clone(&metrics.services.sp1_client),
-                ),
-            },
+            Sp1Infrastructure { sp1_client },
             LidoInfrastructure {
                 report_contract: Sp1LidoAccountingReportContractWrapper::new(
                     Arc::clone(&provider),
@@ -346,12 +350,12 @@ impl ScriptRuntime {
         Ok(result)
     }
 
-    pub fn bs_reader(&self) -> &impl BeaconStateReader {
-        &self.eth_infra.beacon_state_reader
+    pub fn bs_reader(&self) -> Arc<impl BeaconStateReader> {
+        self.eth_infra.beacon_state_reader.clone()
     }
 
-    pub fn ref_slot_resolver(&self) -> &impl RefSlotResolver {
-        &self.eth_infra.beacon_state_reader
+    pub fn ref_slot_resolver(&self) -> Arc<impl RefSlotResolver> {
+        self.eth_infra.beacon_state_reader.clone()
     }
 
     pub fn network(&self) -> &impl NetworkInfo {
