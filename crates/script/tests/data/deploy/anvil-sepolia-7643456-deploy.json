@@ -9,5 +9,5 @@
     "slot": 7643456,
     "merkle_root": "0x5d22a84a06f79d4b9f4d94769190a9f5afb077607f5084b781c1d996c4bd3c16"
   },
-  "owner": "0x3e40d73eb977dc6a537af587d48316fee66e9c8c"
+  "admin": "0x3e40d73eb977dc6a537af587d48316fee66e9c8c"
 }
