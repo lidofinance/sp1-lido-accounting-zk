@@ -86,7 +86,7 @@ pub fn prepare_program_input(
         bs.epoch(),
         &bs.validators,
         &bs.balances,
-        lido_withdrawal_credentials,
+        *lido_withdrawal_credentials,
     );
 
     tracing::info!("Forming public values");
