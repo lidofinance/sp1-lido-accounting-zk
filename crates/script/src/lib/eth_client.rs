@@ -137,7 +137,7 @@ pub struct ContractDeployParametersRust {
     pub genesis_timestamp: u64,
     pub initial_validator_state: LidoValidatorStateRust,
     #[serde(with = "serde_hex_as_string::FixedHexStringProtocol::<20>")]
-    pub owner: [u8; 20],
+    pub admin: [u8; 20],
 }
 
 impl fmt::Display for ContractDeployParametersRust {
@@ -191,7 +191,7 @@ where
             constructor_args.withdrawal_vault_address.into(),
             U256::from(constructor_args.genesis_timestamp),
             validator_state_solidity,
-            constructor_args.owner.into(),
+            constructor_args.admin.into(),
         )
         .await?;
         Ok(Sp1LidoAccountingReportContractWrapper { contract })
@@ -449,7 +449,7 @@ mod tests {
                 slot: BeaconChainSlot(7643456),
                 merkle_root: hex!("5d22a84a06f79d4b9f4d94769190a9f5afb077607f5084b781c1d996c4bd3c16"),
             },
-            owner: hex!("3e40d73eb977dc6a537af587d48316fee66e9c8c"),
+            admin: hex!("3e40d73eb977dc6a537af587d48316fee66e9c8c"),
         }
     }
 
