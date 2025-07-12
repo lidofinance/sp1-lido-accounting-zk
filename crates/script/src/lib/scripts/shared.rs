@@ -124,7 +124,7 @@ pub fn prepare_program_input(
         compute_validators_and_balances(bs, old_bs, &old_validator_state, lido_withdrawal_credentials, verify)?;
 
     tracing::info!("Obtaining execution header data");
-    let execution_header_data = ExecutionPayloadHeaderData::new(&bs.latest_execution_payload_header);
+    let execution_header_data: ExecutionPayloadHeaderData = (&bs.latest_execution_payload_header).into();
     tracing::debug!("Obtained BeaconState.latest_execution_header.state_root proof");
 
     tracing::info!("Creating program input");

@@ -1,11 +1,10 @@
+#![allow(dead_code)]
 use anyhow::anyhow;
 use hex_literal::hex;
-use lazy_static::lazy_static;
-use sp1_lido_accounting_scripts::consts::{self, Network, NetworkInfo, WrappedNetwork};
-use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapperImpl;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
-    BeaconStateFields, BeaconStatePrecomputedHashes, Epoch, Hash256, Validator,
-};
+use sp1_lido_accounting_scripts::consts::{Network, WrappedNetwork};
+use sp1_lido_accounting_scripts::eth_client::Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
+use sp1_lido_accounting_scripts::{eth_client, sp1_client_wrapper};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconStateFields, BeaconStatePrecomputedHashes, Hash256};
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 
 pub mod env;
@@ -13,8 +12,10 @@ pub mod files;
 
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Sepolia);
 pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(7643456);
+pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(7998592);
 
-pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(7700384);
+pub const ZERO_HASH: [u8; 32] = [0; 32];
+pub const NONZERO_HASH: [u8; 32] = hex!("0101010101010101010101010101010101010101010101010101010101010101");
 
 pub fn eyre_to_anyhow(err: eyre::Error) -> anyhow::Error {
     anyhow!("Eyre error: {:#?}", err)
@@ -29,23 +30,138 @@ pub fn mark_as_refslot(slot: BeaconChainSlot) -> ReferenceSlot {
     ReferenceSlot(slot.0)
 }
 
-pub fn make_validator(current_epoch: Epoch, balance: u64) -> Validator {
-    let activation_eligibility_epoch: u64 = current_epoch - 10;
-    let activation_epoch: u64 = current_epoch - 5;
-    let exit_epoch: u64 = u64::MAX;
-    let withdrawable_epoch: u64 = current_epoch - 3;
-    let bls_key: Vec<u8> =
-        hex!("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").into();
+pub mod adjustments {
+    use sp1_lido_accounting_zk_shared::{
+        eth_consensus_layer::{BeaconBlockHeader, BeaconState, Validator},
+        io::eth_io::BeaconChainSlot,
+    };
+    use tree_hash::TreeHash;
 
-    Validator {
-        pubkey: bls_key.into(),
-        withdrawal_credentials: hex!("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff").into(),
-        effective_balance: balance,
-        slashed: false,
-        activation_eligibility_epoch,
-        activation_epoch,
-        exit_epoch,
-        withdrawable_epoch,
+    pub struct Adjuster {
+        pub beacon_state: BeaconState,
+        pub block_header: BeaconBlockHeader,
+    }
+
+    impl Adjuster {
+        pub fn start_with(beacon_state: &BeaconState, block_header: &BeaconBlockHeader) -> Self {
+            Self {
+                beacon_state: beacon_state.clone(),
+                block_header: block_header.clone(),
+            }
+        }
+
+        pub fn set_slot(&mut self, slot: &BeaconChainSlot) -> &mut Self {
+            self.beacon_state.slot = slot.0;
+            self.block_header.slot = slot.0;
+            self
+        }
+
+        pub fn add_validator(&mut self, validator: Validator, balance: u64) -> &mut Self {
+            self.beacon_state
+                .validators
+                .push(validator)
+                .expect("Too many validators");
+            self.beacon_state.balances.push(balance).expect("Too many balances");
+            self
+        }
+
+        pub fn add_validators(&mut self, validators: &[Validator], balances: &[u64]) -> &mut Self {
+            assert_eq!(
+                validators.len(),
+                balances.len(),
+                "Validators and balances length mismatch"
+            );
+            for (validator, balance) in validators.iter().zip(balances.iter()) {
+                self.add_validator(validator.clone(), *balance);
+            }
+            self
+        }
+
+        pub fn set_validator(&mut self, index: usize, validator: Validator) -> &mut Self {
+            self.beacon_state.validators[index] = validator;
+            self
+        }
+
+        pub fn change_validator(&mut self, index: usize, modifier: impl FnOnce(&mut Validator)) -> &mut Self {
+            modifier(&mut self.beacon_state.validators[index]);
+            self
+        }
+
+        pub fn set_balance(&mut self, index: usize, balance: u64) -> &mut Self {
+            self.beacon_state.balances[index] = balance;
+            self
+        }
+
+        pub fn build(mut self) -> (BeaconState, BeaconBlockHeader) {
+            self.block_header.state_root = self.beacon_state.tree_hash_root();
+            (self.beacon_state, self.block_header)
+        }
+    }
+}
+
+pub mod validator {
+    use rand::Rng;
+    use sp1_lido_accounting_zk_shared::{
+        eth_consensus_layer::*,
+        io::eth_io::{BeaconChainSlot, HaveEpoch},
+    };
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub enum Status {
+        Pending(u64),
+        Active(u64),
+        Exited { activated: u64, exited: u64 },
+    }
+
+    impl Status {
+        pub fn pending(slot: BeaconChainSlot) -> Self {
+            Self::Pending(slot.epoch())
+        }
+        pub fn active(activation_slot: BeaconChainSlot) -> Self {
+            Self::Active(activation_slot.epoch())
+        }
+        pub fn exited(activation_slot: BeaconChainSlot, exit_slot: BeaconChainSlot) -> Self {
+            Self::Exited {
+                activated: activation_slot.epoch(),
+                exited: exit_slot.epoch(),
+            }
+        }
+    }
+
+    pub fn random_pubkey(prefix: Option<&[u8]>) -> BlsPublicKey {
+        let mut pubkey = [0u8; 48];
+        let mut rng = rand::rng();
+
+        // Fill with random bytes
+        rng.fill(&mut pubkey);
+
+        // Overwrite with prefix if provided
+        if let Some(p) = prefix {
+            let len = p.len().min(48);
+            pubkey[..len].copy_from_slice(&p[..len]);
+        }
+        pubkey.to_vec().into()
+    }
+
+    pub const DEP_BALANCE: u64 = 32_000_000_000; // 32 ETH in Gwei
+
+    pub fn make(withdrawal_credentials: WithdrawalCredentials, status: Status, balance: u64) -> Validator {
+        let (activation_eligibility_epoch, activation_epoch, exit_epoch) = match status {
+            Status::Pending(epoch) => (epoch, u64::MAX, u64::MAX),
+            Status::Active(activated) => (activated - 2, activated - 1, u64::MAX),
+            Status::Exited { activated, exited } => (activated - 2, activated - 1, exited),
+        };
+
+        Validator {
+            pubkey: random_pubkey(None),
+            withdrawal_credentials,
+            effective_balance: balance,
+            slashed: false,
+            activation_eligibility_epoch,
+            activation_epoch,
+            exit_epoch,
+            withdrawable_epoch: activation_epoch,
+        }
     }
 }
 
@@ -106,12 +222,12 @@ pub mod vecs {
         input
     }
 
-    pub fn duplicate<Elem: Clone>(mut input: Vec<Elem>, index: usize) -> Vec<Elem> {
+    pub fn duplicate<Elem: Clone>(input: Vec<Elem>, index: usize) -> Vec<Elem> {
         let elem = input[index].clone();
         append(input, elem)
     }
 
-    pub fn duplicate_random<Elem: Clone>(mut input: Vec<Elem>) -> Vec<Elem> {
+    pub fn duplicate_random<Elem: Clone>(input: Vec<Elem>) -> Vec<Elem> {
         let duplicate_idx = rand::rng().random_range(0..input.len());
         duplicate(input, duplicate_idx)
     }
@@ -122,7 +238,7 @@ pub mod vecs {
         input
     }
 
-    pub fn modify_random<Elem: Clone>(mut input: Vec<Elem>, modifier: impl Fn(Elem) -> Elem) -> Vec<Elem> {
+    pub fn modify_random<Elem: Clone>(input: Vec<Elem>, modifier: impl Fn(Elem) -> Elem) -> Vec<Elem> {
         let modify_idx = rand::rng().random_range(0..input.len());
         modify(input, modify_idx, modifier)
     }
@@ -133,7 +249,7 @@ pub mod vecs {
         input
     }
 
-    pub fn remove_random<Elem>(mut input: Vec<Elem>) -> Vec<Elem> {
+    pub fn remove_random<Elem>(input: Vec<Elem>) -> Vec<Elem> {
         let remove_idx = rand::rng().random_range(0..input.len());
         remove(input, remove_idx)
     }
@@ -148,9 +264,9 @@ pub mod vecs {
         new
     }
 
-    pub fn ensured_shuffle_keep_first<N: Clone + PartialEq>(input: &Vec<N>) -> Vec<N> {
+    pub fn ensured_shuffle_keep_first<N: Clone + PartialEq>(input: &[N]) -> Vec<N> {
         assert!(input.len() > 2); // no point shuffling a single element
-        let mut new = input.clone();
+        let mut new = input.to_vec();
         new.splice(1.., ensured_shuffle(&new[1..]));
         new
     }
@@ -171,7 +287,7 @@ pub mod varlists {
     }
 
     pub fn duplicate<Elem: Clone, Size: typenum::Unsigned>(
-        mut input: VariableList<Elem, Size>,
+        input: VariableList<Elem, Size>,
         index: usize,
     ) -> VariableList<Elem, Size> {
         let elem = input[index].clone();
@@ -179,9 +295,9 @@ pub mod varlists {
     }
 
     pub fn duplicate_random<Elem: Clone, Size: typenum::Unsigned>(
-        mut input: VariableList<Elem, Size>,
+        input: VariableList<Elem, Size>,
     ) -> VariableList<Elem, Size> {
-        let duplicate_idx = rand::thread_rng().gen_range(0..input.len());
+        let duplicate_idx = rand::rng().random_range(0..input.len());
         duplicate(input, duplicate_idx)
     }
 
@@ -195,15 +311,15 @@ pub mod varlists {
     }
 
     pub fn modify_random<Elem: Clone, Size: typenum::Unsigned>(
-        mut input: VariableList<Elem, Size>,
+        input: VariableList<Elem, Size>,
         modifier: fn(Elem) -> Elem,
     ) -> VariableList<Elem, Size> {
-        let modify_idx = rand::thread_rng().gen_range(0..input.len());
+        let modify_idx = rand::rng().random_range(0..input.len());
         modify(input, modify_idx, modifier)
     }
 
     pub fn remove<Elem: Clone, Size: typenum::Unsigned>(
-        mut input: VariableList<Elem, Size>,
+        input: VariableList<Elem, Size>,
         index: usize,
     ) -> VariableList<Elem, Size> {
         let as_vec = input.to_vec();
@@ -211,9 +327,9 @@ pub mod varlists {
     }
 
     pub fn remove_random<Elem: Clone, Size: typenum::Unsigned>(
-        mut input: VariableList<Elem, Size>,
+        input: VariableList<Elem, Size>,
     ) -> VariableList<Elem, Size> {
-        let remove_idx = rand::thread_rng().gen_range(0..input.len());
+        let remove_idx = rand::rng().random_range(0..input.len());
         remove(input, remove_idx)
     }
 
@@ -227,7 +343,81 @@ pub mod varlists {
     pub fn ensured_shuffle_keep_first<Elem: Clone + PartialEq, Size: typenum::Unsigned>(
         input: VariableList<Elem, Size>,
     ) -> VariableList<Elem, Size> {
-        let mut as_vec = input.to_vec();
+        let as_vec = input.to_vec();
         vecs::ensured_shuffle_keep_first(&as_vec).into()
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TestError {
+    #[error("Proof rejected for known reason {0:?}")]
+    ContractRejected(Sp1LidoAccountingReportContractErrors),
+    #[error("Proof rejected for other reasons {0:?}")]
+    OtherRejection(eth_client::ContractError),
+    #[error("Failed to build proof {0:?}")]
+    ProofFailed(sp1_client_wrapper::Error),
+    #[error("Other eyre error {0:?}")]
+    OtherEyre(#[from] eyre::Error),
+    #[error("Other anyhow error {0:?}")]
+    OtherAnyhow(#[from] anyhow::Error),
+}
+
+impl From<eth_client::ContractError> for TestError {
+    fn from(value: eth_client::ContractError) -> Self {
+        match value {
+            eth_client::ContractError::Rejection(e) => TestError::ContractRejected(e),
+            other => TestError::OtherRejection(other),
+        }
+    }
+}
+
+pub struct TestAssertions;
+impl TestAssertions {
+    pub fn assert_accepted<T>(result: Result<T, TestError>) -> anyhow::Result<()> {
+        match result {
+            Ok(_) => {
+                tracing::info!("As expected, contract accepted");
+                Ok(())
+            }
+            Err(TestError::ContractRejected(err)) => Err(anyhow!("Contract rejected {:#?}", err)),
+            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+        }
+    }
+
+    pub fn assert_rejected<T>(result: Result<T, TestError>) -> anyhow::Result<()> {
+        match result {
+            Err(TestError::ContractRejected(err)) => {
+                tracing::info!("As expected, contract rejected {:#?}", err);
+                Ok(())
+            }
+            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+            Ok(_txhash) => Err(anyhow!("Report accepted")),
+        }
+    }
+
+    pub fn assert_rejected_with<T, F>(result: Result<T, TestError>, check: F) -> anyhow::Result<()>
+    where
+        F: FnOnce(&Sp1LidoAccountingReportContractErrors) -> bool,
+    {
+        match result {
+            Err(TestError::ContractRejected(ref err)) if check(err) => {
+                tracing::info!("As expected, contract rejected {:#?}", err);
+                Ok(())
+            }
+            Err(TestError::ContractRejected(err)) => Err(anyhow!("Unexpected rejection type: {:#?}", err)),
+            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+            Ok(_) => Err(anyhow!("Expected rejection, but got acceptance")),
+        }
+    }
+
+    pub fn assert_failed_proof<T>(result: Result<T, TestError>) -> anyhow::Result<()> {
+        match result {
+            Err(TestError::ProofFailed(e)) => {
+                tracing::info!("Failed to create proof - as expected: {:?}", e);
+                Ok(())
+            }
+            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+            Ok(_) => Err(anyhow!("Report accepted")),
+        }
     }
 }

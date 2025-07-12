@@ -3,7 +3,7 @@
 pragma solidity 0.8.27;
 
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
 import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {PausableUntil} from "./PausableUntil.sol";
@@ -83,13 +83,25 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
 
     /// @dev Verification failed
     error VerificationError(string error_message);
+    /// @dev SP1 verifier rejected the proof
+    error Sp1VerificationError(string error_message);
 
+    /// @dev Beacon Block Hash mismatch
+    error BeaconBlockHashMismatch(bytes32 expected, bytes32 actual);
+
+    /// @dev Illegal reference slot and beacon chain slot passed
     error IllegalReferenceSlotError(
         uint256 bc_slot,
         uint256 bc_slot_timestamp,
         uint256 reference_slot,
         uint256 reference_slot_timestamp,
         string error_message
+    );
+
+    /// @dev Illegal old state slot (same or later as bc_slot)
+    error IllegalOldStateSlotError(
+        uint256 bc_slot,
+        uint256 old_state_slot
     );
 
     constructor(
@@ -178,7 +190,14 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         _verify_public_values(public_values);
 
         // Verify ZK-program and public values
-        ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof);
+        try ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof) {
+            // If SP1 verifier didn't revert - it means that proof is valid
+        } catch (bytes memory reason) {
+            if (reason.length > 0) {
+                revert Sp1VerificationError(string(reason));
+            }
+            revert Sp1VerificationError("SP1 verifier reverted without a reason");
+        }
 
         // If all checks pass - record report and state
         _recordReport(report);
@@ -254,13 +273,15 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         // Check that passed beacon_block_hash matches the one observed on the blockchain for
         // the target slot
         bytes32 expected_block_hash = _findBeaconBlockHash(metadata.bc_slot);
-        require(metadata.beacon_block_hash == expected_block_hash, VerificationError("BeaconBlockHash mismatch"));
+        require(metadata.beacon_block_hash == expected_block_hash, BeaconBlockHashMismatch(expected_block_hash, metadata.beacon_block_hash));
 
         // Check that correct withdrawal credentials were used
         require(
             metadata.lido_withdrawal_credentials == _getExpectedWithdrawalCredentials(),
             VerificationError("Withdrawal credentials mismatch")
         );
+
+        require(metadata.old_state.slot < metadata.bc_slot, IllegalOldStateSlotError(metadata.bc_slot, metadata.old_state.slot));
 
         // Check that the old report hash matches the one recorded in contract
         bytes32 old_state_hash = getLidoValidatorStateHash(metadata.old_state.slot);
