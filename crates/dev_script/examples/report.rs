@@ -89,7 +89,7 @@ async fn main() {
         old_beacon_state.epoch(),
         &old_beacon_state.validators,
         &old_beacon_state.balances,
-        &withdrawal_creds,
+        withdrawal_creds,
     )
     .expect("Failed to compute old report");
 
@@ -143,7 +143,7 @@ async fn main() {
         new_beacon_state.epoch(),
         &new_beacon_state.validators,
         &new_beacon_state.balances,
-        &withdrawal_creds,
+        withdrawal_creds,
     )
     .expect("Failed to compute new report");
 

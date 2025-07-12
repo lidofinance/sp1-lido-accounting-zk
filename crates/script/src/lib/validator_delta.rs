@@ -1,12 +1,14 @@
 use std::collections::HashSet;
 
 use derive_more;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{
-    BeaconState, BlsPublicKey, Epoch, ValidatorIndex, Validators,
-};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, BlsPublicKey, ValidatorIndex, Validators};
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch};
-use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex};
+use sp1_lido_accounting_zk_shared::lido::{
+    LidoValidatorState, ValidatorDelta, ValidatorOps, ValidatorStatus, ValidatorWithIndex,
+};
 use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
+
+use crate::InputChecks;
 
 #[derive(Debug, Clone)]
 pub struct ValidatorDeltaComputeBeaconStateProjection<'a> {
@@ -28,10 +30,16 @@ pub enum Error {
     #[error("Validators at index {index} in old and new beacon state have different pubkeys {old:?} != {new:?}")]
     ValidatorPubkeyMismatch {
         index: ValidatorIndex,
-        #[debug("{:#?}", old.to_vec())]
+        #[debug("{:#?}", old)]
         old: BlsPublicKey,
-        #[debug("{:#?}", new.to_vec())]
+        #[debug("{:#?}", new)]
         new: BlsPublicKey,
+    },
+    #[error("Invalid validator state transition {index}: {old_status:?} => {new_status:?}")]
+    InvalidValidatorStateTransition {
+        index: ValidatorIndex,
+        old_status: ValidatorStatus,
+        new_status: ValidatorStatus,
     },
 }
 
@@ -39,20 +47,6 @@ pub struct ValidatorDeltaCompute<'a> {
     old_bs: ValidatorDeltaComputeBeaconStateProjection<'a>,
     old_state: &'a LidoValidatorState,
     new_bs: ValidatorDeltaComputeBeaconStateProjection<'a>,
-    // This flag disables some sanity checks
-    // This should normally be set to true, except for the data tampering tests, where it gets in
-    // the way of some tampering scenarios
-    skip_verification: bool,
-}
-
-fn check_epoch_based_change(old_bs_epoch: Epoch, new_bs_epoch: Epoch, old_epoch: Epoch, new_epoch: Epoch) -> bool {
-    if old_epoch != new_epoch {
-        return true;
-    }
-    if (old_epoch < old_bs_epoch) != (new_epoch < new_bs_epoch) {
-        return true;
-    }
-    false
 }
 
 impl<'a> ValidatorDeltaCompute<'a> {
@@ -60,13 +54,11 @@ impl<'a> ValidatorDeltaCompute<'a> {
         old_bs: ValidatorDeltaComputeBeaconStateProjection<'a>,
         old_state: &'a LidoValidatorState,
         new_bs: ValidatorDeltaComputeBeaconStateProjection<'a>,
-        skip_verification: bool,
     ) -> Self {
         Self {
             old_bs,
             old_state,
             new_bs,
-            skip_verification,
         }
     }
 
@@ -87,36 +79,48 @@ impl<'a> ValidatorDeltaCompute<'a> {
         let old_bs_epoch = self.old_bs.slot.epoch();
         let new_bs_epoch = self.new_bs.slot.epoch();
 
-        for index in &self.old_state.deposited_lido_validator_indices {
+        for &index in &self.old_state.deposited_lido_validator_indices {
             // for already deposited validators, we want to check if something material have changed:
             // this can only be activation epoch or exist epoch. Theoretically "slashed" can also be
             // relevant, but for now we have no use for it
-            let index_usize = u64_to_usize(*index);
+            let index_usize = u64_to_usize(index);
             let old_validator = &self.old_bs.validators[index_usize];
             let new_validator = &self.new_bs.validators[index_usize];
 
-            if !self.skip_verification && old_validator.pubkey != new_validator.pubkey {
+            if old_validator.pubkey != new_validator.pubkey && !InputChecks::is_relaxed() {
                 return Err(Error::ValidatorPubkeyMismatch {
-                    index: *index,
+                    index,
                     old: old_validator.pubkey.clone(),
                     new: new_validator.pubkey.clone(),
                 });
             }
-            if check_epoch_based_change(
-                old_bs_epoch,
-                new_bs_epoch,
-                old_validator.exit_epoch,
-                new_validator.exit_epoch,
-            ) {
-                lido_changed_indices.insert(*index);
-            }
-            if check_epoch_based_change(
-                old_bs_epoch,
-                new_bs_epoch,
-                old_validator.activation_epoch,
-                new_validator.activation_epoch,
-            ) {
-                lido_changed_indices.insert(*index);
+
+            let old_status = old_validator.status(old_bs_epoch);
+            let new_status = new_validator.status(new_bs_epoch);
+
+            match (&old_status, &new_status) {
+                (ValidatorStatus::FutureDeposit, ValidatorStatus::Deposited)
+                | (ValidatorStatus::FutureDeposit, ValidatorStatus::Exited)
+                | (ValidatorStatus::Deposited, ValidatorStatus::Exited) => {
+                    lido_changed_indices.insert(index);
+                }
+                // illegal transitions - blow up
+                (ValidatorStatus::Exited, ValidatorStatus::Deposited)
+                | (ValidatorStatus::Exited, ValidatorStatus::FutureDeposit)
+                | (ValidatorStatus::Deposited, ValidatorStatus::FutureDeposit) => {
+                    if !InputChecks::is_relaxed() {
+                        return Err(Error::InvalidValidatorStateTransition {
+                            index,
+                            old_status,
+                            new_status,
+                        });
+                    }
+                }
+                // noops - safe to skip
+                // No change - noop
+                (ValidatorStatus::Deposited, ValidatorStatus::Deposited)
+                | (ValidatorStatus::FutureDeposit, ValidatorStatus::FutureDeposit)
+                | (ValidatorStatus::Exited, ValidatorStatus::Exited) => {}
             }
         }
 
@@ -198,9 +202,9 @@ mod test {
     fn create_validator(creds: Hash256, slot: BeaconChainSlot, status: ValidatorStatus) -> Validator {
         let epoch = slot.epoch();
         let (activation_eligible, activated, withdrawable, exited) = match status {
-            ValidatorStatus::FutureDeposit => (epoch - 10, u64::MAX, u64::MAX, u64::MAX),
-            ValidatorStatus::Deposited => (epoch - 10, epoch + 5, u64::MAX, u64::MAX),
-            ValidatorStatus::Exited => (epoch - 10, epoch - 5, epoch - 3, epoch - 1),
+            ValidatorStatus::FutureDeposit => (u64::MAX, u64::MAX, u64::MAX, u64::MAX),
+            ValidatorStatus::Deposited => (epoch - 2, epoch + 1, u64::MAX, u64::MAX),
+            ValidatorStatus::Exited => (epoch - 3, epoch - 2, epoch + 1, epoch - 1),
         };
         Validator {
             pubkey: random_pubkey(),
@@ -230,7 +234,6 @@ mod test {
             ValidatorDeltaComputeBeaconStateProjection::new(SLOT, &old),
             &old_state,
             ValidatorDeltaComputeBeaconStateProjection::new(FUTURE_SLOT, &new),
-            false,
         );
 
         compute.compute().expect("Failed to compute validator delta")
@@ -328,32 +331,46 @@ mod test {
 
     #[test]
     pub fn test_validator_delta_all_changes() {
-        let mut original_validators = default_validators();
-        let mut extra_orig = vec![
-            create_validator(*creds::LIDO, SLOT + 5, ValidatorStatus::Deposited),
-            create_validator(*creds::LIDO, SLOT + 12, ValidatorStatus::FutureDeposit),
-            create_validator(*creds::LIDO, SLOT + 15, ValidatorStatus::Exited),
-            create_validator(*creds::NON_LIDO, SLOT + 15, ValidatorStatus::Exited),
-            create_validator(*creds::NON_LIDO, SLOT + 20, ValidatorStatus::FutureDeposit),
+        let original_validators = vec![
+            /*0*/ create_validator(*creds::LIDO, SLOT, ValidatorStatus::Deposited),
+            /*1*/ create_validator(*creds::NON_LIDO, SLOT, ValidatorStatus::Deposited),
+            /*2*/ create_validator(*creds::NON_LIDO, SLOT, ValidatorStatus::Deposited),
+            /*3*/ create_validator(*creds::LIDO, SLOT + 5, ValidatorStatus::Deposited),
+            /*4*/ create_validator(*creds::LIDO, FUTURE_SLOT + 5, ValidatorStatus::FutureDeposit),
+            /*5*/ create_validator(*creds::LIDO, SLOT + 15, ValidatorStatus::Exited),
+            /*6*/ create_validator(*creds::NON_LIDO, SLOT + 15, ValidatorStatus::Exited),
+            /*7*/ create_validator(*creds::NON_LIDO, FUTURE_SLOT + 20, ValidatorStatus::FutureDeposit),
+            /*8*/ create_validator(*creds::LIDO, FUTURE_SLOT + 35, ValidatorStatus::FutureDeposit),
         ];
-        original_validators.append(&mut extra_orig);
-        // state: 0, 3 - lido deposited, 4, lido pending, 5 - lido exited, 1,2,6,7-non-lido
+        // state: 0, 3 - lido deposited, 4, 8 lido pending, 5 - lido exited, 1,2,6,7-non-lido
 
         let mut new_validators = original_validators.clone();
-        new_validators[0].exit_epoch = SLOT.epoch() + 3; // deposited => exited
-        new_validators[1].exit_epoch = SLOT.epoch() + 3; // non lido deposited => exited
-        new_validators[4].activation_epoch = FUTURE_SLOT.epoch() - 5; // pending => deposited
+        new_validators[0].exit_epoch = FUTURE_SLOT.epoch() - 3; // deposited => exited
+        new_validators[1].exit_epoch = FUTURE_SLOT.epoch() - 3; // non lido deposited => exited
+        new_validators[4].activation_eligibility_epoch = FUTURE_SLOT.epoch() - 5; // pending => deposited
+        new_validators[8].exit_epoch = FUTURE_SLOT.epoch() - 5; // pending => exited
         let mut extra_new = vec![
-            create_validator(*creds::LIDO, SLOT + 12, ValidatorStatus::Deposited),
-            create_validator(*creds::LIDO, SLOT + 22, ValidatorStatus::Exited),
-            create_validator(*creds::LIDO, SLOT + 22, ValidatorStatus::FutureDeposit),
-            create_validator(*creds::NON_LIDO, SLOT + 30, ValidatorStatus::Deposited),
+            /* 9*/ create_validator(*creds::LIDO, FUTURE_SLOT, ValidatorStatus::Deposited),
+            /*10*/ create_validator(*creds::LIDO, FUTURE_SLOT, ValidatorStatus::Exited),
+            /*11*/ create_validator(*creds::LIDO, FUTURE_SLOT, ValidatorStatus::FutureDeposit),
+            /*12*/ create_validator(*creds::NON_LIDO, FUTURE_SLOT, ValidatorStatus::Deposited),
         ];
         new_validators.append(&mut extra_new);
-        // state: 3, 4, 8 - lido deposited, 10 - lido pending, 5, 9 - lido exited, 1,2,6,7,11-non-lido
-        // added: 8, 9, 10, 11; lido_changed: 0, 4
+        // state: 3, 4, 9 - lido deposited, 8, 11 - lido pending, 5, 10 - lido exited, 1,2,6,7,12-non-lido
+        // added: 9, 10, 11, 12; lido_changed: 0, 4, 8
 
-        let expected_added: Vec<ValidatorWithIndex> = [8_usize, 9, 10, 11]
+        // This could come in handy for debugging
+        // tracing_helpers::setup_logger(tracing_helpers::LoggingConfig::default_for_test());
+        // tracing::info!("Target epoch: {:?}", FUTURE_SLOT.epoch());
+        // for (idx, validator) in new_validators.iter().enumerate() {
+        //     tracing::info!(
+        //         "Validator {idx} eligibility: {}: {:?}",
+        //         validator.activation_eligibility_epoch,
+        //         validator.status(FUTURE_SLOT.epoch())
+        //     );
+        // }
+
+        let expected_added: Vec<ValidatorWithIndex> = [9_usize, 10, 11, 12]
             .iter()
             .map(|idx| ValidatorWithIndex {
                 index: usize_to_u64(*idx),
@@ -361,7 +378,7 @@ mod test {
             })
             .collect();
 
-        let expected_changed: Vec<ValidatorWithIndex> = [0_usize, 4]
+        let expected_changed: Vec<ValidatorWithIndex> = [0_usize, 4, 8]
             .iter()
             .map(|idx| ValidatorWithIndex {
                 index: usize_to_u64(*idx),

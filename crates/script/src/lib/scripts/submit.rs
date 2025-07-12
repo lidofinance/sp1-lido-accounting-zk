@@ -5,6 +5,7 @@ use crate::scripts::shared as shared_logic;
 use crate::sp1_client_wrapper::SP1ClientWrapper;
 
 use crate::scripts::prelude::ScriptRuntime;
+use crate::InputChecks;
 use alloy::rpc::types::TransactionReceipt;
 use alloy_primitives::Address;
 use anyhow::{self, Context};
@@ -119,7 +120,6 @@ async fn prepare_input(
         &old_bs,
         &lido_withdrawal_credentials,
         withdrawal_vault_data,
-        true,
     )?;
     Ok((program_input, public_values))
 }
@@ -135,6 +135,11 @@ async fn run_with_span(
     prev_slot: Option<ReferenceSlot>,
     flags: &Flags,
 ) -> anyhow::Result<TransactionReceipt> {
+    assert!(
+        !InputChecks::is_relaxed(),
+        "Input checks were relaxed - this must not happen during script run"
+    );
+
     tracing::info!(
         "Submitting report for network {:?}, target: (ref={:?}, actual={:?}), previous: (ref={:?}, actual={:?})",
         runtime.network().as_str(),

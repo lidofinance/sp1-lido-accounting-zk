@@ -8,6 +8,7 @@ use sp1_lido_accounting_scripts::{
     eth_client::Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors,
     scripts::{prelude::BeaconStateReaderEnum, shared as shared_logic},
     sp1_client_wrapper::SP1ClientWrapper,
+    InputChecks,
 };
 
 use sp1_lido_accounting_zk_shared::{
@@ -155,6 +156,7 @@ impl TestExecutor {
         let withdrawal_vault_data = self.env.get_balance_proof(&StateId::Slot(target_slot)).await?;
         let tampered_withdrawal_vault_data = (self.withdrawal_vault_data_mutator)(withdrawal_vault_data);
 
+        InputChecks::set_relaxed();
         tracing::info!("Preparing program input");
         let (program_input, _public_values) = shared_logic::prepare_program_input(
             reference_slot,
@@ -163,7 +165,6 @@ impl TestExecutor {
             &old_bs,
             &lido_withdrawal_credentials,
             tampered_withdrawal_vault_data,
-            false,
         )
         .expect("Failed to prepare program input");
 

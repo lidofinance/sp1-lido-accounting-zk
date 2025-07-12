@@ -1,4 +1,5 @@
 use crate::validator_delta::{self, ValidatorDeltaCompute, ValidatorDeltaComputeBeaconStateProjection};
+use crate::InputChecks;
 use alloy_sol_types::SolType;
 
 use sp1_sdk::SP1PublicValues;
@@ -52,7 +53,6 @@ pub fn prepare_program_input(
     old_bs: &BeaconState,
     lido_withdrawal_credentials: &Hash256,
     lido_withdrawal_vault_data: WithdrawalVaultData,
-    verify: bool,
 ) -> Result<(ProgramInput, PublicValuesRust), Error> {
     tracing::info!("Preparing program input");
     let beacon_block_hash = bh.tree_hash_root();
@@ -89,7 +89,7 @@ pub fn prepare_program_input(
         bs.epoch(),
         &bs.validators,
         &bs.balances,
-        lido_withdrawal_credentials,
+        *lido_withdrawal_credentials,
     )?;
 
     tracing::info!("Forming public values");
@@ -124,7 +124,7 @@ pub fn prepare_program_input(
 
     tracing::info!("Computing validators and balances struct for program input");
     let validators_and_balances =
-        compute_validators_and_balances(bs, old_bs, &old_validator_state, lido_withdrawal_credentials, verify)?;
+        compute_validators_and_balances(bs, old_bs, &old_validator_state, lido_withdrawal_credentials)?;
 
     tracing::info!("Obtaining execution header data");
     let execution_header_data: ExecutionPayloadHeaderData = (&bs.latest_execution_payload_header).into();
@@ -145,7 +145,7 @@ pub fn prepare_program_input(
         withdrawal_vault_data: lido_withdrawal_vault_data,
     };
 
-    if verify {
+    if !InputChecks::is_relaxed() {
         verify_input_correctness(
             bs.bc_slot(),
             &program_input,
@@ -165,9 +165,8 @@ pub fn compute_validators_and_balances_test_public(
     old_bs: &BeaconState,
     old_validator_state: &LidoValidatorState,
     lido_withdrawal_credentials: &Hash256,
-    verify: bool,
 ) -> Result<ValsAndBals, Error> {
-    compute_validators_and_balances(bs, old_bs, old_validator_state, lido_withdrawal_credentials, verify)
+    compute_validators_and_balances(bs, old_bs, old_validator_state, lido_withdrawal_credentials)
 }
 
 fn compute_validators_and_balances(
@@ -175,13 +174,11 @@ fn compute_validators_and_balances(
     old_bs: &BeaconState,
     old_validator_state: &LidoValidatorState,
     lido_withdrawal_credentials: &Hash256,
-    verify: bool,
 ) -> Result<ValsAndBals, Error> {
     let validator_delta = ValidatorDeltaCompute::new(
         ValidatorDeltaComputeBeaconStateProjection::from_bs(old_bs),
         old_validator_state,
         ValidatorDeltaComputeBeaconStateProjection::from_bs(bs),
-        !verify,
     )
     .compute()?;
     tracing::info!(
