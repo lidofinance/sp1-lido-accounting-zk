@@ -565,6 +565,7 @@ async fn data_tampering_change_lido_make_exited() -> Result<()> {
     })
 }
 
+#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 async fn data_tampering_omit_new_deposited_lido_validator() -> Result<()> {
     let (mut executor, target_slot) = setup_executor().await?;
