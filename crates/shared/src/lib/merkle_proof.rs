@@ -56,10 +56,10 @@ pub enum Error {
     #[error(transparent)]
     SerdeError(#[from] SerdeError),
     #[error("Root constructed from proof ({actual:?}) != expected ({expected:?})")]
-    HashesMistmatch {
-        #[debug("0x{:?}", hex::encode(actual))]
+    HashesMismatch {
+        #[debug("{:#?}", actual)]
         actual: Hash256,
-        #[debug("0x{:?}", hex::encode(expected))]
+        #[debug("{:#?}", expected)]
         expected: Hash256,
     },
 }
@@ -261,7 +261,7 @@ pub fn verify_hashes(expected: &Hash256, actual: &Hash256) -> Result<(), Error> 
         return Ok(());
     }
 
-    Err(Error::HashesMistmatch {
+    Err(Error::HashesMismatch {
         actual: *actual,
         expected: *expected,
     })

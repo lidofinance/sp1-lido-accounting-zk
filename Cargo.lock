@@ -5684,6 +5684,7 @@ dependencies = [
  "sp1-lido-accounting-zk-shared",
  "sp1-sdk",
  "syn-solidity",
+ "tempfile",
  "thiserror 2.0.12",
  "tokio",
  "tracing",

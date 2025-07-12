@@ -6,12 +6,14 @@ use alloy::rpc::types::TransactionReceipt;
 use alloy_sol_types::SolType;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
-    eth_client, prometheus_metrics,
+    eth_client::Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors,
+    prometheus_metrics,
     proof_storage::StoredProof,
     scripts::shared as shared_logic,
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
 };
 
+use anyhow::Result;
 use hex_literal::hex;
 use sp1_lido_accounting_zk_shared::{
     eth_consensus_layer::Hash256,
@@ -22,24 +24,12 @@ use sp1_lido_accounting_zk_shared::{
 };
 use sp1_sdk::{HashableKey, ProverClient};
 use test_utils::env::IntegrationTestEnvironment;
-use thiserror::Error;
+
+use crate::test_utils::{eyre_to_anyhow, TestAssertions};
 
 const STORED_PROOF_FILE_NAME: &str = "fixture.json";
 
-#[derive(Debug, Error)]
-enum ExecutorError {
-    #[error("Contract rejected: {0:#?}")]
-    Contract(#[from] eth_client::ContractError),
-    #[error("Failed to launch anvil: {0:#?}")]
-    AnvilLaunch(#[from] alloy::node_bindings::NodeError),
-    #[error("Eyre error: {0:#?}")]
-    Eyre(#[from] eyre::Error),
-    #[error("Anyhow error: {0:#?}")]
-    Anyhow(#[from] anyhow::Error),
-}
-
-type Result<T> = std::result::Result<T, ExecutorError>;
-type TestExecutorResult = Result<TransactionReceipt>;
+type TestExecutorResult = std::result::Result<TransactionReceipt, test_utils::TestError>;
 
 struct TestExecutor<M: Fn(PublicValuesRust) -> PublicValuesRust> {
     env: IntegrationTestEnvironment,
@@ -47,8 +37,15 @@ struct TestExecutor<M: Fn(PublicValuesRust) -> PublicValuesRust> {
 }
 
 impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
-    async fn new(tamper_public_values: M) -> Result<Self> {
-        let env = IntegrationTestEnvironment::default().await?;
+    async fn new(tamper_public_values: M) -> anyhow::Result<Self> {
+        let mut env = IntegrationTestEnvironment::new(
+            test_utils::NETWORK.clone(),
+            test_utils::DEPLOY_SLOT,
+            Some(test_utils::REPORT_COMPUTE_SLOT),
+        )
+        .await?;
+        env.mock_beacon_state_roots_contract().await?;
+
         let instance = Self {
             env,
             tamper_public_values,
@@ -56,18 +53,31 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
         Ok(instance)
     }
 
-    fn get_stored_proof(&self) -> Result<StoredProof> {
-        let proof = self.env.test_files.read_proof(STORED_PROOF_FILE_NAME)?;
+    fn get_stored_proof(&self) -> anyhow::Result<StoredProof> {
+        let proof = self
+            .env
+            .test_files
+            .read_proof(STORED_PROOF_FILE_NAME)
+            .map_err(eyre_to_anyhow)?;
         Ok(proof)
     }
 
     async fn run_test(&self) -> TestExecutorResult {
-        sp1_sdk::utils::setup_logger();
         let lido_withdrawal_credentials: Hash256 = self.env.script_runtime.lido_settings.withdrawal_credentials;
         let stored_proof = self.get_stored_proof()?;
 
+        assert_eq!(
+            stored_proof.metadata.bc_slot,
+            test_utils::REPORT_COMPUTE_SLOT,
+            "Stored proof metadata slot does not match expected report compute slot"
+        );
+
         let reference_slot = stored_proof.report.reference_slot;
         let bc_slot = stored_proof.metadata.bc_slot;
+
+        self.env
+            .record_beacon_block_hash(bc_slot.0, stored_proof.metadata.beacon_block_hash.into())
+            .await?;
 
         let previous_slot = self
             .env
@@ -182,21 +192,6 @@ fn wrap_metadata_mapper(
     }
 }
 
-fn assert_rejects(result: TestExecutorResult) -> Result<()> {
-    match result {
-        Err(ExecutorError::Contract(eth_client::ContractError::Rejection(err))) => {
-            tracing::info!("As expected, contract rejected {:#?}", err);
-            Ok(())
-        }
-        Err(ExecutorError::Contract(eth_client::ContractError::CustomRejection(err))) => {
-            tracing::info!("As expected, verifier rejected {:#?}", err);
-            Ok(())
-        }
-        Err(other_err) => Err(other_err),
-        Ok(_txhash) => Err(ExecutorError::Anyhow(anyhow::anyhow!("Report accepted"))),
-    }
-}
-
 #[test]
 fn check_vkey_matches() -> Result<()> {
     let sp1_client = SP1ClientWrapperImpl::new(
@@ -208,7 +203,7 @@ fn check_vkey_matches() -> Result<()> {
         )),
     );
     let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
-    let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;
+    let proof = test_files.read_proof(STORED_PROOF_FILE_NAME).map_err(eyre_to_anyhow)?;
     assert_eq!(sp1_client.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");
     Ok(())
 }
@@ -216,7 +211,7 @@ fn check_vkey_matches() -> Result<()> {
 #[test]
 fn check_old_slot_matches() -> Result<()> {
     let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
-    let proof = test_files.read_proof(STORED_PROOF_FILE_NAME)?;
+    let proof = test_files.read_proof(STORED_PROOF_FILE_NAME).map_err(eyre_to_anyhow)?;
     assert_eq!(
         test_utils::DEPLOY_SLOT,
         proof.metadata.state_for_previous_report.slot,
@@ -237,7 +232,7 @@ async fn report_tampering_sanity_check_should_pass() -> Result<()> {
             tracing::info!("Sanity check succeeded - submitting valid report with no tampering succeeds");
             Ok(())
         }
-        Err(err) => Err(err),
+        Err(err) => Err(anyhow::anyhow!("Error: {:?}", err)),
     }
 }
 
@@ -245,24 +240,40 @@ async fn report_tampering_sanity_check_should_pass() -> Result<()> {
 async fn report_tampering_report_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_report_mapper(|report| {
         let mut new_report = report.clone();
-        new_report.reference_slot = new_report.reference_slot - 1;
+        new_report.reference_slot -= 1;
         new_report
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    // Record the beacon block hash for the changed bc_slot
+    executor
+        .env
+        .record_beacon_block_hash(test_utils::REPORT_COMPUTE_SLOT.0 - 1, test_utils::NONZERO_HASH.into())
+        .await?;
+
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::IllegalReferenceSlotError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_report_slot2() -> Result<()> {
     let executor = TestExecutor::new(wrap_report_mapper(|report| {
         let mut new_report = report.clone();
-        new_report.reference_slot = new_report.reference_slot + 10;
+        new_report.reference_slot += 10;
         new_report
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    // Record the beacon block hash for the changed bc_slot
+    executor
+        .env
+        .record_beacon_block_hash(test_utils::REPORT_COMPUTE_SLOT.0 + 10, test_utils::NONZERO_HASH.into())
+        .await?;
+
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::IllegalReferenceSlotError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -274,7 +285,9 @@ async fn report_tampering_report_cl_balance() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::Sp1VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -286,7 +299,9 @@ async fn report_tampering_report_deposited_count() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::Sp1VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -298,7 +313,9 @@ async fn report_tampering_report_exited_count() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::Sp1VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -310,7 +327,15 @@ async fn report_tampering_metadata_slot() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    // Record the beacon block hash for the changed bc_slot
+    executor
+        .env
+        .record_beacon_block_hash(test_utils::REPORT_COMPUTE_SLOT.0 - 10, test_utils::NONZERO_HASH.into())
+        .await?;
+
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::IllegalReferenceSlotError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -322,7 +347,15 @@ async fn report_tampering_metadata_slot2() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    // Record the beacon block hash for the changed bc_slot
+    executor
+        .env
+        .record_beacon_block_hash(test_utils::REPORT_COMPUTE_SLOT.0 + 10, test_utils::NONZERO_HASH.into())
+        .await?;
+
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::IllegalReferenceSlotError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -334,7 +367,9 @@ async fn report_tampering_metadata_epoch() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::Sp1VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -347,7 +382,9 @@ async fn report_tampering_metadata_withdrawal_credentials() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -359,7 +396,9 @@ async fn report_tampering_metadata_beacon_block_hash() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::BeaconBlockHashMismatch(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -371,7 +410,9 @@ async fn report_tampering_metadata_old_state_slot() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -384,7 +425,9 @@ async fn report_tampering_metadata_old_state_merkle_root() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -396,7 +439,9 @@ async fn report_tampering_metadata_new_state_slot() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -408,7 +453,9 @@ async fn report_tampering_metadata_new_state_merkle_root() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::Sp1VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -420,7 +467,9 @@ async fn report_tampering_withdrawal_wrong_address() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::VerificationError(_))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -432,5 +481,7 @@ async fn report_tampering_withdrawal_wrong_balance() -> Result<()> {
     }))
     .await?;
 
-    assert_rejects(executor.run_test().await)
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::VerificationError(_))
+    })
 }

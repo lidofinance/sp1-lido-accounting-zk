@@ -30,7 +30,7 @@ pub enum Error {
     #[error("Passed non-Lido validator in delta")]
     NonLidoValidatorInDelta {
         index: ValidatorIndex,
-        #[debug("0x{:?}", hex::encode(withdrawal_credentials))]
+        #[debug("{:#?}", withdrawal_credentials)]
         withdrawal_credentials: Hash256,
     },
     #[error("Passed non-Lido validator in delta")]
