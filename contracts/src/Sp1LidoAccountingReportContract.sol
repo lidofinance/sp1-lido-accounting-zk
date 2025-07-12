@@ -86,14 +86,22 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @dev SP1 verifier rejected the proof
     error Sp1VerificationError(string error_message);
 
+    /// @dev Beacon Block Hash mismatch
     error BeaconBlockHashMismatch(bytes32 expected, bytes32 actual);
 
+    /// @dev Illegal reference slot and beacon chain slot passed
     error IllegalReferenceSlotError(
         uint256 bc_slot,
         uint256 bc_slot_timestamp,
         uint256 reference_slot,
         uint256 reference_slot_timestamp,
         string error_message
+    );
+
+    /// @dev Illegal old state slot (same or later as bc_slot)
+    error IllegalOldStateSlotError(
+        uint256 bc_slot,
+        uint256 old_state_slot
     );
 
     constructor(
@@ -272,6 +280,8 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
             metadata.lido_withdrawal_credentials == _getExpectedWithdrawalCredentials(),
             VerificationError("Withdrawal credentials mismatch")
         );
+
+        require(metadata.old_state.slot < metadata.bc_slot, IllegalOldStateSlotError(metadata.bc_slot, metadata.old_state.slot));
 
         // Check that the old report hash matches the one recorded in contract
         bytes32 old_state_hash = getLidoValidatorStateHash(metadata.old_state.slot);
