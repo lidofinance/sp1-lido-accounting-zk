@@ -1019,7 +1019,7 @@ mod vals_and_bals {
 
         #[ignore = "Hits external prover (slow, incurs costs)"]
         #[tokio::test(flavor = "multi_thread")]
-        async fn program_input_tampering_vals_and_bals_delta_lido_changed_emptied_old_no_pending_succeeds_subsequent_correct_succeeds(
+        async fn program_input_tampering_vals_and_bals_delta_lido_changed_emptied_succeeds_subsequent_same_slot_rejected(
         ) -> Result<()> {
             let (executor, target_slot) = setup_no_adjustments().await?;
 
@@ -1032,7 +1032,9 @@ mod vals_and_bals {
             tracing::info!("Running program input without manipulations");
             let program_input = executor.prepare_input_no_ver(target_slot).await?;
             let result = executor.run(program_input).await;
-            TestAssertions::assert_accepted(result)
+            TestAssertions::assert_rejected_with(result, |e| {
+                matches!(e, Sp1LidoAccountingReportContractErrors::ReportAlreadyRecorded(_))
+            })
         }
 
         #[tokio::test(flavor = "multi_thread")]
@@ -1069,7 +1071,7 @@ mod old_state {
     // ** Shuffle
     // * exited_lido_validator_indices - no enforcement;
     // ** adding, removing, duplicating, shuffling should pass
-    // ** subsequent report without manipulation should succeed
+    // ** subsequent report without manipulation - rejected
 
     #[ignore = "Hits external prover (slow, incurs costs)"]
     #[tokio::test(flavor = "multi_thread")]

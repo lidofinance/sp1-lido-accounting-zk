@@ -163,6 +163,10 @@ contract Sp1LidoAccountingReportContractTest is Test {
         return abi.encodeWithSelector(Sp1LidoAccountingReportContract.VerificationError.selector, message);
     }
 
+    function report_already_recorded(uint256 refslot) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(Sp1LidoAccountingReportContract.ReportAlreadyRecorded.selector, refslot);
+    }
+
     function beacon_block_hash_mismatch_error(bytes32 expected_hash, bytes32 actual_hash)
         internal
         view
@@ -229,6 +233,23 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
         _contract.submitReportData(fixture.proof, fixture.publicValues);
         assertReportAccepted(public_values.report.reference_slot, expected_report);
+    }
+
+    function test_validProof_reportTwice_rejected() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+
+        setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
+        verifierPasses();
+
+        Sp1LidoAccountingReportContract.PublicValues memory public_values =
+            abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
+        Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
+
+        _contract.submitReportData(fixture.proof, fixture.publicValues);
+        assertReportAccepted(public_values.report.reference_slot, expected_report);
+
+        vm.expectRevert(report_already_recorded(expected_report.reference_slot));
+        _contract.submitReportData(fixture.proof, fixture.publicValues);
     }
 
     function test_validProofWrongExpectedBeaconBlockHash_reverts() public {
