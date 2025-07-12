@@ -13,7 +13,7 @@ verify_contract_cmd:=if verify_contract == "true" { "--verify" } else { "" }
 local_verify_cmd:=if local_verify_proof == "true" { "--local-verify" } else { "" }
 
 build:
-    cargo build --release --locked
+    cargo build --release --locked -j {{compile_threads}}
 
 switch_env env:
     rm -f .env && ln -s envs/.env.network.{{env}} .env
@@ -120,6 +120,7 @@ read_validators target_slot:
 ### Testing ###
 test_update_fixtures target_slot='0' previous_slot='0': build
     ./target/release/write_test_fixture {{ if target_slot != "0" { "--target-ref-slot "+target_slot } else { "" } }} {{ if previous_slot != "0" { "--previous-ref-slot "+previous_slot } else { "" } }}
+
     
 [working-directory: 'contracts']
 test_contracts:
