@@ -141,7 +141,7 @@ pub const LIDO_WIDTHRAWAL_CREDENTIALS: EnvVarSpec = EnvVarSpec {
 
 pub const EXECUTION_LAYER_RPC: EnvVarSpec = EnvVarSpec {
     key: "EXECUTION_LAYER_RPC",
-    sensitive: false,
+    sensitive: true,
 };
 pub const CONSENSUS_LAYER_RPC: EnvVarSpec = EnvVarSpec {
     key: "CONSENSUS_LAYER_RPC",
@@ -149,7 +149,7 @@ pub const CONSENSUS_LAYER_RPC: EnvVarSpec = EnvVarSpec {
 };
 pub const BEACON_STATE_RPC: EnvVarSpec = EnvVarSpec {
     key: "BEACON_STATE_RPC",
-    sensitive: false,
+    sensitive: true,
 };
 pub const PROMETHEUS_NAMESPACE: EnvVarSpec = EnvVarSpec {
     key: "PROMETHEUS_NAMESPACE",
