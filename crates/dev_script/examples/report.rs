@@ -90,7 +90,8 @@ async fn main() {
         &old_beacon_state.validators,
         &old_beacon_state.balances,
         &withdrawal_creds,
-    );
+    )
+    .expect("Failed to compute old report");
 
     // Step 1.5. generate a "new" beacon state with controlled parameters
 
@@ -143,7 +144,8 @@ async fn main() {
         &new_beacon_state.validators,
         &new_beacon_state.balances,
         &withdrawal_creds,
-    );
+    )
+    .expect("Failed to compute new report");
 
     // Step 4: verify report matches
     verify_report(&new_report, &manifesto);

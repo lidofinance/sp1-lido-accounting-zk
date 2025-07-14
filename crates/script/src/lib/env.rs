@@ -52,15 +52,11 @@ impl EnvVarSpec {
 
 impl<TVal: Debug> Debug for EnvVarValue<TVal> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let value_print = if self.spec.sensitive {
-            "***".to_string()
+        if self.spec.sensitive {
+            f.write_str("***")
         } else {
-            format!("{:?}", self.value)
-        };
-        f.debug_struct("EnvVarValue")
-            .field("name", &self.spec.key)
-            .field("value", &value_print)
-            .finish()
+            f.write_fmt(format_args!("{:?}", self.value))
+        }
     }
 }
 
@@ -145,7 +141,7 @@ pub const LIDO_WIDTHRAWAL_CREDENTIALS: EnvVarSpec = EnvVarSpec {
 
 pub const EXECUTION_LAYER_RPC: EnvVarSpec = EnvVarSpec {
     key: "EXECUTION_LAYER_RPC",
-    sensitive: false,
+    sensitive: true,
 };
 pub const CONSENSUS_LAYER_RPC: EnvVarSpec = EnvVarSpec {
     key: "CONSENSUS_LAYER_RPC",
@@ -153,7 +149,7 @@ pub const CONSENSUS_LAYER_RPC: EnvVarSpec = EnvVarSpec {
 };
 pub const BEACON_STATE_RPC: EnvVarSpec = EnvVarSpec {
     key: "BEACON_STATE_RPC",
-    sensitive: false,
+    sensitive: true,
 };
 pub const PROMETHEUS_NAMESPACE: EnvVarSpec = EnvVarSpec {
     key: "PROMETHEUS_NAMESPACE",

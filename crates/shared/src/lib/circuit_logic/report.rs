@@ -2,7 +2,7 @@ use crate::{
     eth_consensus_layer::{Balances, Hash256, Validators},
     io::eth_io::ReferenceSlot,
     lido::LidoValidatorState,
-    util::{u64_to_usize, usize_to_u64},
+    util::{erroring_add, u64_to_usize, usize_to_u64, IntegerError},
 };
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +24,7 @@ impl ReportData {
         validators: &Validators,
         balances: &Balances,
         lido_withdrawal_credentials: &Hash256,
-    ) -> Self {
+    ) -> Result<Self, IntegerError> {
         let mut cl_balance: u64 = 0;
         let mut deposited: u64 = 0;
         let mut exited: u64 = 0;
@@ -37,22 +37,24 @@ impl ReportData {
                 continue;
             }
 
-            cl_balance += *balance;
+            cl_balance = erroring_add(cl_balance, *balance)?;
+
             if epoch >= validator.activation_eligibility_epoch {
-                deposited += 1;
+                deposited = erroring_add(deposited, 1)?;
             }
             if epoch >= validator.exit_epoch {
-                exited += 1
+                exited = erroring_add(exited, 1)?;
             }
         }
-        Self {
+        let result = Self {
             slot,
             epoch,
             lido_withdrawal_credentials: creds,
             deposited_lido_validators: deposited,
             exited_lido_validators: exited,
             lido_cl_balance: cl_balance,
-        }
+        };
+        Ok(result)
     }
 
     pub fn compute_from_state(
