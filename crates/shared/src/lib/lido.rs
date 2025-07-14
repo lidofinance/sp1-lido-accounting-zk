@@ -112,7 +112,7 @@ impl LidoValidatorState {
         }
 
         // We know the pending_deposit_lido_validator_indices is sorted ascending, so it's enough to check the last element
-        if let Some(&value) = self.deposited_lido_validator_indices.last() {
+        if let Some(&value) = self.pending_deposit_lido_validator_indices.last() {
             if value > self.max_validator_index {
                 return Err(InvariantError::InvariantViolation(
                     InvariantViolation::PendingIndexGreaterThanMaxValidatorIndex,
