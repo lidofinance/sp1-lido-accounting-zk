@@ -15,7 +15,7 @@ use sp1_lido_accounting_zk_shared::io::program_io::{
 };
 use sp1_lido_accounting_zk_shared::lido::{self, LidoValidatorState};
 use sp1_lido_accounting_zk_shared::merkle_proof::FieldProof;
-use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
+use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64, IntegerError};
 
 use anyhow::Result;
 
@@ -40,6 +40,9 @@ pub enum Error {
 
     #[error(transparent)]
     FailedToProveInput(#[from] input_verification::Error),
+
+    #[error(transparent)]
+    FailedToComputeReport(#[from] IntegerError),
 }
 
 pub fn prepare_program_input(
@@ -87,7 +90,7 @@ pub fn prepare_program_input(
         &bs.validators,
         &bs.balances,
         lido_withdrawal_credentials,
-    );
+    )?;
 
     tracing::info!("Forming public values");
     let public_values: PublicValuesRust = PublicValuesRust {

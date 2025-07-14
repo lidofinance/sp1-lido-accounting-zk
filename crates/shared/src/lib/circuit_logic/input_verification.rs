@@ -17,6 +17,7 @@ use crate::{
     },
     lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex},
     merkle_proof::{self, FieldProof, MerkleProofWrapper, StaticFieldProof},
+    util,
 };
 
 pub trait CycleTracker {
@@ -120,6 +121,9 @@ pub enum Error {
 
     #[error("Failed condition check: {0:?}")]
     U64ToUsizeConversionError(#[from] TryFromIntError),
+
+    #[error(transparent)]
+    IntegerError(#[from] util::IntegerError),
 }
 
 pub struct InputVerifier<'a, Tracker: CycleTracker> {
@@ -188,7 +192,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         actual_validator_count: u64,
     ) -> Result<(), Error> {
         let all_added_count: u64 = delta.all_added.len().try_into()?;
-        let validator_from_delta = old_state.total_validators() + all_added_count;
+        let validator_from_delta = util::erroring_add(old_state.total_validators(), all_added_count)?;
         if validator_from_delta != actual_validator_count {
             return Err(Error::ConditionCheck(
                 ConditionCheckFailure::NotAllNewValidatorsPassed {
