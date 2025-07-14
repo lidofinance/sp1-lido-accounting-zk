@@ -220,21 +220,21 @@ impl EnvVars {
         );
 
         if !only_important {
-            result.insert("dry_run", self.dry_run.value.to_string());
-            result.insert("report_cycles", self.report_cycles.value.to_string());
-            result.insert("internal_scheduler", self.internal_scheduler.value.clone());
-            result.insert("internal_scheduler_cron", self.internal_scheduler_cron.value.clone());
-            result.insert("internal_scheduler_tz", self.internal_scheduler_tz.value.clone());
-            result.insert("sp1_prover", self.sp1_prover.value.clone());
-            result.insert("network_private_key", "<sensitive>".to_string());
-            result.insert("network_rpc_url", format!("{:?}", self.network_rpc_url.value));
-            result.insert("bs_reader_mode", self.bs_reader_mode.value.clone());
-            result.insert("bs_file_store", self.bs_file_store.value.clone());
-            result.insert("private_key", "<sensitive>".to_string());
-            result.insert("execution_layer_rpc", self.execution_layer_rpc.value.to_string());
-            result.insert("consensus_layer_rpc", self.consensus_layer_rpc.value.to_string());
-            result.insert("beacon_state_rpc", self.beacon_state_rpc.value.to_string());
-            result.insert("prometheus_namespace", self.prometheus_namespace.value.to_string());
+            result.insert("dry_run", format!("{:?}", self.dry_run));
+            result.insert("report_cycles", format!("{:?}", self.report_cycles));
+            result.insert("internal_scheduler", format!("{:?}", self.internal_scheduler));
+            result.insert("internal_scheduler_cron", format!("{:?}", self.internal_scheduler_cron));
+            result.insert("internal_scheduler_tz", format!("{:?}", self.internal_scheduler_tz));
+            result.insert("sp1_prover", format!("{:?}", self.sp1_prover.value));
+            result.insert("network_private_key", format!("{:?}", self.network_private_key));
+            result.insert("network_rpc_url", format!("{:?}", self.network_rpc_url));
+            result.insert("bs_reader_mode", format!("{:?}", self.bs_reader_mode));
+            result.insert("bs_file_store", format!("{:?}", self.bs_file_store));
+            result.insert("private_key", format!("{:?}", self.private_key));
+            result.insert("execution_layer_rpc", format!("{:?}", self.execution_layer_rpc));
+            result.insert("consensus_layer_rpc", format!("{:?}", self.consensus_layer_rpc));
+            result.insert("beacon_state_rpc", format!("{:?}", self.beacon_state_rpc));
+            result.insert("prometheus_namespace", format!("{:?}", self.prometheus_namespace));
         }
 
         result

@@ -52,15 +52,11 @@ impl EnvVarSpec {
 
 impl<TVal: Debug> Debug for EnvVarValue<TVal> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let value_print = if self.spec.sensitive {
-            "***".to_string()
+        if self.spec.sensitive {
+            f.write_str("***")
         } else {
-            format!("{:?}", self.value)
-        };
-        f.debug_struct("EnvVarValue")
-            .field("name", &self.spec.key)
-            .field("value", &value_print)
-            .finish()
+            f.write_fmt(format_args!("{:?}", self.value))
+        }
     }
 }
 
