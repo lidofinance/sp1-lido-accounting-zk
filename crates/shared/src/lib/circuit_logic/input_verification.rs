@@ -6,17 +6,15 @@ use eth_trie::{EthTrie, MemoryDB, Trie};
 use tree_hash::TreeHash;
 
 use crate::{
-    eth_consensus_layer::{
-        BeaconStateFields, ExecutionPayloadHeader, ExecutionPayloadHeaderFields, Hash256, Validator,
-    },
+    eth_consensus_layer::{ExecutionPayloadHeader, ExecutionPayloadHeaderFields, Hash256, Validator},
     eth_execution_layer::EthAccountRlpValue,
     eth_spec,
     io::{
         eth_io::HaveEpoch,
         program_io::{ProgramInput, WithdrawalVaultData},
     },
-    lido::{LidoValidatorState, ValidatorDelta, ValidatorWithIndex},
-    merkle_proof::{self, FieldProof, MerkleProofWrapper, StaticFieldProof},
+    lido::{InvariantError, LidoValidatorState, ValidatorDelta, ValidatorWithIndex},
+    merkle_proof::{self, MerkleProofWrapper, StaticFieldProof},
     util,
 };
 
@@ -60,10 +58,10 @@ pub enum ConditionCheckFailure {
     },
     #[error("Wrong old state epoch: passed {epoch}, expected from slot {epoch_from_slot}")]
     OldStateEpochMismatch { epoch: u64, epoch_from_slot: u64 },
-    #[error("Deposited validators should be sorted and unique")]
-    DepositedValidatorsNotSorted,
-    #[error("Pending deposit validators should be sorted and unique")]
-    PendingDepositValidatorsNotSorted,
+
+    #[error("Old state invariant violation {0:?}")]
+    OldLidoValidatorStateInvariantViolation(#[from] InvariantError),
+
     #[error("Total validators count {total_validators} != balances count {balances_count}")]
     TotalValidatorsCountMismatch { total_validators: u64, balances_count: u64 },
     #[error("Balances hash mismatch, got {actual:?}, expected {expected:?}")]
@@ -223,24 +221,6 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         Ok(())
     }
 
-    // NOTE: mutable iterator - data is still immutable
-    fn is_sorted_and_unique<Elem: PartialOrd>(input: &mut impl Iterator<Item = Elem>) -> bool {
-        let next = input.next();
-        match next {
-            None => true, // empty iterator is sorted
-            Some(value) => {
-                let mut current = value;
-                for new_val in input.by_ref() {
-                    if current >= new_val {
-                        return false;
-                    }
-                    current = new_val;
-                }
-                true
-            }
-        }
-    }
-
     /**
      * Proves that the data passed into program is well-formed and correct
      *
@@ -285,26 +265,17 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
                 epoch_from_slot,
             }));
         }
-        self.cycle_tracker.start_span("prove_input.old_state.deposited.sorted");
-        if !Self::is_sorted_and_unique(&mut input.old_lido_validator_state.deposited_lido_validator_indices.iter()) {
-            return Err(Error::ConditionCheck(
-                ConditionCheckFailure::DepositedValidatorsNotSorted,
-            ));
-        }
-        self.cycle_tracker.end_span("prove_input.old_state.deposited.sorted");
-
-        self.cycle_tracker.start_span("prove_input.old_state.pending.sorted");
-        if !Self::is_sorted_and_unique(
-            &mut input
-                .old_lido_validator_state
-                .pending_deposit_lido_validator_indices
-                .iter(),
-        ) {
-            return Err(Error::ConditionCheck(
-                ConditionCheckFailure::PendingDepositValidatorsNotSorted,
-            ));
-        }
-        self.cycle_tracker.end_span("prove_input.old_state.pending.sorted");
+        self.cycle_tracker.start_span("prove_input.old_state.invariants");
+        // Theoretically, this check is not needed, since old_lido_validator_state
+        // is merkelized and merkle root is passed to the contract - so any
+        // modification will result in report being rejected. However, this pushes
+        // the verification failure into contract (way later, and more costly than failing the proof)
+        // so we keep this
+        input
+            .old_lido_validator_state
+            .check_invariants()
+            .map_err(ConditionCheckFailure::OldLidoValidatorStateInvariantViolation)?;
+        self.cycle_tracker.end_span("prove_input.old_state.invariants");
         self.cycle_tracker.end_span("prove_input.old_state");
 
         // Validators and balances are included into BeaconState (merkle multiproof)
@@ -337,22 +308,9 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             .end_span(&format!("{vals_and_bals_prefix}.validator_delta"));
 
         // Step 1: confirm validators and balances hashes are included into beacon_state
-        self.cycle_tracker
-            .start_span(&format!("{vals_and_bals_prefix}.inclusion_proof"));
-
-        let vals_and_bals_multiproof_leaves = [beacon_state.validators, beacon_state.balances];
-        beacon_state
-            .verify_serialized(
-                &input.validators_and_balances.validators_and_balances_proof,
-                &[BeaconStateFields::validators, BeaconStateFields::balances],
-                &vals_and_bals_multiproof_leaves,
-            )
-            .map_err(|e| Error::MerkleProofError {
-                operation: "Verify Inclusion Proof for validators and balances",
-                error: e,
-            })?;
-        self.cycle_tracker
-            .end_span(&format!("{vals_and_bals_prefix}.inclusion_proof"));
+        // Ensured by beacon_state.tree_hash_root() == beacon_block_header.state_root above
+        // If validators or balances hash roots are different, beacon_state root will not match
+        // the block header - so there's no need to verify the validators and balances hashes inclusion proof
 
         // Step 2: confirm passed balances match the ones in BeaconState
         self.cycle_tracker
@@ -373,7 +331,9 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             .start_span(&format!("{vals_and_bals_prefix}.validator_inclusion_proofs"));
 
         if !input.validators_and_balances.validators_delta.all_added.is_empty() {
-            if !Self::is_sorted_and_unique(&mut input.validators_and_balances.validators_delta.added_indices()) {
+            if !util::is_sorted_ascending_and_unique(
+                &mut input.validators_and_balances.validators_delta.added_indices(),
+            ) {
                 return Err(Error::ConditionCheck(ConditionCheckFailure::AllAddedNotSorted));
             }
             let proof =
@@ -414,7 +374,9 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         }
 
         if !input.validators_and_balances.validators_delta.lido_changed.is_empty() {
-            if !Self::is_sorted_and_unique(&mut input.validators_and_balances.validators_delta.lido_changed_indices()) {
+            if !util::is_sorted_ascending_and_unique(
+                &mut input.validators_and_balances.validators_delta.lido_changed_indices(),
+            ) {
                 return Err(Error::ConditionCheck(ConditionCheckFailure::LidoChangedNotSorted));
             }
             let proof = merkle_proof::serde::deserialize_proof(
@@ -528,10 +490,11 @@ mod test {
 
     use crate::eth_consensus_layer::test_utils::proptest_utils as eth_proptest;
     use crate::eth_consensus_layer::{Epoch, Validators};
+    use crate::merkle_proof::FieldProof;
     use proptest as prop;
     use proptest::prelude::*;
 
-    use super::{FieldProof, Hash256, InputVerifier, NoopCycleTracker, TreeHash, Validator, ValidatorWithIndex};
+    use super::{Hash256, InputVerifier, NoopCycleTracker, TreeHash, Validator, ValidatorWithIndex};
 
     fn create_validator(index: u8) -> Validator {
         let mut pubkey: [u8; 48] = [0; 48];

@@ -8,9 +8,9 @@ use ssz_types::VariableList;
 use tree_hash_derive::TreeHash;
 
 use crate::eth_consensus_layer::{BeaconState, Epoch, Hash256, Validator, ValidatorIndex, Validators};
-use crate::eth_spec;
 use crate::io::eth_io::{BeaconChainSlot, HaveEpoch, HaveSlotWithBlock};
 use crate::util::usize_to_u64;
+use crate::{eth_spec, util};
 
 pub type ValidatorIndexList = VariableList<ValidatorIndex, eth_spec::ReducedValidatorRegistryLimit>;
 
@@ -42,6 +42,21 @@ pub enum Error {
     U64ToUizeConversionError(#[from] TryFromIntError),
 }
 
+#[derive(derive_more::Debug, thiserror::Error)]
+pub enum InvariantError {
+    #[error("Lido Validator State invariant violation {0:?}")]
+    InvariantViolation(InvariantViolation),
+}
+
+#[derive(Debug, Clone)]
+pub enum InvariantViolation {
+    SlotEpochNotEqualLidoStateEpoch,
+    DepositedValidatorsNotSorted,
+    PendingValidatorsNotSorted,
+    DepositedIndexGreaterThanMaxValidatorIndex,
+    PendingIndexGreaterThanMaxValidatorIndex,
+}
+
 #[derive(PartialEq, Clone, Debug, Serialize, Deserialize, TreeHash)]
 pub struct LidoValidatorState {
     pub slot: BeaconChainSlot,
@@ -70,6 +85,43 @@ impl HaveSlotWithBlock for LidoValidatorState {
 }
 
 impl LidoValidatorState {
+    pub fn check_invariants(&self) -> Result<&Self, InvariantError> {
+        if self.slot.epoch() != self.epoch {
+            return Err(InvariantError::InvariantViolation(
+                InvariantViolation::SlotEpochNotEqualLidoStateEpoch,
+            ));
+        }
+        if !util::is_sorted_ascending_and_unique(&mut self.deposited_lido_validator_indices.iter()) {
+            return Err(InvariantError::InvariantViolation(
+                InvariantViolation::DepositedValidatorsNotSorted,
+            ));
+        }
+        if !util::is_sorted_ascending_and_unique(&mut self.pending_deposit_lido_validator_indices.iter()) {
+            return Err(InvariantError::InvariantViolation(
+                InvariantViolation::PendingValidatorsNotSorted,
+            ));
+        }
+
+        // We know the deposited_lido_validator_indices is sorted ascending, so it's enough to check the last element
+        if let Some(&value) = self.deposited_lido_validator_indices.last() {
+            if value > self.max_validator_index {
+                return Err(InvariantError::InvariantViolation(
+                    InvariantViolation::DepositedIndexGreaterThanMaxValidatorIndex,
+                ));
+            }
+        }
+
+        // We know the pending_deposit_lido_validator_indices is sorted ascending, so it's enough to check the last element
+        if let Some(&value) = self.deposited_lido_validator_indices.last() {
+            if value > self.max_validator_index {
+                return Err(InvariantError::InvariantViolation(
+                    InvariantViolation::PendingIndexGreaterThanMaxValidatorIndex,
+                ));
+            }
+        }
+        Ok(self)
+    }
+
     pub fn total_validators(&self) -> ValidatorIndex {
         self.max_validator_index + 1
     }
