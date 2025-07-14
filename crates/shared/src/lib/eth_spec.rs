@@ -20,3 +20,5 @@ pub type ReducedValidatorRegistryLimit = U268435456; // 2 ^ 28
 pub type PendingDepositsLimit = U134217728; // 2 ^ 27
 pub type PendingPartialWithdrawalsLimit = U134217728; // 2 ^ 27
 pub type PendingConsolidationsLimit = U262144; // 2^ 18
+
+pub type SecondsPerSlot = U12;

@@ -158,6 +158,18 @@ contract Sp1LidoAccountingReportContractTest is Test {
         return abi.encodeWithSelector(Sp1LidoAccountingReportContract.VerificationError.selector, message);
     }
 
+    function beacon_block_hash_mismatch_error(bytes32 expected_hash, bytes32 actual_hash)
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodeWithSelector(
+            Sp1LidoAccountingReportContract.BeaconBlockHashMismatch.selector,
+            expected_hash,
+            actual_hash
+        );
+    }
+
     function illegal_ref_slot_error(uint256 bc_slot, uint256 ref_slot, string memory message)
         internal
         view
@@ -221,7 +233,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         setSingleBlockHash(fixture.metadata.bc_slot, expectedHash);
         verifierPasses();
 
-        vm.expectRevert(verification_error("BeaconBlockHash mismatch"));
+        vm.expectRevert(beacon_block_hash_mismatch_error(expectedHash, fixture.metadata.beacon_block_hash));
         _contract.submitReportData(fixture.proof, fixture.publicValues);
     }
 

@@ -32,6 +32,7 @@ async fn main() {
         &consensus_layer_rpc_url,
         &bs_endpoint,
         &ssz_folder,
+        &[],
         Arc::new(prometheus_metrics::build_service_metrics(
             "namespace",
             "file_reader",

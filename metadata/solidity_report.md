@@ -44,14 +44,15 @@ This section lists files that are in scope for the metrics report.
 
 ### <span id=t-source-Units-in-Scope>Source Units in Scope</span>
 
-Source Units Analyzed: **`2`**<br>
-Source Units in Scope: **`2`** (**100%**)
+Source Units Analyzed: **`3`**<br>
+Source Units in Scope: **`3`** (**100%**)
 
 | Type | File   | Logic Contracts | Interfaces | Lines | nLines | nSLOC | Comment Lines | Complex. Score | Capabilities |
 | ---- | ------ | --------------- | ---------- | ----- | ------ | ----- | ------------- | -------------- | ------------ | 
-| 🔍 | contracts/src/ISecondOpinionOracle.sol | **** | 1 | 12 | 5 | 3 | 1 | 3 | **** |
-| 📝 | contracts/src/Sp1LidoAccountingReportContract.sol | 1 | **** | 318 | 302 | 200 | 52 | 86 | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
-| 📝🔍 | **Totals** | **1** | **1** | **330**  | **307** | **203** | **53** | **89** | **<abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 🔍 | contracts/src/ISecondOpinionOracle.sol | **** | 1 | 16 | 6 | 3 | 2 | 3 | **** |
+| 📝 | contracts/src/PausableUntil.sol | 1 | **** | 102 | 102 | 72 | 14 | 32 | **** |
+| 📝 | contracts/src/Sp1LidoAccountingReportContract.sol | 1 | **** | 391 | 372 | 245 | 69 | 119 | **<abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 📝🔍 | **Totals** | **2** | **1** | **509**  | **480** | **320** | **85** | **154** | **<abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
 
 <sub>
 Legend: <a onclick="toggleVisibility('table-legend', this)">[➕]</a>
@@ -139,14 +140,14 @@ The analysis finished with **`0`** errors and **`0`** duplicate files.
 
 #### <span id=t-inline-documentation>Inline Documentation</span>
 
-- **Comment-to-Source Ratio:** On average there are`4.26` code lines per comment (lower=better).
+- **Comment-to-Source Ratio:** On average there are`4.11` code lines per comment (lower=better).
 - **ToDo's:** `0` 
 
 #### <span id=t-components>Components</span>
 
 | 📝Contracts   | 📚Libraries | 🔍Interfaces | 🎨Abstract |
 | ------------- | ----------- | ------------ | ---------- |
-| 1 | 0  | 1  | 0 |
+| 2 | 0  | 1  | 0 |
 
 #### <span id=t-exposed-functions>Exposed Functions</span>
 
@@ -154,17 +155,17 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 | 🌐Public   | 💰Payable |
 | ---------- | --------- |
-| 6 | 0  | 
+| 12 | 0  | 
 
 | External   | Internal | Private | Pure | View |
 | ---------- | -------- | ------- | ---- | ---- |
-| 2 | 13  | 1 | 0 | 13 |
+| 7 | 27  | 1 | 0 | 17 |
 
 #### <span id=t-statevariables>StateVariables</span>
 
 | Total      | 🌐Public  |
 | ---------- | --------- |
-| 11  | 7 |
+| 14  | 10 |
 
 #### <span id=t-capabilities>Capabilities</span>
 
@@ -178,12 +179,13 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 | ♻️ TryCatch | Σ Unchecked |
 | ---------- | ----------- |
-| **** | `yes` |
+| `yes` | `yes` |
 
 #### <span id=t-package-imports>Dependencies / External Imports</span>
 
 | Dependency / Import Path | Count  | 
 | ------------------------ | ------ |
+| @openzeppelin/contracts/access/Ownable.sol | 1 |
 | @sp1-contracts/ISP1Verifier.sol | 1 |
 
 #### <span id=t-totals>Totals</span>
@@ -243,8 +245,9 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 |  File Name  |  SHA-1 Hash  |
 |-------------|--------------|
-| contracts/src/ISecondOpinionOracle.sol | 6961c6873aa91aa2e0e2f2afd28ccfc36cc0002c |
-| contracts/src/Sp1LidoAccountingReportContract.sol | 0e72b434b0221e92df87e5744cbb07e65be6d936 |
+| contracts/src/ISecondOpinionOracle.sol | aae4a41a136aa0bae4c90f868431f5863f86ddad |
+| contracts/src/PausableUntil.sol | f384a4a37d3c1cd3311fce52acb734d3515df644 |
+| contracts/src/Sp1LidoAccountingReportContract.sol | ca40f4304330c119c9a8021838a95d90dddacaca |
 
 
  Contracts Description Table
@@ -257,13 +260,27 @@ This section lists functions that are explicitly declared public or payable. Ple
 | **SecondOpinionOracle** | Interface |  |||
 | └ | getReport | External ❗️ |   |NO❗️ |
 ||||||
-| **Sp1LidoAccountingReportContract** | Implementation | SecondOpinionOracle |||
-| └ | <Constructor> | Public ❗️ | 🛑  |NO❗️ |
+| **PausableUntil** | Implementation |  |||
+| └ | _checkPaused | Internal 🔒 |   | |
+| └ | _checkResumed | Internal 🔒 |   | |
+| └ | isPaused | Public ❗️ |   |NO❗️ |
+| └ | getResumeSinceTimestamp | External ❗️ |   |NO❗️ |
+| └ | _resume | Internal 🔒 | 🛑  | |
+| └ | _pauseFor | Internal 🔒 | 🛑  | |
+| └ | _pauseUntil | Internal 🔒 | 🛑  | |
+| └ | _setPausedState | Internal 🔒 | 🛑  | |
+||||||
+| **Sp1LidoAccountingReportContract** | Implementation | SecondOpinionOracle, Ownable, PausableUntil |||
+| └ | <Constructor> | Public ❗️ | 🛑  | Ownable |
 | └ | getReport | External ❗️ |   |NO❗️ |
 | └ | getLatestLidoValidatorStateSlot | Public ❗️ |   |NO❗️ |
 | └ | getLidoValidatorStateHash | Public ❗️ |   |NO❗️ |
 | └ | getBeaconBlockHash | Public ❗️ |   |NO❗️ |
-| └ | submitReportData | Public ❗️ | 🛑  |NO❗️ |
+| └ | submitReportData | Public ❗️ | 🛑  | whenResumed |
+| └ | setPauser | External ❗️ | 🛑  | onlyOwner |
+| └ | pauseFor | External ❗️ | 🛑  |NO❗️ |
+| └ | pauseUntil | External ❗️ | 🛑  |NO❗️ |
+| └ | resume | External ❗️ | 🛑  | onlyOwner |
 | └ | _verify_reference_and_bc_slot | Internal 🔒 |   | |
 | └ | _verify_public_values | Internal 🔒 |   | |
 | └ | _getExpectedWithdrawalCredentials | Internal 🔒 |   | |

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sp1_lido_accounting_scripts::beacon_state_reader::{
     BeaconStateReader, RefSlotResolver, StateId,
 };
@@ -13,7 +15,7 @@ use sp1_lido_accounting_scripts::scripts::prelude::ScriptRuntime;
 
 async fn get_previous_bc_slot(
     maybe_previous_ref_slot: Option<ReferenceSlot>,
-    ref_slot_resolver: &impl RefSlotResolver,
+    ref_slot_resolver: Arc<impl RefSlotResolver>,
     contract: &ReportContract,
 ) -> anyhow::Result<BeaconChainSlot> {
     let result = match maybe_previous_ref_slot {
@@ -28,24 +30,23 @@ pub async fn run(
     target_slot: ReferenceSlot,
     maybe_previous_slot: Option<ReferenceSlot>,
 ) -> anyhow::Result<()> {
+    let refslot_resolver = runtime.ref_slot_resolver();
     let (actual_target_slot, actual_previous_slot) = try_join!(
-        runtime
-            .ref_slot_resolver()
-            .find_bc_slot_for_refslot(target_slot),
+        refslot_resolver.find_bc_slot_for_refslot(target_slot),
         get_previous_bc_slot(
             maybe_previous_slot,
-            runtime.ref_slot_resolver(),
+            Arc::clone(&refslot_resolver),
             &runtime.lido_infra.report_contract
         ),
     )?;
     let target_state_id = StateId::Slot(actual_target_slot);
     let old_state_id = StateId::Slot(actual_previous_slot);
+    let bs_reader = runtime.bs_reader();
+
     let (target_bh, target_bs, old_bs) = try_join!(
-        runtime
-            .bs_reader()
-            .read_beacon_block_header(&target_state_id),
-        runtime.bs_reader().read_beacon_state(&target_state_id),
-        runtime.bs_reader().read_beacon_state(&old_state_id)
+        bs_reader.read_beacon_block_header(&target_state_id),
+        bs_reader.read_beacon_state(&target_state_id),
+        bs_reader.read_beacon_state(&old_state_id)
     )?;
 
     let lido_withdrawal_credentials: Hash256 = runtime.lido_settings.withdrawal_credentials;

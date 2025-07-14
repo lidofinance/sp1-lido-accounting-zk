@@ -3,7 +3,7 @@
 pragma solidity 0.8.27;
 
 import {ISP1Verifier} from "@sp1-contracts/ISP1Verifier.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
 import {SecondOpinionOracle} from "./ISecondOpinionOracle.sol";
 import {PausableUntil} from "./PausableUntil.sol";
@@ -83,6 +83,10 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
 
     /// @dev Verification failed
     error VerificationError(string error_message);
+    /// @dev SP1 verifier rejected the proof
+    error Sp1VerificationError(string error_message);
+
+    error BeaconBlockHashMismatch(bytes32 expected, bytes32 actual);
 
     error IllegalReferenceSlotError(
         uint256 bc_slot,
@@ -178,7 +182,14 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         _verify_public_values(public_values);
 
         // Verify ZK-program and public values
-        ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof);
+        try ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof) {
+            // If SP1 verifier didn't revert - it means that proof is valid
+        } catch (bytes memory reason) {
+            if (reason.length > 0) {
+                revert Sp1VerificationError(string(reason));
+            }
+            revert Sp1VerificationError("SP1 verifier reverted without a reason");
+        }
 
         // If all checks pass - record report and state
         _recordReport(report);
@@ -254,7 +265,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         // Check that passed beacon_block_hash matches the one observed on the blockchain for
         // the target slot
         bytes32 expected_block_hash = _findBeaconBlockHash(metadata.bc_slot);
-        require(metadata.beacon_block_hash == expected_block_hash, VerificationError("BeaconBlockHash mismatch"));
+        require(metadata.beacon_block_hash == expected_block_hash, BeaconBlockHashMismatch(expected_block_hash, metadata.beacon_block_hash));
 
         // Check that correct withdrawal credentials were used
         require(

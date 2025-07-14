@@ -4,6 +4,10 @@ set dotenv-required := false
 local_verify_proof:="false"
 verify_contract:="false"
 
+# need to limit number of concurrent compile and test threads to avoid OOM during build and execution
+compile_threads:="8"
+test_threads:="16"
+
 verify_contract_cmd:=if verify_contract == "true" { "--verify" } else { "" }
 local_verify_cmd:=if local_verify_proof == "true" { "--local-verify" } else { "" }
 
@@ -56,28 +60,45 @@ anvil_mine number='1':
 ### Contract interactions ###
 # These implicitly depends on run_anvil, but we don't want to start anvil each time - it should be running
 [working-directory: 'contracts']
-deploy:
+contract_deploy:
     forge script --chain $EVM_CHAIN_ID script/Deploy.s.sol:Deploy --rpc-url $EXECUTION_LAYER_RPC --broadcast {{verify_contract_cmd}}
 
-read_last_report_slot:
+[working-directory: 'test_contracts']
+block_root_mock_deploy:
+    forge script --chain $EVM_CHAIN_ID script/Deploy.s.sol:Deploy --rpc-url $EXECUTION_LAYER_RPC --broadcast
+
+contract_read_last_report_slot:
     cast call $CONTRACT_ADDRESS "getLatestLidoValidatorStateSlot()(uint256)" --rpc-url $EXECUTION_LAYER_RPC
 
-read_last_report:
+contract_read_last_report:
     #!/usr/bin/env bash
     set -euxo pipefail
     target_slot=$(cast --json call $CONTRACT_ADDRESS "getLatestLidoValidatorStateSlot()(uint256)"  --rpc-url $EXECUTION_LAYER_RPC| jq ".[0] | tonumber")
     cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" $target_slot --rpc-url $EXECUTION_LAYER_RPC
 
-read_report target_slot:
+contract_read_report target_slot:
     cast call $CONTRACT_ADDRESS "getReport(uint256)(bool,uint256,uint256,uint256,uint256)" "{{target_slot}}" --rpc-url $EXECUTION_LAYER_RPC
+
+contract_get_block_hash target_slot:
+    cast call $CONTRACT_ADDRESS "getBeaconBlockHash(uint256 slot)" "{{target_slot}}" --rpc-url $EXECUTION_LAYER_RPC
+
+block_root_mock_setup:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+    bytecode=$(cat test_contracts/out/BeaconRootsMock.sol/BeaconRootsMock.json | jq ".deployedBytecode.object")
+    curl $EXECUTION_LAYER_RPC  -H "Content-Type: application/json" -d '{ "jsonrpc": "2.0", "method": "anvil_setCode", "params": ["0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02", '${bytecode#0x}'], "id": 1 }'
+
+block_root_mock_set_block_hash timestamp hash:
+    cast send "0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02" "setRoot(uint256 timestamp, bytes32 root)" "{{timestamp}}" "{{hash}}" --rpc-url $EXECUTION_LAYER_RPC --private-key $PRIVATE_KEY
+
+block_root_mock_get_block_hash timestamp:
+    cast call "0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02" "beacon_block_hashes(uint256)(bytes32)" "{{timestamp}}" --rpc-url $EXECUTION_LAYER_RPC
+    cast call "0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02" $(cast abi-encode "f(uint256)" {{timestamp}}) --rpc-url $EXECUTION_LAYER_RPC
 ### Contract interactions ###
 
 ### Development ###
 store_report target_slot previous_slot: build
     ./target/release/store_report --target-ref-slot {{target_slot}} --previous-ref-slot {{previous_slot}}
-
-update_fixtures target_slot previous_slot='0': build
-    ./target/release/write_test_fixture --target-ref-slot {{target_slot}} {{ if previous_slot != "0" { "--previous-ref-slot "+previous_slot } else { "" } }}
 
 download_state target_slot format="ssz":
     curl -H {{ if format == "ssz" { "'Accept:application/octet-stream'" } else { "'Accept:application/json'" } }} ${CONSENSUS_LAYER_RPC}/eth/v2/debug/beacon/states/{{target_slot}} > temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
@@ -88,14 +109,17 @@ download_header target_slot:
 download_bs target_slot format="ssz": (download_state target_slot) (download_header target_slot)
 
 add_test_bs target_slot format="ssz": (download_bs target_slot) (download_bs target_slot)
-    cp temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}_header.json script/tests/data/beacon_states/bs_{{target_slot}}_header.json
-    cp temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }} script/tests/data/beacon_states/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
+    cp temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}_header.json crates/script/tests/data/beacon_states/bs_{{target_slot}}_header.json
+    cp temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }} crates/script/tests/data/beacon_states/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
 
 read_validators target_slot:
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validators > temp/vals_bals/$EVM_CHAIN/validators_{{target_slot}}.json
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validator_balances > temp/vals_bals/$EVM_CHAIN/balances_{{target_slot}}.json
 
 ### Testing ###
+test_update_fixtures target_slot='0' previous_slot='0': build
+    ./target/release/write_test_fixture {{ if target_slot != "0" { "--target-ref-slot "+target_slot } else { "" } }} {{ if previous_slot != "0" { "--previous-ref-slot "+previous_slot } else { "" } }}
+    
 [working-directory: 'contracts']
 test_contracts:
     forge test
@@ -108,17 +132,17 @@ test_shared:
 test_program:
     cargo test
 
+# building scripts starts multiple builds in parallel and often OOMs
+# -j 5 limits the concurrency for building (but not running) and avoids that
+# --test-threads 5 limits concurrency for running tests (sometimes it gets excited and runs too
+# many in parallel, consuming all the memory and grinding to a halt)
 [working-directory: 'crates/script']
 test_script:
-    # building scripts starts multiple builds in parallel and often OOMs
-    # -j 5 limits the concurrency for building (but not running) and avoids that
-    # --test-threads 5 limits concurrecny for running tests (sometimes it gets excited and runs too
-    # many in parallel, consuming all the memory and grinding to a halt)
-    RUST_LOG=info cargo test -j 5 -- --test-threads=5 --nocapture
+    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG=info cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads={{test_threads}}
 
 [working-directory: 'crates/script']
 integration_test:
-    cargo test -j 5 --include-ignored
+    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG=info cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads {{test_threads}} --include-ignored 2>&1 | tee test.log
 
 test: test_contracts test_shared test_script
 

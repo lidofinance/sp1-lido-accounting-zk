@@ -45,16 +45,16 @@ impl CycleTracker for LogCycleTracker {
 pub enum ConditionCheckFailure {
     #[error("Failed to verify Beacon Block Header hash, got {actual:?}, expected {expected:?}")]
     BeaconBlockHashMismatch {
-        #[debug("0x{:?}", hex::encode(actual))]
+        #[debug("{:#?}", actual)]
         actual: Hash256,
-        #[debug("0x{:?}", hex::encode(expected))]
+        #[debug("{:#?}", expected)]
         expected: Hash256,
     },
     #[error("Beacon State hash mismatch, got {actual:?}, expected {expected:?}")]
     BeaconStateHashMismatch {
-        #[debug("0x{:?}", hex::encode(actual))]
+        #[debug("{:#?}", actual)]
         actual: Hash256,
-        #[debug("0x{:?}", hex::encode(expected))]
+        #[debug("{:#?}", expected)]
         expected: Hash256,
     },
     #[error("Wrong old state epoch: passed {epoch}, expected from slot {epoch_from_slot}")]
@@ -67,9 +67,9 @@ pub enum ConditionCheckFailure {
     TotalValidatorsCountMismatch { total_validators: u64, balances_count: u64 },
     #[error("Balances hash mismatch, got {actual:?}, expected {expected:?}")]
     BalancesHashMismatch {
-        #[debug("0x{:?}", hex::encode(actual))]
+        #[debug("{:#?}", actual)]
         actual: Hash256,
-        #[debug("0x{:?}", hex::encode(expected))]
+        #[debug("{:#?}", expected)]
         expected: Hash256,
     },
     #[error("All added should be sorted by index and have no duplicates")]

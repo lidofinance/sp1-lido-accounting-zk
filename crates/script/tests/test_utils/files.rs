@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::sync::Arc;
 use std::{env, path::PathBuf};
 
@@ -15,11 +16,22 @@ use sp1_lido_accounting_zk_shared::io::program_io::WithdrawalVaultData;
 
 pub struct TestFiles {
     pub base: PathBuf,
+    pub beacon_state_reader: FileBasedBeaconStateReader,
 }
 
 impl TestFiles {
     pub fn new(base: PathBuf) -> Self {
-        Self { base }
+        let metrics_reporter = Arc::new(prometheus_metrics::build_service_metrics(
+            "irrelevant",
+            "file_reader",
+            None,
+        ));
+        let store_location = base.join("beacon_states");
+        Self {
+            base,
+            beacon_state_reader: FileBasedBeaconStateReader::new(&store_location, metrics_reporter.clone())
+                .expect("Failed to initialize BS reader for test files"),
+        }
     }
     pub fn new_from_manifest_dir() -> Self {
         let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data");
@@ -77,16 +89,7 @@ impl TestFiles {
     }
 
     pub async fn read_beacon_block_header(&self, state_id: &StateId) -> Result<BeaconBlockHeader> {
-        let file_reader = FileBasedBeaconStateReader::new(
-            &self.beacon_states(),
-            Arc::new(prometheus_metrics::build_service_metrics(
-                "irrelevant",
-                "file_reader",
-                None,
-            )),
-        )
-        .expect("Failed to create file reader");
-        file_reader
+        self.beacon_state_reader
             .read_beacon_block_header(state_id)
             .await
             .map_err(|err| eyre!("Failed to read beacon block header {:?} {:#?}", state_id, err))

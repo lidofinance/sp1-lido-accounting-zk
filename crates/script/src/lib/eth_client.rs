@@ -449,7 +449,7 @@ mod tests {
                 slot: BeaconChainSlot(7643456),
                 merkle_root: hex!("5d22a84a06f79d4b9f4d94769190a9f5afb077607f5084b781c1d996c4bd3c16"),
             },
-            admin: hex!("0000000000000000000000000000000000000000"),
+            admin: hex!("3e40d73eb977dc6a537af587d48316fee66e9c8c"),
         }
     }
 
