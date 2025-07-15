@@ -37,7 +37,7 @@ use sp1_lido_accounting_zk_shared::{
         program_io::WithdrawalVaultData,
     },
 };
-use sp1_sdk::ProverClient;
+use sp1_sdk::{network::FulfillmentStrategy, ProverClient};
 use std::{
     env,
     io::{BufRead, BufReader},
@@ -71,7 +71,8 @@ lazy_static! {
     pub static ref SP1_CLIENT: Arc<SP1ClientWrapperImpl> = {
         tracing::warn!("Initializing SP1 Client");
         Arc::new(SP1ClientWrapperImpl::new(
-            ProverClient::from_env(),
+            ProverClient::builder().network().build(),
+            FulfillmentStrategy::Hosted,
             METRICS.services.sp1_client.clone(),
         ))
     };

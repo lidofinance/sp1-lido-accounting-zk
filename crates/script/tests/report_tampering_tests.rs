@@ -1,16 +1,13 @@
 mod test_utils;
 
-use std::sync::Arc;
-
 use alloy::rpc::types::TransactionReceipt;
 use alloy_sol_types::SolType;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::{BeaconStateReader, StateId},
     eth_client::Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors,
-    prometheus_metrics,
     proof_storage::StoredProof,
     scripts::shared as shared_logic,
-    sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
+    sp1_client_wrapper::SP1ClientWrapper,
     InputChecks,
 };
 
@@ -23,10 +20,10 @@ use sp1_lido_accounting_zk_shared::{
         program_io::WithdrawalVaultData,
     },
 };
-use sp1_sdk::{HashableKey, ProverClient};
+use sp1_sdk::HashableKey;
 use test_utils::env::IntegrationTestEnvironment;
 
-use crate::test_utils::{eyre_to_anyhow, TestAssertions};
+use crate::test_utils::{env::SP1_CLIENT, eyre_to_anyhow, TestAssertions};
 
 const STORED_PROOF_FILE_NAME: &str = "fixture.json";
 
@@ -195,14 +192,7 @@ fn wrap_metadata_mapper(
 
 #[test]
 fn check_vkey_matches() -> Result<()> {
-    let sp1_client = SP1ClientWrapperImpl::new(
-        ProverClient::from_env(),
-        Arc::new(prometheus_metrics::build_service_metrics(
-            "irrelevant",
-            "sp1_client",
-            None,
-        )),
-    );
+    let sp1_client = &SP1_CLIENT;
     let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
     let proof = test_files.read_proof(STORED_PROOF_FILE_NAME).map_err(eyre_to_anyhow)?;
     assert_eq!(sp1_client.vk().bytes32(), proof.vkey, "Vkey in stored proof and in client mismatch. Please run write_test_fixture script to generate new stored proof");

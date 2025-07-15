@@ -6,6 +6,7 @@ use crate::prometheus_metrics::{self, Metrics};
 use crate::sp1_client_wrapper::SP1ClientWrapperImpl;
 use crate::tracing::LogFormat;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
+use sp1_sdk::network::FulfillmentStrategy;
 use sp1_sdk::ProverClient;
 
 use crate::env::EnvVarValue;
@@ -26,6 +27,7 @@ use alloy::transports::http::reqwest::Url;
 const DEFAULT_DRY_RUN: bool = true; // Fail close
 const DEFAULT_REPORT_CYCLES: bool = false; // Reporting cycles causes higher load on the current server
 const DEFAULT_PROMETHEUS_NAMESPACE: &str = "zk_accounting_sp1";
+const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -148,7 +150,7 @@ pub struct EnvVars {
     pub internal_scheduler: EnvVarValue<String>,
     pub internal_scheduler_cron: EnvVarValue<String>,
     pub internal_scheduler_tz: EnvVarValue<String>,
-    pub sp1_prover: EnvVarValue<String>,
+    pub strategy: EnvVarValue<FulfillmentStrategy>,
     pub network_private_key: EnvVarValue<String>,
     pub network_rpc_url: EnvVarValue<Option<Url>>,
     pub bs_reader_mode: EnvVarValue<String>,
@@ -178,7 +180,10 @@ impl EnvVars {
             internal_scheduler: crate::env::INTERNAL_SCHEDULER.required(),
             internal_scheduler_cron: crate::env::INTERNAL_SCHEDULER_CRON.required(),
             internal_scheduler_tz: crate::env::INTERNAL_SCHEDULER_TZ.required(),
-            sp1_prover: crate::env::SP1_PROVER.required(),
+            strategy: crate::env::SP1_FULFILLMENT_STRATEGY.map(|raw| match FulfillmentStrategy::from_str_name(raw) {
+                Some(val) => val,
+                None => panic!("Couldn't parse SP1_FULFILLMENT_STRATEGY: {raw}"),
+            }),
             network_private_key: crate::env::NETWORK_PRIVATE_KEY.required(),
             network_rpc_url: crate::env::NETWORK_RPC_URL.optional(),
             bs_reader_mode: crate::env::BS_READER_MODE.required(),
@@ -225,7 +230,7 @@ impl EnvVars {
             result.insert("internal_scheduler", format!("{:?}", self.internal_scheduler));
             result.insert("internal_scheduler_cron", format!("{:?}", self.internal_scheduler_cron));
             result.insert("internal_scheduler_tz", format!("{:?}", self.internal_scheduler_tz));
-            result.insert("sp1_prover", format!("{:?}", self.sp1_prover.value));
+            result.insert("fulfillment_strategy", format!("{:?}", self.strategy.value));
             result.insert("network_private_key", format!("{:?}", self.network_private_key));
             result.insert("network_rpc_url", format!("{:?}", self.network_rpc_url));
             result.insert("bs_reader_mode", format!("{:?}", self.bs_reader_mode));
@@ -312,7 +317,8 @@ impl ScriptRuntime {
         )?);
 
         let sp1_client = Arc::new(SP1ClientWrapperImpl::new(
-            ProverClient::from_env(),
+            ProverClient::builder().network().build(),
+            env_vars.strategy.value,
             Arc::clone(&metrics.services.sp1_client),
         ));
 
