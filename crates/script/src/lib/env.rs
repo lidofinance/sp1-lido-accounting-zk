@@ -48,6 +48,16 @@ impl EnvVarSpec {
             }
         }
     }
+
+    pub fn map<TVal, Mapper>(&'static self, mapper: Mapper) -> EnvVarValue<TVal>
+    where
+        Mapper: Fn(&str) -> TVal,
+    {
+        let raw_value: String =
+            env::var(self.key).unwrap_or_else(|e| panic!("Failed to read env var {}: {e:?}", self.key));
+        let value = mapper(&raw_value);
+        EnvVarValue { spec: self, value }
+    }
 }
 
 impl<TVal: Debug> Debug for EnvVarValue<TVal> {
@@ -89,8 +99,8 @@ pub const INTERNAL_SCHEDULER_TZ: EnvVarSpec = EnvVarSpec {
     sensitive: false,
 };
 
-pub const SP1_PROVER: EnvVarSpec = EnvVarSpec {
-    key: "SP1_PROVER",
+pub const SP1_FULFILLMENT_STRATEGY: EnvVarSpec = EnvVarSpec {
+    key: "SP1_FULFILLMENT_STRATEGY",
     sensitive: false,
 };
 pub const NETWORK_PRIVATE_KEY: EnvVarSpec = EnvVarSpec {

@@ -58,7 +58,7 @@ pub async fn service_main() {
         "main",
         chain = env_vars_ref.evm_chain.value.clone(),
         chain_id = env_vars_ref.evm_chain_id.value.clone(),
-        prover = env_vars_ref.sp1_prover.value.clone(),
+        prover = "network",
         dry_run = dry_run,
     );
     let scheduler_span = main_span.clone();

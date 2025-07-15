@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use sp1_sdk::{
-    EnvProver, ExecutionReport, HashableKey, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
-    SP1VerifyingKey,
+    network::FulfillmentStrategy, ExecutionReport, HashableKey, NetworkProver, Prover, SP1ProofWithPublicValues,
+    SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
 
 use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
@@ -39,7 +39,8 @@ pub trait SP1ClientWrapper {
 }
 
 pub struct SP1ClientWrapperImpl {
-    client: EnvProver,
+    client: NetworkProver,
+    strategy: FulfillmentStrategy,
     metric_reporter: Arc<prometheus_metrics::Service>,
     elf: Vec<u8>,
     pk: SP1ProvingKey,
@@ -47,10 +48,15 @@ pub struct SP1ClientWrapperImpl {
 }
 
 impl SP1ClientWrapperImpl {
-    pub fn new(client: EnvProver, metric_reporter: Arc<prometheus_metrics::Service>) -> Self {
+    pub fn new(
+        client: NetworkProver,
+        strategy: FulfillmentStrategy,
+        metric_reporter: Arc<prometheus_metrics::Service>,
+    ) -> Self {
         let (pk, vk) = client.setup(ELF);
         Self {
             client,
+            strategy,
             metric_reporter,
             elf: ELF.to_owned(),
             pk,
@@ -70,6 +76,7 @@ impl SP1ClientWrapperImpl {
         let result = self
             .client
             .prove(&self.pk, &sp1_stdin)
+            .strategy(self.strategy)
             .plonk()
             .run()
             .map_err(Error::Sp1ProveError)?;
