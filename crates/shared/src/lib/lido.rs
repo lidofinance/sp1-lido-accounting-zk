@@ -74,6 +74,14 @@ impl LidoValidatorState {
         self.max_validator_index + 1
     }
 
+    pub fn deposited_indices_set(&self) -> HashSet<u64> {
+        self.deposited_lido_validator_indices.iter().cloned().collect()
+    }
+
+    pub fn exited_indices_set(&self) -> HashSet<u64> {
+        self.exited_lido_validator_indices.iter().cloned().collect()
+    }
+
     pub fn compute(slot: BeaconChainSlot, validators: &Validators, lido_withdrawal_credentials: &Hash256) -> Self {
         let mut deposited: Vec<ValidatorIndex> = vec![];
         let mut pending_deposit: Vec<ValidatorIndex> = vec![];

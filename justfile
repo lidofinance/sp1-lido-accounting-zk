@@ -139,12 +139,12 @@ test_program:
 # --test-threads 5 limits concurrency for running tests (sometimes it gets excited and runs too
 # many in parallel, consuming all the memory and grinding to a halt)
 [working-directory: 'crates/script']
-test_script test_args="":
-    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG={{tests_log_level}} cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads={{test_threads}} {{test_args}}
+test_script *test_args:
+    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG={{tests_log_level}} cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads={{test_threads}} {{test_args}} | tee ../../test.log
 
 [working-directory: 'crates/script']
-integration_test test_args="":
-    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG={{tests_log_level}} cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads {{test_threads}} --include-ignored  {{test_args}} 2>&1 | tee test.log
+integration_test *test_args:
+    SP1_SKIP_PROGRAM_BUILD=true RUST_LOG={{tests_log_level}} cargo test -j {{compile_threads}} --no-fail-fast -- --test-threads {{test_threads}} --include-ignored {{test_args}} 2>&1 | tee ../../test.log
 
 test: test_contracts test_shared test_script
 

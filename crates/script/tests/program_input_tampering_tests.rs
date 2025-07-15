@@ -9,6 +9,7 @@ use tree_hash::TreeHash;
 use typenum::Unsigned;
 
 use sp1_lido_accounting_scripts::scripts::shared::{self as shared_logic, compute_validators_and_balances_test_public};
+use sp1_lido_accounting_scripts::InputChecks;
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::StateId, eth_client::Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors,
     sp1_client_wrapper::SP1ClientWrapper,
@@ -76,6 +77,12 @@ impl TestExecutor {
 
         let withdrawal_vault_data = self.env.get_balance_proof(&StateId::Slot(target_slot)).await?;
 
+        if verify {
+            InputChecks::set_strict();
+        } else {
+            InputChecks::set_relaxed();
+        }
+
         tracing::info!("Preparing program input");
         let (program_input, _public_values) = shared_logic::prepare_program_input(
             reference_slot,
@@ -84,7 +91,6 @@ impl TestExecutor {
             &old_bs,
             &lido_withdrawal_credentials,
             withdrawal_vault_data,
-            verify,
         )?;
         Ok(program_input)
     }
@@ -256,14 +262,9 @@ mod multi_modifications {
         let bs = bs_modifier(new_bs);
         let old_validator_state = LidoValidatorState::compute_from_beacon_state(&old_bs, withdrawal_credentials);
         let new_validator_state = LidoValidatorState::compute_from_beacon_state(&bs, withdrawal_credentials);
-        let modified_vals_and_bals = compute_validators_and_balances_test_public(
-            &bs,
-            &old_bs,
-            &old_validator_state,
-            withdrawal_credentials,
-            false,
-        )
-        .expect("Failed to prepare program input");
+        let modified_vals_and_bals =
+            compute_validators_and_balances_test_public(&bs, &old_bs, &old_validator_state, withdrawal_credentials)
+                .expect("Failed to prepare program input");
 
         program_input.validators_and_balances = modified_vals_and_bals;
         program_input.old_lido_validator_state = old_validator_state;

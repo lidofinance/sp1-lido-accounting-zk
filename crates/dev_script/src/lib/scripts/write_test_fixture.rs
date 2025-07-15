@@ -63,7 +63,6 @@ pub async fn run(
         &old_bs,
         &lido_withdrawal_credentials,
         withdrawal_vault_data,
-        true,
     )?;
 
     let proof = runtime

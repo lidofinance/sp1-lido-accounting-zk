@@ -1,6 +1,8 @@
 mod test_utils;
 
-use sp1_lido_accounting_scripts::{beacon_state_reader::StateId, scripts::shared::prepare_program_input, tracing};
+use sp1_lido_accounting_scripts::{
+    beacon_state_reader::StateId, scripts::shared::prepare_program_input, tracing, InputChecks,
+};
 use test_utils::{
     env::IntegrationTestEnvironment, files::TestFiles, mark_as_refslot, DEPLOY_SLOT, REPORT_COMPUTE_SLOT,
 };
@@ -68,6 +70,8 @@ async fn program_input_integration_test() -> Result<()> {
     let withdrawal_vault_data = test_files.read_withdrawal_vault_data(&report_state_id).await?;
     let expected_wv_balance = withdrawal_vault_data.balance;
 
+    InputChecks::set_relaxed();
+
     let (_program_input, public_values) = prepare_program_input(
         report_refslot,
         &new_bs,
@@ -75,7 +79,6 @@ async fn program_input_integration_test() -> Result<()> {
         &old_bs,
         &env.script_runtime.lido_settings.withdrawal_credentials,
         withdrawal_vault_data,
-        true,
     )
     .expect("Failed to prepare program input");
 

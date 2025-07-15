@@ -11,6 +11,7 @@ use sp1_lido_accounting_scripts::{
     proof_storage::StoredProof,
     scripts::shared as shared_logic,
     sp1_client_wrapper::{SP1ClientWrapper, SP1ClientWrapperImpl},
+    InputChecks,
 };
 
 use anyhow::Result;
@@ -114,6 +115,7 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
             account_proof: vec![vec![0u8, 1u8, 2u8, 3u8]], // proof is unused in this scenario
         };
 
+        InputChecks::set_relaxed();
         let (_program_input, public_values) = shared_logic::prepare_program_input(
             reference_slot,
             &target_bs,
@@ -121,7 +123,6 @@ impl<M: Fn(PublicValuesRust) -> PublicValuesRust> TestExecutor<M> {
             &old_bs,
             &lido_withdrawal_credentials,
             withdrawal_vault_data,
-            false,
         )
         .expect("Failed to prepare program input");
         tracing::info!("Reading proof");
