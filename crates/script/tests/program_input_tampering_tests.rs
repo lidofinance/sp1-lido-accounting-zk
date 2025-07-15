@@ -2,16 +2,17 @@ mod test_utils;
 use std::collections::HashSet;
 
 use alloy_primitives::Address;
-
 use anyhow::{anyhow, Result};
-
+use itertools::Itertools;
 use rand::seq::IteratorRandom;
+use tree_hash::TreeHash;
+use typenum::Unsigned;
+
 use sp1_lido_accounting_scripts::scripts::shared::{self as shared_logic, compute_validators_and_balances_test_public};
 use sp1_lido_accounting_scripts::{
     beacon_state_reader::StateId, eth_client::Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors,
     sp1_client_wrapper::SP1ClientWrapper,
 };
-
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::BeaconStateFields;
 use sp1_lido_accounting_zk_shared::io::eth_io::{HaveEpoch, ReferenceSlot};
 use sp1_lido_accounting_zk_shared::lido::{LidoValidatorState, ValidatorWithIndex};
@@ -21,9 +22,6 @@ use sp1_lido_accounting_zk_shared::{
     eth_spec,
     io::{eth_io::BeaconChainSlot, program_io::ProgramInput},
 };
-
-use tree_hash::TreeHash;
-use typenum::Unsigned;
 
 use test_utils::{
     env::IntegrationTestEnvironment, mark_as_refslot, set_bs_field, validator, varlists, vecs, TestAssertions,
@@ -1258,17 +1256,173 @@ mod old_state {
 }
 
 mod new_state {
+    use sp1_lido_accounting_zk_shared::{
+        eth_consensus_layer::{ValidatorIndex, WithdrawalCredentials},
+        lido::{ValidatorIndexList, ValidatorOps, ValidatorStatus},
+        merkle_proof::FieldProof,
+    };
+
     use super::*;
+
+    fn get_lido_validators(
+        validators: &[ValidatorWithIndex],
+        lido_creds: WithdrawalCredentials,
+    ) -> Vec<ValidatorWithIndex> {
+        validators
+            .iter()
+            .filter(|v| v.validator.withdrawal_credentials == lido_creds)
+            .cloned()
+            .collect()
+    }
+
+    fn gen_inclusion_proof(bs: &BeaconState, validators: &[ValidatorWithIndex]) -> Vec<u8> {
+        let indices: Vec<usize> = validators
+            .iter()
+            .map(|v| v.index.try_into().expect("Index must fit into usize"))
+            .collect();
+        bs.validators.get_serialized_multiproof(&indices)
+    }
+
+    fn push_index(validator_indices: &mut ValidatorIndexList, index: ValidatorIndex) {
+        validator_indices.push(index).expect("Must fit")
+    }
+
+    // Lightweight replica of merge_validator_delta without checks
+    fn apply_lido_added_to_updated_state(
+        updated_state: &mut LidoValidatorState,
+        lido_added: &[ValidatorWithIndex],
+        target_slot: BeaconChainSlot,
+    ) {
+        let epoch = target_slot.epoch();
+        let mut mutated = false;
+        for added in lido_added {
+            let validator_status = added.validator.status(epoch);
+            match validator_status {
+                ValidatorStatus::Deposited => {
+                    mutated = true;
+                    push_index(&mut updated_state.deposited_lido_validator_indices, added.index);
+                }
+                ValidatorStatus::FutureDeposit => {
+                    mutated = true;
+                    push_index(&mut updated_state.pending_deposit_lido_validator_indices, added.index);
+                }
+                ValidatorStatus::Exited => {
+                    mutated = true;
+                    push_index(&mut updated_state.deposited_lido_validator_indices, added.index);
+                    push_index(&mut updated_state.exited_lido_validator_indices, added.index);
+                }
+            }
+        }
+        assert!(mutated, "No changes happened - test won't check anything");
+        let unique_pending = updated_state.pending_deposit_lido_validator_indices.iter().cloned();
+        updated_state.pending_deposit_lido_validator_indices = unique_pending.unique().sorted().collect_vec().into();
+        updated_state.deposited_lido_validator_indices.sort();
+        updated_state.exited_lido_validator_indices.sort();
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn program_input_tampering_new_state_not_equal_to_old_plus_delta() -> Result<()> {
-        let executor = TestExecutor::default().await?;
-        let target_slot = executor.env.get_finalized_slot().await?;
+        let (executor, target_slot) = setup_no_adjustments().await?;
 
         let mut program_input = executor.prepare_input_no_ver(target_slot).await?;
 
         program_input.new_lido_validator_state_hash = Hash256::random();
         executor.assert_fails_in_prover(program_input).await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn program_input_tampering_pass_added_in_edited_no_inclusion_proof() -> Result<()> {
+        let (executor, target_slot) = setup_default_adjustments().await?;
+
+        let mut program_input = executor.prepare_input_no_ver(target_slot).await?;
+
+        let lido_added = get_lido_validators(
+            &program_input.validators_and_balances.validators_delta.all_added,
+            executor.env.script_runtime.lido_settings.withdrawal_credentials,
+        );
+
+        program_input
+            .validators_and_balances
+            .validators_delta
+            .lido_changed
+            .extend(lido_added);
+
+        executor.assert_fails_in_prover(program_input).await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn program_input_tampering_pass_added_in_edited_adjusted_inclusion_proof() -> Result<()> {
+        let (executor, target_slot) = setup_default_adjustments().await?;
+
+        let mut program_input = executor.prepare_input_no_ver(target_slot).await?;
+
+        let lido_added = get_lido_validators(
+            &program_input.validators_and_balances.validators_delta.all_added,
+            executor.env.script_runtime.lido_settings.withdrawal_credentials,
+        );
+
+        program_input
+            .validators_and_balances
+            .validators_delta
+            .lido_changed
+            .extend(lido_added);
+
+        let bs = executor.env.read_beacon_state(&StateId::Slot(target_slot)).await?;
+        program_input.validators_and_balances.changed_validators_inclusion_proof = gen_inclusion_proof(
+            &bs,
+            &program_input.validators_and_balances.validators_delta.lido_changed,
+        );
+
+        executor.assert_fails_in_prover(program_input).await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn program_input_tampering_pass_added_in_edited_adjusted_inclusion_proof_and_new_hash() -> Result<()> {
+        let (executor, target_slot) = setup_default_adjustments().await?;
+
+        let lido_creds = executor.env.script_runtime.lido_settings.withdrawal_credentials;
+
+        let mut program_input = executor.prepare_input_no_ver(target_slot).await?;
+
+        let lido_added = get_lido_validators(
+            &program_input.validators_and_balances.validators_delta.all_added,
+            lido_creds,
+        );
+        let mut updated_state = program_input.old_lido_validator_state.merge_validator_delta(
+            target_slot,
+            &program_input.validators_and_balances.validators_delta,
+            &lido_creds,
+        )?;
+
+        apply_lido_added_to_updated_state(&mut updated_state, &lido_added, target_slot);
+        program_input
+            .validators_and_balances
+            .validators_delta
+            .lido_changed
+            .extend(lido_added);
+
+        let bs = executor.env.read_beacon_state(&StateId::Slot(target_slot)).await?;
+        program_input.validators_and_balances.changed_validators_inclusion_proof = gen_inclusion_proof(
+            &bs,
+            &program_input.validators_and_balances.validators_delta.lido_changed,
+        );
+
+        tracing::warn!(
+            "Changed indices {:?}",
+            program_input
+                .validators_and_balances
+                .validators_delta
+                .lido_changed
+                .iter()
+                .map(|v| v.index)
+                .collect_vec()
+        );
+
+        program_input.new_lido_validator_state_hash = updated_state.tree_hash_root();
+
+        executor.assert_fails_in_prover(program_input).await
+        // let result = executor.run(program_input).await;
+        // TestAssertions::assert_accepted(result)
     }
 }
 
