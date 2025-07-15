@@ -237,6 +237,17 @@ async fn report_tampering_sanity_check_should_pass() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn report_tampering_no_tampering_resubmit_should_fail() -> Result<()> {
+    let executor = TestExecutor::new(id).await?;
+
+    executor.run_test().await.expect("Should succeed once");
+
+    TestAssertions::assert_rejected_with(executor.run_test().await, |e| {
+        matches!(e, Sp1LidoAccountingReportContractErrors::ReportAlreadyRecorded(_))
+    })
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn report_tampering_report_slot() -> Result<()> {
     let executor = TestExecutor::new(wrap_report_mapper(|report| {
         let mut new_report = report.clone();

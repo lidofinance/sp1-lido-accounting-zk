@@ -4,13 +4,14 @@ pragma solidity 0.8.27;
 import {Test, console} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {Sp1LidoAccountingReportContract} from "../src/Sp1LidoAccountingReportContract.sol";
+import {Sp1LidoAccountingReportContractTestWrapper} from "test/Sp1LidoAccountingReportContractTestWrapper.sol";
 import {SP1VerifierGateway} from "@sp1-contracts/SP1VerifierGateway.sol";
 
 contract Sp1LidoAccountingReportContractTest is Test {
     using stdJson for string;
 
     address private verifier;
-    Sp1LidoAccountingReportContract private _contract;
+    Sp1LidoAccountingReportContractTestWrapper private _contract;
 
     uint256 private immutable GENESIS_BLOCK_TIMESTAMP = 1606824023;
     uint256 private immutable SECONDS_PER_SLOT = 12;
@@ -69,7 +70,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
         verifier = address(new SP1VerifierGateway(address(1)));
-        _contract = new Sp1LidoAccountingReportContract(
+        _contract = new Sp1LidoAccountingReportContractTestWrapper(
             verifier,
             fixture.vkey,
             fixture.metadata.lido_withdrawal_credentials,
@@ -154,8 +155,20 @@ contract Sp1LidoAccountingReportContractTest is Test {
         result[4] = val5;
     }
 
+    function illegal_old_state_slot(uint256 bc_slot, uint256 old_state_slot) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(Sp1LidoAccountingReportContract.IllegalOldStateSlotError.selector, bc_slot, old_state_slot);
+    }
+
     function verification_error(string memory message) internal pure returns (bytes memory) {
         return abi.encodeWithSelector(Sp1LidoAccountingReportContract.VerificationError.selector, message);
+    }
+
+    function report_already_recorded(uint256 refslot) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(Sp1LidoAccountingReportContract.ReportAlreadyRecorded.selector, refslot);
+    }
+
+    function sp1_rejection_error(bytes memory err) internal pure returns (bytes memory)  {
+        return abi.encodeWithSelector(Sp1LidoAccountingReportContract.Sp1VerificationError.selector, string(err));
     }
 
     function beacon_block_hash_mismatch_error(bytes32 expected_hash, bytes32 actual_hash)
@@ -226,6 +239,23 @@ contract Sp1LidoAccountingReportContractTest is Test {
         assertReportAccepted(public_values.report.reference_slot, expected_report);
     }
 
+    function test_validProof_reportTwice_rejected() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+
+        setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
+        verifierPasses();
+
+        Sp1LidoAccountingReportContract.PublicValues memory public_values =
+            abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
+        Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
+
+        _contract.submitReportData(fixture.proof, fixture.publicValues);
+        assertReportAccepted(public_values.report.reference_slot, expected_report);
+
+        vm.expectRevert(report_already_recorded(expected_report.reference_slot));
+        _contract.submitReportData(fixture.proof, fixture.publicValues);
+    }
+
     function test_validProofWrongExpectedBeaconBlockHash_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
         bytes32 expectedHash = 0x1111111100000000000000000000000000000000000000000000000022222222;
@@ -259,10 +289,50 @@ contract Sp1LidoAccountingReportContractTest is Test {
         verifierPasses();
         Sp1LidoAccountingReportContract.PublicValues memory public_values =
             abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
-        public_values.metadata.old_state.slot = 987654321;
+        public_values.metadata.old_state.slot = public_values.metadata.old_state.slot - 10;
         bytes memory public_values_encoded = abi.encode(public_values);
 
         vm.expectRevert(verification_error("Old state merkle_root not found"));
+        _contract.submitReportData(fixture.proof, public_values_encoded);
+    }
+
+    function test_oldStateSlotAheadSameAsBcSlot_reverts() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+
+        uint256 modified_old_state_slot = fixture.metadata.bc_slot;
+
+        setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
+        verifierPasses();
+
+        Sp1LidoAccountingReportContract.PublicValues memory public_values =
+            abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
+
+        public_values.metadata.old_state.slot = modified_old_state_slot;
+        bytes memory public_values_encoded = abi.encode(public_values);
+        Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
+
+        vm.expectRevert(illegal_old_state_slot(fixture.metadata.bc_slot, modified_old_state_slot));
+        _contract.submitReportData(fixture.proof, public_values_encoded);
+    }
+
+    function test_oldStateSlotAheadOfBcSlot_reverts() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+
+        uint256 modified_old_state_slot = fixture.metadata.bc_slot + 10;
+
+        setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
+        setSingleBlockHash(modified_old_state_slot, fixture.metadata.beacon_block_hash);
+        _contract.recordLidoValidatorStateHash(modified_old_state_slot, fixture.metadata.old_state.merkle_root);
+        verifierPasses();
+
+        Sp1LidoAccountingReportContract.PublicValues memory public_values =
+            abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
+
+        public_values.metadata.old_state.slot = modified_old_state_slot;
+        bytes memory public_values_encoded = abi.encode(public_values);
+        Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
+
+        vm.expectRevert(illegal_old_state_slot(fixture.metadata.bc_slot, modified_old_state_slot));
         _contract.submitReportData(fixture.proof, public_values_encoded);
     }
 
@@ -326,9 +396,10 @@ contract Sp1LidoAccountingReportContractTest is Test {
     function test_validatorRejects_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
 
+        bytes memory err = "Some error";
         setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
-        verifierRejects("Some Error");
-        vm.expectRevert();
+        verifierRejects(err);
+        vm.expectRevert(sp1_rejection_error(err));
         _contract.submitReportData(fixture.proof, fixture.publicValues);
     }
 

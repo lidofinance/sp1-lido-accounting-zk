@@ -86,14 +86,27 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @dev SP1 verifier rejected the proof
     error Sp1VerificationError(string error_message);
 
+    /// @dev Beacon Block Hash mismatch
     error BeaconBlockHashMismatch(bytes32 expected, bytes32 actual);
 
+    /// @dev Illegal reference slot and beacon chain slot passed
     error IllegalReferenceSlotError(
         uint256 bc_slot,
         uint256 bc_slot_timestamp,
         uint256 reference_slot,
         uint256 reference_slot_timestamp,
         string error_message
+    );
+
+    /// @dev Illegal old state slot (same or later as bc_slot)
+    error IllegalOldStateSlotError(
+        uint256 bc_slot,
+        uint256 old_state_slot
+    );
+
+    /// @dev Report already recorder for given slot
+    error ReportAlreadyRecorded(
+        uint256 refslot
     );
 
     constructor(
@@ -129,19 +142,25 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         if (isPaused()) {
             return (false, 0, 0, 0, 0);
         }
-        Report storage report = _reports[refSlot];
-        // This check handles two conditions:
-        // 1. Report is not found for a given slot - report.slot will be 0
-        // 2. Something messed up with the reporting storare, and report for a different
-        //    slot is stored there. Technically this is not necessary since it is ensured by
-        //    the write-side invariants (in _verify),
-        //    but this adds read-side check at no additional cost, so why not.
-        success = report.reference_slot == refSlot;
-
+        Report storage report;
+        (success, report) = _getReport(refSlot);
+        
         clBalanceGwei = report.lido_cl_balance;
         withdrawalVaultBalanceWei = report.lido_withdrawal_vault_balance;
         totalDepositedValidators = report.deposited_lido_validators;
         totalExitedValidators = report.exited_lido_validators;
+    }
+
+    function _getReport(uint256 refSlot) internal view returns (bool success, Report storage report)
+    {
+        report = _reports[refSlot];
+        // This check handles two conditions:
+        // 1. Report is not found for a given slot - report.slot will be 0
+        // 2. Something messed up with the reporting storage, and report for a different
+        //    slot is stored there. Technically this is not necessary since it is ensured by
+        //    the write-side invariants (in _verify),
+        //    but this adds read-side check at no additional cost, so why not.
+        success = report.reference_slot == refSlot;
     }
 
     function getLatestLidoValidatorStateSlot() public view returns (uint256) {
@@ -171,6 +190,10 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         PublicValues memory public_values = abi.decode(publicValues, (PublicValues));
         Report memory report = public_values.report;
         ReportMetadata memory metadata = public_values.metadata;
+        (bool report_exists, Report storage _report) = _getReport(report.reference_slot);
+
+        require(!report_exists, ReportAlreadyRecorded(report.reference_slot));
+
         _verify_reference_and_bc_slot(report.reference_slot, metadata.bc_slot);
 
         require(
@@ -272,6 +295,8 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
             metadata.lido_withdrawal_credentials == _getExpectedWithdrawalCredentials(),
             VerificationError("Withdrawal credentials mismatch")
         );
+
+        require(metadata.old_state.slot < metadata.bc_slot, IllegalOldStateSlotError(metadata.bc_slot, metadata.old_state.slot));
 
         // Check that the old report hash matches the one recorded in contract
         bytes32 old_state_hash = getLidoValidatorStateHash(metadata.old_state.slot);
