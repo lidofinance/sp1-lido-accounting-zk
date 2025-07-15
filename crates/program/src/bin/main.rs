@@ -38,6 +38,12 @@ pub fn main() {
     let new_state: LidoValidatorState = input
         .compute_new_state()
         .expect("Failed to compute new state from input");
+
+    cycle_tracker.start_span("main.compute_new_state.check_invariants");
+    new_state
+        .check_invariants()
+        .expect("New lido validator state violated invariant check");
+    cycle_tracker.end_span("main.compute_new_state.check_invariants");
     cycle_tracker.end_span("main.compute_new_state");
 
     cycle_tracker.start_span("main.compute_new_state.hash_root");

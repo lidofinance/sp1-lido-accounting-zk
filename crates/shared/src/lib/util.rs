@@ -1,3 +1,21 @@
+// NOTE: mutable iterator - data is still immutable
+pub fn is_sorted_ascending_and_unique<Elem: PartialOrd>(input: &mut impl Iterator<Item = Elem>) -> bool {
+    let next = input.next();
+    match next {
+        None => true, // empty iterator is sorted
+        Some(value) => {
+            let mut current = value;
+            for new_val in input.by_ref() {
+                if current >= new_val {
+                    return false;
+                }
+                current = new_val;
+            }
+            true
+        }
+    }
+}
+
 pub fn usize_to_u64(val: usize) -> u64 {
     let result = val.try_into();
     match result {

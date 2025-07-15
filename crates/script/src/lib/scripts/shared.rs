@@ -6,7 +6,7 @@ use sp1_sdk::SP1PublicValues;
 
 use sp1_lido_accounting_zk_shared::circuit_logic::input_verification::{self, InputVerifier, LogCycleTracker};
 use sp1_lido_accounting_zk_shared::circuit_logic::report::ReportData;
-use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, BeaconStateFields, Hash256};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256};
 use sp1_lido_accounting_zk_shared::io::eth_io::{
     BeaconChainSlot, HaveEpoch, HaveSlotWithBlock, LidoValidatorStateRust, PublicValuesRust, PublicValuesSolidity,
     ReferenceSlot, ReportMetadataRust, ReportRust,
@@ -196,12 +196,7 @@ fn compute_validators_and_balances(
     let changed_validators_proof = bs.validators.get_serialized_multiproof(changed_indices.as_slice());
     tracing::info!("Obtained validators multiproofs for added and changed validators");
 
-    let validators_and_balances_proof =
-        bs.get_serialized_multiproof(&[BeaconStateFields::validators, BeaconStateFields::balances]);
-    tracing::info!("Obtained multiproofs for BeaconState.validators and BeaconState.balances fields");
-
     Ok(ValsAndBals {
-        validators_and_balances_proof,
         lido_withdrawal_credentials: *lido_withdrawal_credentials,
         total_validators: usize_to_u64(bs.validators.len()),
         validators_delta: validator_delta,

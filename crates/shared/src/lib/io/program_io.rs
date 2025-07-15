@@ -41,7 +41,6 @@ impl ProgramInput {
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ValsAndBals {
-    pub validators_and_balances_proof: Vec<u8>,
     pub lido_withdrawal_credentials: Hash256,
 
     pub balances: Balances, // all balances
