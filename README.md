@@ -84,7 +84,3 @@ that automatically picks the deploy manifesto from that location.
 * `store_report.rs` - generates report and stores it on disk for inspection and debugging.
 * `sumbit_cached.rs` - intended to be used with `store_report.rs` script. Allows submitting a cached proof
 and report to the verification contract - skipping on the (most time-consuming) proof generation stage.
-
-`crates/dev_scripts/examples` folder contains a number of standalone scripts that exercise various parts of the solution -
-technically they are not examples, but ad-hoc tests used during early stages of development. They are provided "as is"
-(could be still useful in future + have some development workflows tied to some them - e.g. `gen_synthetic_bs_pair.rs`).

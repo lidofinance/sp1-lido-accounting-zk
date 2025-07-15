@@ -1,6 +1,4 @@
 pub mod scripts;
-#[cfg(feature = "synthetic")]
-pub mod synthetic;
 
 pub mod lido {
     pub mod withdrawal_credentials {
