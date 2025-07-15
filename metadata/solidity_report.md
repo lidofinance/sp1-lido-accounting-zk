@@ -51,8 +51,8 @@ Source Units in Scope: **`3`** (**100%**)
 | ---- | ------ | --------------- | ---------- | ----- | ------ | ----- | ------------- | -------------- | ------------ | 
 | 🔍 | contracts/src/ISecondOpinionOracle.sol | **** | 1 | 16 | 6 | 3 | 2 | 3 | **** |
 | 📝 | contracts/src/PausableUntil.sol | 1 | **** | 102 | 102 | 72 | 14 | 32 | **** |
-| 📝 | contracts/src/Sp1LidoAccountingReportContract.sol | 1 | **** | 391 | 372 | 245 | 69 | 119 | **<abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
-| 📝🔍 | **Totals** | **2** | **1** | **509**  | **480** | **320** | **85** | **154** | **<abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 📝 | contracts/src/Sp1LidoAccountingReportContract.sol | 1 | **** | 405 | 385 | 249 | 74 | 122 | **<abbr title='Uses Hash-Functions'>🧮</abbr><abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 📝🔍 | **Totals** | **2** | **1** | **523**  | **493** | **324** | **90** | **157** | **<abbr title='Uses Hash-Functions'>🧮</abbr><abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
 
 <sub>
 Legend: <a onclick="toggleVisibility('table-legend', this)">[➕]</a>
@@ -140,7 +140,7 @@ The analysis finished with **`0`** errors and **`0`** duplicate files.
 
 #### <span id=t-inline-documentation>Inline Documentation</span>
 
-- **Comment-to-Source Ratio:** On average there are`4.11` code lines per comment (lower=better).
+- **Comment-to-Source Ratio:** On average there are`3.93` code lines per comment (lower=better).
 - **ToDo's:** `0` 
 
 #### <span id=t-components>Components</span>
@@ -155,17 +155,17 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 | 🌐Public   | 💰Payable |
 | ---------- | --------- |
-| 12 | 0  | 
+| 11 | 0  | 
 
 | External   | Internal | Private | Pure | View |
 | ---------- | -------- | ------- | ---- | ---- |
-| 7 | 27  | 1 | 0 | 17 |
+| 6 | 27  | 1 | 0 | 18 |
 
 #### <span id=t-statevariables>StateVariables</span>
 
 | Total      | 🌐Public  |
 | ---------- | --------- |
-| 14  | 10 |
+| 15  | 11 |
 
 #### <span id=t-capabilities>Capabilities</span>
 
@@ -175,7 +175,7 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 | 📤 Transfers ETH | ⚡ Low-Level Calls | 👥 DelegateCall | 🧮 Uses Hash Functions | 🔖 ECRecover | 🌀 New/Create/Create2 |
 | ---------------- | ----------------- | --------------- | ---------------------- | ------------ | --------------------- |
-| **** | **** | **** | **** | **** | **** | 
+| **** | **** | **** | `yes` | **** | **** | 
 
 | ♻️ TryCatch | Σ Unchecked |
 | ---------- | ----------- |
@@ -185,7 +185,7 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 | Dependency / Import Path | Count  | 
 | ------------------------ | ------ |
-| @openzeppelin/contracts/access/Ownable.sol | 1 |
+| @openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol | 1 |
 | @sp1-contracts/ISP1Verifier.sol | 1 |
 
 #### <span id=t-totals>Totals</span>
@@ -247,7 +247,7 @@ This section lists functions that are explicitly declared public or payable. Ple
 |-------------|--------------|
 | contracts/src/ISecondOpinionOracle.sol | aae4a41a136aa0bae4c90f868431f5863f86ddad |
 | contracts/src/PausableUntil.sol | f384a4a37d3c1cd3311fce52acb734d3515df644 |
-| contracts/src/Sp1LidoAccountingReportContract.sol | ca40f4304330c119c9a8021838a95d90dddacaca |
+| contracts/src/Sp1LidoAccountingReportContract.sol | 0cc56058b5df72b11560a71c9e7ce49cd0542a5d |
 
 
  Contracts Description Table
@@ -270,17 +270,17 @@ This section lists functions that are explicitly declared public or payable. Ple
 | └ | _pauseUntil | Internal 🔒 | 🛑  | |
 | └ | _setPausedState | Internal 🔒 | 🛑  | |
 ||||||
-| **Sp1LidoAccountingReportContract** | Implementation | SecondOpinionOracle, Ownable, PausableUntil |||
-| └ | <Constructor> | Public ❗️ | 🛑  | Ownable |
+| **Sp1LidoAccountingReportContract** | Implementation | SecondOpinionOracle, AccessControlEnumerable, PausableUntil |||
+| └ | <Constructor> | Public ❗️ | 🛑  |NO❗️ |
 | └ | getReport | External ❗️ |   |NO❗️ |
+| └ | _getReport | Internal 🔒 |   | |
 | └ | getLatestLidoValidatorStateSlot | Public ❗️ |   |NO❗️ |
 | └ | getLidoValidatorStateHash | Public ❗️ |   |NO❗️ |
 | └ | getBeaconBlockHash | Public ❗️ |   |NO❗️ |
 | └ | submitReportData | Public ❗️ | 🛑  | whenResumed |
-| └ | setPauser | External ❗️ | 🛑  | onlyOwner |
-| └ | pauseFor | External ❗️ | 🛑  |NO❗️ |
-| └ | pauseUntil | External ❗️ | 🛑  |NO❗️ |
-| └ | resume | External ❗️ | 🛑  | onlyOwner |
+| └ | pauseFor | External ❗️ | 🛑  | onlyRole |
+| └ | pauseUntil | External ❗️ | 🛑  | onlyRole |
+| └ | resume | External ❗️ | 🛑  | onlyRole |
 | └ | _verify_reference_and_bc_slot | Internal 🔒 |   | |
 | └ | _verify_public_values | Internal 🔒 |   | |
 | └ | _getExpectedWithdrawalCredentials | Internal 🔒 |   | |
