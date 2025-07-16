@@ -330,7 +330,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
 
         uint256 earliestBlockTimestamp = block.timestamp - (BEACON_ROOTS_HISTORY_BUFFER_LENGTH * SECONDS_PER_SLOT);
         if (targetBlockTimestamp <= earliestBlockTimestamp) {
-            revert TimestampOutOfRange(slot, earliestBlockTimestamp, targetBlockTimestamp);
+            revert TimestampOutOfRange(slot, targetBlockTimestamp, earliestBlockTimestamp);
         }
 
         uint256 timestampToCheck = targetBlockTimestamp;
