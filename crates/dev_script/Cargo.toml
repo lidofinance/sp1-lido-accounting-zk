@@ -25,15 +25,9 @@ name = "submit_cached"
 path = "src/bin/submit_cached.rs"
 test = false
 
-
 [[bin]]
 name = "deploy"
 path = "src/bin/deploy.rs"
-test = false
-
-[[example]]
-name = "balance_proof"
-path = "examples/balance_proof.rs"
 test = false
 
 [lib]
