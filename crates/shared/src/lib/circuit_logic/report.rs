@@ -64,7 +64,7 @@ impl ReportData {
         lido_validators_state: &LidoValidatorState,
         balances: &Balances,
         lido_withdrawal_credentials: &Hash256,
-    ) -> Self {
+    ) -> Result<Self, IntegerError> {
         let mut cl_balance: u64 = 0;
 
         let pending_indices = &lido_validators_state.pending_deposit_lido_validator_indices;
@@ -72,24 +72,30 @@ impl ReportData {
         let exited_indices = &lido_validators_state.exited_lido_validator_indices;
 
         for index in pending_indices {
-            cl_balance += balances[u64_to_usize(*index)];
+            cl_balance = erroring_add(cl_balance, balances[u64_to_usize(*index)])?;
         }
 
         // IMPORTANT: for LidoValidatorState, exited is already included into deposited
         // so exited indices should only count towards exited count, but not cl_balance or
         // deposited count - they are already included into deposited
         for index in deposited_indices {
-            cl_balance += balances[u64_to_usize(*index)];
+            cl_balance = erroring_add(cl_balance, balances[u64_to_usize(*index)])?;
         }
 
-        Self {
+        let deposited_count = erroring_add(
+            usize_to_u64(deposited_indices.len()),
+            usize_to_u64(pending_indices.len()),
+        )?;
+
+        let res = Self {
             slot: reference_slot,
             epoch: lido_validators_state.epoch,
             lido_withdrawal_credentials: *lido_withdrawal_credentials,
-            deposited_lido_validators: usize_to_u64(deposited_indices.len()) + usize_to_u64(pending_indices.len()),
+            deposited_lido_validators: deposited_count,
             exited_lido_validators: usize_to_u64(exited_indices.len()),
             lido_cl_balance: cl_balance,
-        }
+        };
+        Ok(res)
     }
 }
 

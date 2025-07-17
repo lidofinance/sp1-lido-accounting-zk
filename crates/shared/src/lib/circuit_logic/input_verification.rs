@@ -190,7 +190,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
         actual_validator_count: u64,
     ) -> Result<(), Error> {
         let all_added_count: u64 = delta.all_added.len().try_into()?;
-        let validator_from_delta = util::erroring_add(old_state.total_validators(), all_added_count)?;
+        let validator_from_delta = util::erroring_add(old_state.total_validators()?, all_added_count)?;
         if validator_from_delta != actual_validator_count {
             return Err(Error::ConditionCheck(
                 ConditionCheckFailure::NotAllNewValidatorsPassed {
@@ -358,7 +358,7 @@ impl<'a, Tracker: CycleTracker> InputVerifier<'a, Tracker> {
             tracing::info!("ValidatorsDelta.all_added was empty - checking total validator count have not changed");
             self.cycle_tracker
                 .start_span(&format!("{vals_and_bals_prefix}.all_added.empty"));
-            let old_validator_count = input.old_lido_validator_state.total_validators();
+            let old_validator_count = input.old_lido_validator_state.total_validators()?;
             let new_validator_count = input.validators_and_balances.balances.len().try_into()?;
             if old_validator_count != new_validator_count {
                 return Err(Error::ConditionCheck(
