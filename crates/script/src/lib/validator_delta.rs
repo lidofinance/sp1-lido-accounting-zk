@@ -6,7 +6,7 @@ use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch};
 use sp1_lido_accounting_zk_shared::lido::{
     LidoValidatorState, ValidatorDelta, ValidatorOps, ValidatorStatus, ValidatorWithIndex,
 };
-use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64};
+use sp1_lido_accounting_zk_shared::util::{u64_to_usize, usize_to_u64, IntegerError};
 
 use crate::InputChecks;
 
@@ -41,6 +41,9 @@ pub enum Error {
         old_status: ValidatorStatus,
         new_status: ValidatorStatus,
     },
+
+    #[error(transparent)]
+    IntegerError(#[from] IntegerError),
 }
 
 pub struct ValidatorDeltaCompute<'a> {
@@ -152,7 +155,7 @@ impl<'a> ValidatorDeltaCompute<'a> {
         let added_count = self.new_bs.validators.len() - self.old_bs.validators.len();
         let added = self
             .old_state
-            .indices_for_adjacent_delta(usize_to_u64(added_count))
+            .indices_for_adjacent_delta(usize_to_u64(added_count))?
             .collect();
         let mut changed: Vec<u64> = self.compute_changed()?.into_iter().collect();
         changed.sort(); // this is important - otherwise equality comparisons and hash computation won't work as expected

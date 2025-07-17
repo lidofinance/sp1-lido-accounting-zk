@@ -9,7 +9,7 @@ use tree_hash_derive::TreeHash;
 
 use crate::eth_consensus_layer::{BeaconState, Epoch, Hash256, Validator, ValidatorIndex, Validators};
 use crate::io::eth_io::{BeaconChainSlot, HaveEpoch, HaveSlotWithBlock};
-use crate::util::usize_to_u64;
+use crate::util::{erroring_add, usize_to_u64, IntegerError};
 use crate::{eth_spec, util};
 
 pub type ValidatorIndexList = VariableList<ValidatorIndex, eth_spec::ReducedValidatorRegistryLimit>;
@@ -40,6 +40,9 @@ pub enum Error {
     },
     #[error("Passed non-Lido validator in delta")]
     U64ToUizeConversionError(#[from] TryFromIntError),
+
+    #[error(transparent)]
+    IntegerError(#[from] IntegerError),
 }
 
 #[derive(derive_more::Debug, thiserror::Error)]
@@ -122,8 +125,8 @@ impl LidoValidatorState {
         Ok(self)
     }
 
-    pub fn total_validators(&self) -> ValidatorIndex {
-        self.max_validator_index + 1
+    pub fn total_validators(&self) -> Result<ValidatorIndex, IntegerError> {
+        erroring_add(self.max_validator_index, 1)
     }
 
     pub fn deposited_indices_set(&self) -> HashSet<u64> {
@@ -172,13 +175,14 @@ impl LidoValidatorState {
             .chain(self.pending_deposit_lido_validator_indices.iter())
     }
 
-    pub fn index_of_first_new_validator(&self) -> ValidatorIndex {
-        self.max_validator_index + 1
+    fn index_of_first_new_validator(&self) -> Result<ValidatorIndex, IntegerError> {
+        erroring_add(self.max_validator_index, 1)
     }
 
-    pub fn indices_for_adjacent_delta(&self, added: u64) -> Range<ValidatorIndex> {
-        let first = self.index_of_first_new_validator();
-        first..(first + added)
+    pub fn indices_for_adjacent_delta(&self, added: u64) -> Result<Range<ValidatorIndex>, IntegerError> {
+        let first = self.index_of_first_new_validator()?;
+        let last = erroring_add(first, added)?;
+        Ok(first..last)
     }
 
     pub fn compute_from_beacon_state(bs: &BeaconState, lido_withdrawal_credentials: &Hash256) -> Self {
@@ -200,13 +204,12 @@ impl LidoValidatorState {
         let mut new_exited = self.exited_lido_validator_indices.to_vec().clone();
 
         let epoch = slot.epoch();
+        let expected_first_new = self.index_of_first_new_validator()?;
 
-        if !validator_delta.all_added.is_empty()
-            && validator_delta.all_added[0].index != self.index_of_first_new_validator()
-        {
+        if !validator_delta.all_added.is_empty() && validator_delta.all_added[0].index != expected_first_new {
             return Err(Error::MalformedAllAddedList {
                 actual: validator_delta.all_added[0].index,
-                expected: self.index_of_first_new_validator(),
+                expected: expected_first_new,
             });
         }
         for validator_with_index in &validator_delta.all_added {
@@ -282,11 +285,12 @@ impl LidoValidatorState {
         let pending_deposit_list: ValidatorIndexList = new_pending_deposit.into_iter().sorted().collect_vec().into();
         let exited_list: ValidatorIndexList = new_exited.into_iter().sorted().collect_vec().into();
         let added_validator_count: u64 = validator_delta.all_added.len().try_into()?;
+        let max_validator_index = erroring_add(self.max_validator_index, added_validator_count)?;
 
         let result = Self {
             slot,
             epoch,
-            max_validator_index: self.max_validator_index + added_validator_count,
+            max_validator_index,
             deposited_lido_validator_indices: deposited_list,
             pending_deposit_lido_validator_indices: pending_deposit_list,
             exited_lido_validator_indices: exited_list,
