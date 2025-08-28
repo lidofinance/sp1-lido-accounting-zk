@@ -151,12 +151,14 @@ test_vkey_rollover:
     #!/usr/bin/env bash
     set -euxo pipefail
     export RUST_LOG=off,sp1_lido_accounting_scripts::scripts::submit=info
+    set +x
     echo "WARNING: this test will not work with the main implementation of _setVerifierParametersPivot in the contract. See comment in the setVerifierParametersPivot"
     echo "WARNING: this test modifies the program source code to change the vkey, and rebuilds it twice. It also starts anvil and deploys the contract. Make sure to MANUALLY undo the changes in main.rs and stop anvil if the run fails."
     read -p "Do you want to continue? [y/N] " answer
     if [[ ! "$answer" =~ ^[Yy]$ ]]; then
         exit 1
     fi
+    set -x
     cargo build --release --locked -j {{compile_threads}}
     just anvil_run &
     sleep 3
@@ -171,15 +173,19 @@ test_vkey_rollover:
     sed -i '/^pub fn main()/i fn foo() { println!("Foo") }' ./crates/program/src/bin/main.rs
     cargo build --release --locked -j {{compile_threads}}
     new_vkey=$(just print_vkey)
+    set +x
     if [ "$original_vkey" = "$new_vkey" ]; then
         echo "vkeys are identical - vkey adjustment not working, test is not testing anything"; exit 1
     fi
+    set -x
     just contract_set_vkey_rollover $pivot_slot $new_vkey
     just contract_get_verifier_params $original_vkey_slot
     just contract_get_verifier_params $pivot_slot
     just contract_get_verifier_params $check_slot
-    echo $original_vkey
-    echo $new_vkey
+    set +x
+    echo "Original vkey" $original_vkey
+    echo "New vkey" $new_vkey
+    set -x
     ./target/release/submit --target-ref-slot $pivot_slot
     ./target/release/submit --target-ref-slot $check_slot
     # # undo the adjustment
