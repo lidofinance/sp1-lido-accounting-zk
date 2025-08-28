@@ -1,0 +1,13 @@
+{
+  "network": "anvil-fusaka",
+  "verifier": "0x3b6041173b80e77f038f3f2c0f9744f04837185e",
+  "vkey": "0x0000ab7666d373922cc93b6248046d371d296599166182ac16b52a7b5efc18c1",
+  "withdrawal_credentials": "0x010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
+  "withdrawal_vault_address": "0x4473dcddbf77679a643bdb654dbd86d67f8d32f2",
+  "genesis_timestamp": 1753280940,
+  "initial_validator_state": {
+    "slot": 214336,
+    "merkle_root": "0xa8cf2738b4e4f868a667f37cb4895bbdb6451707b234c9f00617a4b9eee1b50a"
+  },
+  "admin": "0x3e40d73eb977dc6a537af587d48316fee66e9c8c"
+}
