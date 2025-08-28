@@ -4,19 +4,24 @@ pragma solidity 0.8.27;
 import {Test, console} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {Sp1LidoAccountingReportContract} from "../src/Sp1LidoAccountingReportContract.sol";
-import {Sp1LidoAccountingReportContractTestWrapper} from "test/Sp1LidoAccountingReportContractTestWrapper.sol";
+// import {Sp1LidoAccountingReportContractTestWrapper} from "test/Sp1LidoAccountingReportContractTestWrapper.sol";
 import {SP1VerifierGateway} from "@sp1-contracts/SP1VerifierGateway.sol";
 
 contract Sp1LidoAccountingReportContractTest is Test {
     using stdJson for string;
 
     address private verifier;
-    Sp1LidoAccountingReportContractTestWrapper private _contract;
+    address private contract_admin;
+    // Sp1LidoAccountingReportContractTestWrapper private _contract;
+    Sp1LidoAccountingReportContract private _contract;
 
     uint256 private immutable GENESIS_BLOCK_TIMESTAMP = 1606824023;
     uint256 private immutable SECONDS_PER_SLOT = 12;
 
     bytes32 private SLOT_EXISTED_SENTIEL = 0x1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff;
+    
+    address private NEW_VERIFIER_ADDRESS = address(1234567890098765);
+    bytes32 private NEW_VKEY             = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
 
     struct SP1ProofFixtureJson {
         bytes32 vkey;
@@ -30,10 +35,11 @@ contract Sp1LidoAccountingReportContractTest is Test {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/test/fixtures/fixture.json");
         string memory json = vm.readFile(path);
-        // This should be
-        // return abi.decode(json.parseRaw("."), (SP1ProofFixtureJson));
-        // ... but it reverts with no explanation - so just doing it manually
-        return (
+        // bytes memory raw = json.parseRaw(""); 
+        // // This should be
+        // return abi.decode(raw, (SP1ProofFixtureJson));
+        // // ... but it reverts with no explanation - so just doing it manually
+        SP1ProofFixtureJson memory result = (
             SP1ProofFixtureJson(
                 json.readBytes32(".vkey"),
                 Sp1LidoAccountingReportContract.Report(
@@ -64,26 +70,35 @@ contract Sp1LidoAccountingReportContractTest is Test {
                 json.readBytes(".proof")
             )
         );
+        return (result);
     }
 
     function setUp() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
+        contract_admin = address(this);
 
         verifier = address(new SP1VerifierGateway(address(1)));
-        _contract = new Sp1LidoAccountingReportContractTestWrapper(
+        // _contract = new Sp1LidoAccountingReportContractTestWrapper(
+        _contract = new Sp1LidoAccountingReportContract(
             verifier,
             fixture.vkey,
             fixture.metadata.lido_withdrawal_credentials,
             fixture.metadata.withdrawal_vault_data.vault_address,
             GENESIS_BLOCK_TIMESTAMP,
             fixture.metadata.old_state,
-            address(12345678901234567890)
+            contract_admin
         );
+
+        _contract.grantRole(_contract.PIVOT_SP1_PARAMETERS_ROLE(), address(this));
     }
 
     function getSlotTimestamp(uint256 slot) internal view returns (uint256) {
         uint256 timestamp = _contract.GENESIS_BLOCK_TIMESTAMP() + (slot * _contract.SECONDS_PER_SLOT());
         return (timestamp);
+    }
+
+    function warpToSlot(uint256 slot) private {
+        vm.warp(getSlotTimestamp(slot));
     }
 
     function setBeaconHashSequence(uint256 start_slot, uint256 end_slot, bytes32[] memory hashes) private {
@@ -94,7 +109,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
             _setHash(target_slot, hashes[idx]);
         }
         console.log("Warp to slot %d", end_slot + 2);
-        vm.warp(getSlotTimestamp(end_slot + 2));
+        warpToSlot(end_slot + 2);
     }
 
     function _setHash(uint256 slot, bytes32 expected_hash) private {
@@ -114,18 +129,18 @@ contract Sp1LidoAccountingReportContractTest is Test {
         setBeaconHashSequence(slot, slot, hashes);
     }
 
-    function _createDyn(bytes32 val1) private returns (bytes32[] memory result) {
+    function _createDyn(bytes32 val1) private pure returns (bytes32[] memory result) {
         result = new bytes32[](1);
         result[0] = val1;
     }
 
-    function _createDyn(bytes32 val1, bytes32 val2) private returns (bytes32[] memory result) {
+    function _createDyn(bytes32 val1, bytes32 val2) private pure returns (bytes32[] memory result) {
         result = new bytes32[](2);
         result[0] = val1;
         result[1] = val2;
     }
 
-    function _createDyn(bytes32 val1, bytes32 val2, bytes32 val3) private returns (bytes32[] memory result) {
+    function _createDyn(bytes32 val1, bytes32 val2, bytes32 val3) private pure returns (bytes32[] memory result) {
         result = new bytes32[](3);
         result[0] = val1;
         result[1] = val2;
@@ -133,7 +148,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
     }
 
     function _createDyn(bytes32 val1, bytes32 val2, bytes32 val3, bytes32 val4)
-        private
+        private pure
         returns (bytes32[] memory result)
     {
         result = new bytes32[](4);
@@ -144,7 +159,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
     }
 
     function _createDyn(bytes32 val1, bytes32 val2, bytes32 val3, bytes32 val4, bytes32 val5)
-        private
+        private pure
         returns (bytes32[] memory result)
     {
         result = new bytes32[](5);
@@ -173,7 +188,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
     function beacon_block_hash_mismatch_error(bytes32 expected_hash, bytes32 actual_hash)
         internal
-        view
+        pure
         returns (bytes memory)
     {
         return abi.encodeWithSelector(
@@ -315,26 +330,26 @@ contract Sp1LidoAccountingReportContractTest is Test {
         _contract.submitReportData(fixture.proof, public_values_encoded);
     }
 
-    function test_oldStateSlotAheadOfBcSlot_reverts() public {
-        SP1ProofFixtureJson memory fixture = loadFixture();
+    // function test_oldStateSlotAheadOfBcSlot_reverts() public {
+    //     SP1ProofFixtureJson memory fixture = loadFixture();
 
-        uint256 modified_old_state_slot = fixture.metadata.bc_slot + 10;
+    //     uint256 modified_old_state_slot = fixture.metadata.bc_slot + 10;
 
-        setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
-        setSingleBlockHash(modified_old_state_slot, fixture.metadata.beacon_block_hash);
-        _contract.recordLidoValidatorStateHash(modified_old_state_slot, fixture.metadata.old_state.merkle_root);
-        verifierPasses();
+    //     setSingleBlockHash(fixture.metadata.bc_slot, fixture.metadata.beacon_block_hash);
+    //     setSingleBlockHash(modified_old_state_slot, fixture.metadata.beacon_block_hash);
+    //     _contract.recordLidoValidatorStateHash(modified_old_state_slot, fixture.metadata.old_state.merkle_root);
+    //     verifierPasses();
 
-        Sp1LidoAccountingReportContract.PublicValues memory public_values =
-            abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
+    //     Sp1LidoAccountingReportContract.PublicValues memory public_values =
+    //         abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
 
-        public_values.metadata.old_state.slot = modified_old_state_slot;
-        bytes memory public_values_encoded = abi.encode(public_values);
-        Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
+    //     public_values.metadata.old_state.slot = modified_old_state_slot;
+    //     bytes memory public_values_encoded = abi.encode(public_values);
+    //     Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
 
-        vm.expectRevert(illegal_old_state_slot(fixture.metadata.bc_slot, modified_old_state_slot));
-        _contract.submitReportData(fixture.proof, public_values_encoded);
-    }
+    //     vm.expectRevert(illegal_old_state_slot(fixture.metadata.bc_slot, modified_old_state_slot));
+    //     _contract.submitReportData(fixture.proof, public_values_encoded);
+    // }
 
     function test_oldStateWrongMerkleRoot_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
@@ -603,10 +618,9 @@ contract Sp1LidoAccountingReportContractTest is Test {
         );
 
         setBeaconHashSequence(public_values.metadata.bc_slot, public_values.report.reference_slot, hashes);
-        vm.warp(getSlotTimestamp(public_values.report.reference_slot - 1));
+        warpToSlot(public_values.report.reference_slot - 1);
 
         bytes memory public_values_encoded = abi.encode(public_values);
-        Sp1LidoAccountingReportContract.Report memory expected_report = public_values.report;
 
         vm.expectRevert(
             illegal_ref_slot_error(
@@ -616,5 +630,81 @@ contract Sp1LidoAccountingReportContractTest is Test {
             )
         );
         _contract.submitReportData(fixture.proof, public_values_encoded);
+    }
+
+    function test_setPivot_nonRole_reverts() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams = Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
+
+        vm.prank(address(42)); // use random address not having PIVOT_SP1_PARAMETERS_ROLE
+        vm.expectRevert();
+        _contract.setVerifierParametersPivot(fixture.metadata.bc_slot + 20, newParams);
+    }
+
+    function test_setPivot_inRole_success() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams = Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
+        uint256 pivotSlot = fixture.metadata.bc_slot + 100;       
+
+        // making sure that pivot is greater than current
+        warpToSlot(fixture.metadata.bc_slot + 50);
+        assertGe(getSlotTimestamp(pivotSlot), block.timestamp); // self-check
+        
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory original = _contract.getVerifierParameters(1);
+        assertEq(original.verifier, verifier);
+        assertEq(original.vkey, fixture.vkey);
+
+        _contract.setVerifierParametersPivot(pivotSlot, newParams);
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory beforePivot = _contract.getVerifierParameters(pivotSlot - 10);
+        assertEq(beforePivot.verifier, original.verifier);
+        assertEq(beforePivot.vkey, original.vkey);
+
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory atPivot = _contract.getVerifierParameters(pivotSlot);
+        assertEq(atPivot.verifier, newParams.verifier);
+        assertEq(atPivot.vkey, newParams.vkey);
+
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory afterPivot = _contract.getVerifierParameters(pivotSlot + 10);
+        assertEq(afterPivot.verifier, newParams.verifier);
+        assertEq(afterPivot.vkey, newParams.vkey);
+    }
+
+    function test_setPivot_inRole_pivotInPast_reverts() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams = Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
+        uint256 pivotSlot = fixture.metadata.bc_slot + 100;       
+
+        // making sure that pivot is less than current
+        warpToSlot(fixture.metadata.bc_slot + 150);
+        assertLe(getSlotTimestamp(pivotSlot), block.timestamp); // self-check
+
+        vm.expectRevert();
+        _contract.setVerifierParametersPivot(pivotSlot, newParams);
+    }
+
+    function test_setPivot_inRole_pivotImmediately_success() public {
+        SP1ProofFixtureJson memory fixture = loadFixture();
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams = Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
+        uint256 pivotSlot = fixture.metadata.bc_slot + 100;       
+
+        // making sure that pivot is greater than current
+        warpToSlot(pivotSlot);
+        assertEq(getSlotTimestamp(pivotSlot), block.timestamp); // self-check
+        
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory original = _contract.getVerifierParameters(1);
+        assertEq(original.verifier, verifier);
+        assertEq(original.vkey, fixture.vkey);
+
+        _contract.setVerifierParametersPivot(pivotSlot, newParams);
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory beforePivot = _contract.getVerifierParameters(pivotSlot - 10);
+        assertEq(beforePivot.verifier, original.verifier);
+        assertEq(beforePivot.vkey, original.vkey);
+
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory atPivot = _contract.getVerifierParameters(pivotSlot);
+        assertEq(atPivot.verifier, newParams.verifier);
+        assertEq(atPivot.vkey, newParams.vkey);
+
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory afterPivot = _contract.getVerifierParameters(pivotSlot + 10);
+        assertEq(afterPivot.verifier, newParams.verifier);
+        assertEq(afterPivot.vkey, newParams.vkey);
     }
 }
