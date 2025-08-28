@@ -30,6 +30,11 @@ name = "deploy"
 path = "src/bin/deploy.rs"
 test = false
 
+[[bin]]
+name = "print_vkey"
+path = "src/bin/print_vkey.rs"
+test = false
+
 [lib]
 name = "sp1_lido_accounting_dev_scripts"
 path = "src/lib/lib.rs"
