@@ -225,6 +225,7 @@ pub struct BeaconState {
     pub next_withdrawal_validator_index: u64,
     // Deep history valid from Capella onwards.
     pub historical_summaries: VariableList<HistoricalSummary, eth_spec::HistoricalRootsLimit>,
+
     // Electra
     // #[serde(with = "serde_utils::quoted_u64")]
     pub deposit_requests_start_index: u64,
@@ -239,6 +240,10 @@ pub struct BeaconState {
     pub pending_deposits: VariableList<PendingDeposit, eth_spec::PendingDepositsLimit>,
     pub pending_partial_withdrawals: VariableList<PendingPartialWithdrawal, eth_spec::PendingPartialWithdrawalsLimit>,
     pub pending_consolidations: VariableList<PendingConsolidation, eth_spec::PendingConsolidationsLimit>,
+
+    // Fulu
+    pub proposer_lookahead:
+        FixedVector<ValidatorIndex, typenum::Prod<typenum::Add1<eth_spec::MinSeedLookahead>, eth_spec::SlotsPerEpoch>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]

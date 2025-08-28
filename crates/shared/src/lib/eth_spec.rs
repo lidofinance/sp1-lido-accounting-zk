@@ -22,3 +22,5 @@ pub type PendingPartialWithdrawalsLimit = U134217728; // 2 ^ 27
 pub type PendingConsolidationsLimit = U262144; // 2^ 18
 
 pub type SecondsPerSlot = U12;
+
+pub type MinSeedLookahead = U1;
