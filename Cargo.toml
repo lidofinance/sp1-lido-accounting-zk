@@ -58,7 +58,7 @@ thiserror = "2.0"
 tokio = "1.46.1"
 tracing = "0.1.41"
 tracing-forest = "0.1.6"
-tracing-subscriber = {version="0.3.19", features=["std", "fmt", "json"]}
+tracing-subscriber = {version="0.3.20", features=["std", "fmt", "json"]}
 tree_hash = "0.10"
 tree_hash_derive = "0.10"
 typenum = "1.18"
