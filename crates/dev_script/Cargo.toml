@@ -52,7 +52,7 @@ tracing.workspace = true
 tree_hash.workspace = true
 sp1-sdk.workspace = true
 
-clap = { version = "4.0", features = ["derive", "env"] }
+clap = { version = "4", features = ["derive", "env"] }
 sp1-lido-accounting-zk-shared.workspace = true
 sp1-lido-accounting-zk-scripts.workspace = true
 
