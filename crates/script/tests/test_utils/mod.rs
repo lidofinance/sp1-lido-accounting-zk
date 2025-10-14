@@ -204,6 +204,7 @@ pub fn set_bs_field(bs: &mut BeaconStatePrecomputedHashes, field: &BeaconStateFi
         BeaconStateFields::pending_deposits => bs.pending_deposits = value,
         BeaconStateFields::pending_partial_withdrawals => bs.pending_partial_withdrawals = value,
         BeaconStateFields::pending_consolidations => bs.pending_consolidations = value,
+        BeaconStateFields::proposer_lookahead => bs.proposer_lookahead = value,
     }
 }
 
