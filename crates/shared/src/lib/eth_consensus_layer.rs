@@ -314,6 +314,8 @@ pub struct BeaconStatePrecomputedHashes {
     pub pending_deposits: Hash256,
     pub pending_partial_withdrawals: Hash256,
     pub pending_consolidations: Hash256,
+    // Fulu
+    pub proposer_lookahead: Hash256,
 }
 
 impl From<&BeaconState> for BeaconStatePrecomputedHashes {
@@ -356,6 +358,7 @@ impl From<&BeaconState> for BeaconStatePrecomputedHashes {
             pending_deposits: value.pending_deposits.tree_hash_root(),
             pending_partial_withdrawals: value.pending_partial_withdrawals.tree_hash_root(),
             pending_consolidations: value.pending_consolidations.tree_hash_root(),
+            proposer_lookahead: value.proposer_lookahead.tree_hash_root(),
         }
     }
 }
