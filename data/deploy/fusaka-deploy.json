@@ -1,0 +1,13 @@
+{
+    "network": "fusaka",
+    "verifier": "0x17435cce3d1b4fa2e5f8a08ed921d57c6762a180",
+    "vkey": "0x0000ab7666d373922cc93b6248046d371d296599166182ac16b52a7b5efc18c1",
+    "withdrawal_credentials": "0x010000000000000000000000f0179dec45a37423ead4fad5fcb136197872ead9",
+    "withdrawal_vault_address": "0xb4b46bdaa835f8e4b4d8e208b6559cd267851051",
+    "genesis_timestamp": 1760348240,
+    "initial_validator_state": {
+        "slot": 1200,
+        "merkle_root": "0xd9d0aaed20248d7eb129b77c92a2ef72b9701d1c7cc136297fcb96aa652f15f6"
+    },
+    "admin": "0x8943545177806ed17b9f23f0a21ee5948ecaa776"
+}

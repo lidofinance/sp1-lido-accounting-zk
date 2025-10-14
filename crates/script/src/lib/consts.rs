@@ -74,8 +74,8 @@ impl NetworkInfo for Network {
                 genesis_block_timestamp: 1742213400,
             },
             Self::Fusaka => NetworkConfig {
-                chain_id: 7023102237,
-                genesis_block_timestamp: 1753280940,
+                chain_id: 32382,
+                genesis_block_timestamp: 1760348240,
             },
         }
     }
