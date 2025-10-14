@@ -114,6 +114,7 @@ add_test_bs target_slot format="ssz": (download_bs target_slot) (download_bs tar
     cp temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }} crates/script/tests/data/beacon_states/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
 
 read_validators target_slot:
+    mkdir -p temp/vals_bals/$EVM_CHAIN
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validators > temp/vals_bals/$EVM_CHAIN/validators_{{target_slot}}.json
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validator_balances > temp/vals_bals/$EVM_CHAIN/balances_{{target_slot}}.json
 
