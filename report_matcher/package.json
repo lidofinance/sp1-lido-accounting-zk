@@ -1,25 +1,22 @@
 {
+  "name": "report-matcher",
+  "version": "1.0.0",
+  "description": "Report Matcher",
+  "license": "MIT",
+  "scripts": {
+    "start": "hardhat run scripts/match-reports.ts"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.2",
-    "@nomicfoundation/hardhat-ethers-chai-matchers": "^3.0.0",
-    "@nomicfoundation/hardhat-ignition": "^3.0.0",
-    "@nomicfoundation/hardhat-ignition-ethers": "^3.0.0",
     "@nomicfoundation/hardhat-keystore": "^3.0.0",
-    "@nomicfoundation/hardhat-mocha": "^3.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^3.0.1",
-    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
     "@nomicfoundation/hardhat-typechain": "^3.0.0",
     "@nomicfoundation/hardhat-verify": "^3.0.3",
-    "@nomicfoundation/ignition-core": "^3.0.0",
-    "@types/chai": "^4.2.0",
-    "@types/chai-as-promised": "^8.0.1",
-    "@types/mocha": ">=10.0.10",
     "@types/node": "^22.8.5",
-    "chai": "^5.1.2",
+    "dotenv": "^16.5.0",
     "ethers": "^6.14.0",
     "forge-std": "foundry-rs/forge-std#v1.9.4",
     "hardhat": "^3.0.7",
-    "mocha": "^11.0.0",
     "typescript": "~5.8.0"
   },
   "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610",
