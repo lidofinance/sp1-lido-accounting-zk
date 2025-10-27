@@ -424,7 +424,6 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @notice Sets new SP1 parameters to take effect at a future slot
     /// @param stateSlot Slot to get SP1 paramters for
     /// @return parameters New SP1 parameters to use
-    /// @dev Reverts if sender don't have PIVOT_SP1_PARAMETERS_ROLE
     function getVerifierParameters(uint256 stateSlot) public view returns (Sp1VerifierParameters memory) {
         return stateSlot < _verifier_parameters_pivot_slot ? _verifier_parameters_current : _verifier_parameters_next;
     }
@@ -434,26 +433,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @param parameters New SP1 parameters to use
     /// @dev Reverts if sender don't have PIVOT_SP1_PARAMETERS_ROLE
     /// @dev Reverts if pivotSlot is already in the past
-    function setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) public {
-        _setVerifierParametersPivot(pivotSlot, parameters); // <<<--- this is the real implementation
-        // _setVerifierParametersPivot_noChecks(pivotSlot, parameters); // <<<--- this is for test_vkey_rollover recipe ONLY
-    }
-
-    function _setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) 
-        internal 
-        onlyRole(PIVOT_SP1_PARAMETERS_ROLE) 
-    {
+    function setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) public onlyRole(PIVOT_SP1_PARAMETERS_ROLE) {
         uint256 currentSlot = _timestampToSlot(block.timestamp);
         if (pivotSlot < currentSlot) {
             revert PivotSlotInThePast(currentSlot, pivotSlot);
         }
-        _setVerifierParametersPivot_noChecks(pivotSlot, parameters);
-    }
-    
-    /// @dev NOTE: Only call via _setVerifierParametersPivot (above) or from tests - bypasses ACL and sanity checks
-    function _setVerifierParametersPivot_noChecks(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) 
-        internal 
-    {
         _verifier_parameters_current = _verifier_parameters_next;
         _verifier_parameters_next = parameters;
         _verifier_parameters_pivot_slot = pivotSlot;
