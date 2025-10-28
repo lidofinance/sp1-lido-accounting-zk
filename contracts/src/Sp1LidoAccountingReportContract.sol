@@ -13,7 +13,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
     address public constant BEACON_ROOTS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
     
-    /// @notice role that allows to pause the contract
+    /// @notice role that allows to change pivot parameters
     bytes32 public constant PIVOT_SP1_PARAMETERS_ROLE = keccak256("Sp1LidoAccountingReportContract.PivotParameters");
     /// @notice role that allows to pause the contract
     bytes32 public constant PAUSE_ROLE = keccak256("Sp1LidoAccountingReportContract.PauseRole");
@@ -233,6 +233,29 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         _recordLidoValidatorStateHash(metadata.new_state.slot, metadata.new_state.merkle_root);
     }
 
+    /// @notice Gets SP1 parameters for a given slot
+    /// @param stateSlot Slot to get SP1 paramters for
+    /// @return parameters New SP1 parameters to use
+    function getVerifierParameters(uint256 stateSlot) public view returns (Sp1VerifierParameters memory) {
+        return stateSlot < _verifier_parameters_pivot_slot ? _verifier_parameters_current : _verifier_parameters_next;
+    }
+
+    /// @notice Sets new SP1 parameters to take effect at a future slot
+    /// @param pivotSlot Switching to the new SP1 parameters happen at this slot.
+    /// @param parameters New SP1 parameters to use
+    /// @dev Reverts if sender don't have PIVOT_SP1_PARAMETERS_ROLE
+    /// @dev Reverts if pivotSlot is already in the past
+    function setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) public onlyRole(PIVOT_SP1_PARAMETERS_ROLE) {
+        uint256 currentSlot = _timestampToSlot(block.timestamp);
+        if (pivotSlot < currentSlot) {
+            revert PivotSlotInThePast(currentSlot, pivotSlot);
+        }
+        _verifier_parameters_current = _verifier_parameters_next;
+        _verifier_parameters_next = parameters;
+        _verifier_parameters_pivot_slot = pivotSlot;
+    }
+
+
     /// @notice Pause submit report data
     /// @param _duration pause duration in seconds (use `PAUSE_INFINITELY` for unlimited)
     /// @dev Reverts if contract is already paused
@@ -419,27 +442,5 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
             _latestValidatorStateSlot = slot;
         }
         emit LidoValidatorStateHashRecorded(slot, state_merkle_root);
-    }
-
-    /// @notice Sets new SP1 parameters to take effect at a future slot
-    /// @param stateSlot Slot to get SP1 paramters for
-    /// @return parameters New SP1 parameters to use
-    function getVerifierParameters(uint256 stateSlot) public view returns (Sp1VerifierParameters memory) {
-        return stateSlot < _verifier_parameters_pivot_slot ? _verifier_parameters_current : _verifier_parameters_next;
-    }
-
-    /// @notice Sets new SP1 parameters to take effect at a future slot
-    /// @param pivotSlot Switching to the new SP1 parameters happen at this slot.
-    /// @param parameters New SP1 parameters to use
-    /// @dev Reverts if sender don't have PIVOT_SP1_PARAMETERS_ROLE
-    /// @dev Reverts if pivotSlot is already in the past
-    function setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) public onlyRole(PIVOT_SP1_PARAMETERS_ROLE) {
-        uint256 currentSlot = _timestampToSlot(block.timestamp);
-        if (pivotSlot < currentSlot) {
-            revert PivotSlotInThePast(currentSlot, pivotSlot);
-        }
-        _verifier_parameters_current = _verifier_parameters_next;
-        _verifier_parameters_next = parameters;
-        _verifier_parameters_pivot_slot = pivotSlot;
     }
 }
