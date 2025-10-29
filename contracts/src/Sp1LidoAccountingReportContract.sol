@@ -114,10 +114,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
 
     /// @dev Report already recorder for given slot
     error ReportAlreadyRecorded(
-        uint256 refslot
+        uint256 reference_slot
     );
 
-    error PivotSlotInThePast(uint256 currentSlot, uint256 requestedSlot);
+    /// @dev Pivot slot is in the past
+    error PivotSlotInThePast(uint256 current_slot, uint256 requested_slot);
 
     constructor(
         address _verifier,
