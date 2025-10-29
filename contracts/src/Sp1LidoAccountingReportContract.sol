@@ -204,7 +204,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     ///         This function is INTENTIONALLY public and have no access modifiers - ANYONE
     ///         should be allowed to call it, and bring the report+proof to the contract - it is the responsibility
     ///         of this contract and SP1 verifier to reject invalid reports.
-    function submitReportData(bytes calldata proof, bytes calldata publicValues) public whenResumed {
+    function submitReportData(bytes calldata proof, bytes calldata publicValues) external whenResumed {
         PublicValues memory public_values = abi.decode(publicValues, (PublicValues));
         Report memory report = public_values.report;
         ReportMetadata memory metadata = public_values.metadata;
@@ -251,7 +251,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @param parameters New SP1 parameters to use
     /// @dev Reverts if sender don't have PIVOT_SP1_PARAMETERS_ROLE
     /// @dev Reverts if pivotSlot is already in the past
-    function setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) public onlyRole(PIVOT_SP1_PARAMETERS_ROLE) {
+    function setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) external onlyRole(PIVOT_SP1_PARAMETERS_ROLE) {
         require(parameters.verifier != address(0), "Verifier address cannot be zero");
         uint256 currentSlot = _timestampToSlot(block.timestamp);
         if (pivotSlot < currentSlot) {
