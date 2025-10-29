@@ -14,7 +14,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     address public constant BEACON_ROOTS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
     
     /// @notice role that allows to change pivot parameters
-    bytes32 public constant PIVOT_SP1_PARAMETERS_ROLE = keccak256("Sp1LidoAccountingReportContract.PivotParameters");
+    bytes32 public constant PIVOT_SP1_PARAMETERS_ROLE = keccak256("Sp1LidoAccountingReportContract.PivotSp1ParametersRole");
     /// @notice role that allows to pause the contract
     bytes32 public constant PAUSE_ROLE = keccak256("Sp1LidoAccountingReportContract.PauseRole");
     /// @notice role that allows to resume the contract
