@@ -24,7 +24,7 @@ hex.workspace = true
 prometheus.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-tower-http = { version = "0.6.4", features = ["trace"] }
+tower-http = { version = "0.6.6", features = ["trace"] }
 tracing.workspace=true
 serde.workspace = true
 serde_json.workspace = true
@@ -35,4 +35,4 @@ sp1-lido-accounting-zk-shared.workspace = true
 [build-dependencies]
 anyhow.workspace=true
 vergen = { version = "9", features = ["build", "cargo"] }
-vergen-git2 = { version = "1.0.0", features = ["build"] }
+vergen-git2 = { version = "1", features = ["build"] }

@@ -44,5 +44,5 @@ hex-literal.workspace = true
 proptest.workspace = true
 proptest-arbitrary-interop.workspace = true
 rand.workspace = true
-alloy-primitives = { version = "1.2", features = ["arbitrary", "serde", "rlp", "getrandom"] }
-syn-solidity = "1.2"
+alloy-primitives = { version = "1.3", features = ["arbitrary", "serde", "rlp", "getrandom"] }
+syn-solidity = "1.3"

@@ -1,7 +1,7 @@
 {
   "network": "anvil-sepolia",
   "verifier": "0x3b6041173b80e77f038f3f2c0f9744f04837185e",
-  "vkey": "0x00300cd97d20ef20e79c7f0213366577349dd2059a683641a20372f32e64ab12",
+  "vkey": "0x00210776365bf79b24fcdf159d361a2e441f70ecbcd10443420a57e81f70bc2e",
   "withdrawal_credentials": "0x010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
   "withdrawal_vault_address": "0xde7318afa67ead6d6bbc8224dfce5ed6e4b86d76",
   "genesis_timestamp": 1655733600,
