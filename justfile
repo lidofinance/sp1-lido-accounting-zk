@@ -83,6 +83,16 @@ contract_read_report target_slot:
 contract_get_block_hash target_slot:
     cast call $CONTRACT_ADDRESS "getBeaconBlockHash(uint256 slot)" "{{target_slot}}" --rpc-url $EXECUTION_LAYER_RPC
 
+contract_get_verifier_params target_slot:
+    cast call $CONTRACT_ADDRESS "getVerifierParameters(uint256)(address,bytes32)" "{{target_slot}}" --rpc-url $EXECUTION_LAYER_RPC
+
+contract_set_vkey_rollover target_slot new_vkey:
+    cast send $CONTRACT_ADDRESS \
+        "setVerifierParametersPivot(uint256,(address,bytes32))" \
+        "{{target_slot}}" \
+        "("$SP1_VERIFIER_ADDRESS", {{new_vkey}})" \
+        --private-key $PRIVATE_KEY
+
 block_root_mock_setup:
     #!/usr/bin/env bash
     set -euxo pipefail
@@ -98,6 +108,9 @@ block_root_mock_get_block_hash timestamp:
 ### Contract interactions ###
 
 ### Development ###
+print_vkey: build
+    ./target/release/print_vkey
+
 store_report target_slot previous_slot: build
     ./target/release/store_report --target-ref-slot {{target_slot}} --previous-ref-slot {{previous_slot}}
 
@@ -134,6 +147,55 @@ test_shared:
 [working-directory: 'crates/program']
 test_program:
     cargo test
+
+test_vkey_rollover:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+    export RUST_LOG=off,sp1_lido_accounting_scripts::scripts::submit=info
+    set +x
+    echo "WARNING: this test will not work with the main implementation of _setVerifierParametersPivot in the contract. See comment in the setVerifierParametersPivot"
+    echo "WARNING: this test modifies the program source code to change the vkey, and rebuilds it twice. It also starts anvil and deploys the contract. Make sure to MANUALLY undo the changes in main.rs and stop anvil if the run fails."
+    read -p "Do you want to continue? [y/N] " answer
+    if [[ ! "$answer" =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+    set -x
+    cargo build --release --locked -j {{compile_threads}}
+    just anvil_run &
+    sleep 3
+    just contract_deploy
+    original_vkey=$(just print_vkey)
+    finalized_slot=$(curl -H "Accept:application/json" ${CONSENSUS_LAYER_RPC}/eth/v1/beacon/headers/finalized | jq ".data.header.message.slot | tonumber")
+    original_vkey_slot=$((finalized_slot - 64))
+    pivot_slot=$((original_vkey_slot + 32))
+    check_slot=$((original_vkey_slot + 64))
+    ./target/release/submit --target-ref-slot $original_vkey_slot
+    # adjust program minimally to change the vkey
+    sed -i '/^pub fn main()/i fn foo() { println!("Foo") }' ./crates/program/src/bin/main.rs
+    cargo build --release --locked -j {{compile_threads}}
+    new_vkey=$(just print_vkey)
+    set +x
+    if [ "$original_vkey" = "$new_vkey" ]; then
+        echo "vkeys are identical - vkey adjustment not working, test is not testing anything"; exit 1
+    fi
+    set -x
+    just contract_set_vkey_rollover $pivot_slot $new_vkey
+    just contract_get_verifier_params $original_vkey_slot
+    just contract_get_verifier_params $pivot_slot
+    just contract_get_verifier_params $check_slot
+    set +x
+    echo "Original vkey" $original_vkey
+    echo "New vkey" $new_vkey
+    set -x
+    ./target/release/submit --target-ref-slot $pivot_slot
+    ./target/release/submit --target-ref-slot $check_slot
+    # # undo the adjustment
+    just test_vkey_rollover_cleanup
+
+test_vkey_rollover_cleanup:
+    sed -i '/fn foo() { println!("Foo") }/d' ./crates/program/src/bin/main.rs
+    just build
+    killall -9 anvil || true
 
 # building scripts starts multiple builds in parallel and often OOMs
 # -j 5 limits the concurrency for building (but not running) and avoids that

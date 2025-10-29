@@ -300,7 +300,7 @@ mod tests {
             let expected_deposit_count = pending_count + deposited_count + exited_count;
             let expected_balance: u64 = validator_setup.total_pending_balance() + validator_setup.total_deposited_balance() + validator_setup.total_exited_balance();
 
-            let report = ReportData::compute_from_state(refslot, &state, &balances, &validator_setup.lido_creds);
+            let report = ReportData::compute_from_state(refslot, &state, &balances, &validator_setup.lido_creds).expect("Must no fail");
 
             prop_assert_eq!(report.slot, refslot);
             prop_assert_eq!(report.epoch, refslot.epoch());
@@ -320,7 +320,7 @@ mod tests {
             let refslot = ReferenceSlot(validator_setup.slot.0);
 
             let (state, balances) = validator_setup.to_lido_validator_state(true);
-            let report_from_state = ReportData::compute_from_state(refslot, &state, &balances, &validator_setup.lido_creds);
+            let report_from_state = ReportData::compute_from_state(refslot, &state, &balances, &validator_setup.lido_creds).expect("Must no fail");
 
             let all_validators: Vec<ValidatorWithBalance> = validator_setup.all_validators(true);
             let validators: Vec<Validator> = all_validators.iter().map(|v| v.validator.clone()).collect_vec();

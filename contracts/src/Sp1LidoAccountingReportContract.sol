@@ -12,7 +12,9 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @notice The address of the beacon roots precompile.
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
     address public constant BEACON_ROOTS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
-
+    
+    /// @notice role that allows to pause the contract
+    bytes32 public constant PIVOT_SP1_PARAMETERS_ROLE = keccak256("Sp1LidoAccountingReportContract.PivotParameters");
     /// @notice role that allows to pause the contract
     bytes32 public constant PAUSE_ROLE = keccak256("Sp1LidoAccountingReportContract.PauseRole");
     /// @notice role that allows to resume the contract
@@ -21,24 +23,13 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @notice The length of the beacon roots ring buffer.
     uint256 internal constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;
 
-    address public immutable VERIFIER;
-    /// @notice The verification key for the SP1 program.
-    /// See https://docs.succinct.xyz/onchain-verification/solidity-sdk.html
-    /// Essentially, vkey pins the code of ZK program to a particular state
-    /// and changes with any code modification
-    bytes32 public immutable VKEY;
+    /// @notice Seconds per slot
+    uint256 public constant SECONDS_PER_SLOT = 12;
+        
     bytes32 public immutable WITHDRAWAL_CREDENTIALS;
     address public immutable WITHDRAWAL_VAULT_ADDRESS;
-
-    /// @notice Seconds per slot
-    uint256 public immutable SECONDS_PER_SLOT = 12;
-
     /// @notice The genesis block timestamp.
     uint256 public immutable GENESIS_BLOCK_TIMESTAMP;
-
-    mapping(uint256 refSlot => Report) private _reports;
-    mapping(uint256 refSlot => bytes32 state) private _states;
-    uint256 private _latestValidatorStateSlot;
 
     struct Report {
         uint256 reference_slot;
@@ -72,6 +63,23 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         Report report;
         ReportMetadata metadata;
     }
+
+    struct Sp1VerifierParameters {
+        address verifier;    
+        /// @notice The verification key for the SP1 program.
+        /// See https://docs.succinct.xyz/onchain-verification/solidity-sdk.html
+        /// Essentially, vkey pins the code of ZK program to a particular state
+        /// and changes with any code modification
+        bytes32 vkey;
+    }
+
+    mapping(uint256 refSlot => Report) private _reports;
+    mapping(uint256 refSlot => bytes32 state) private _states;
+    uint256 private _latestValidatorStateSlot;  
+
+    uint256 private _verifier_parameters_pivot_slot;
+    Sp1VerifierParameters private _verifier_parameters_current;
+    Sp1VerifierParameters private _verifier_parameters_next;
 
     event ReportAccepted(Report report);
     event LidoValidatorStateHashRecorded(uint256 indexed slot, bytes32 merkle_root);
@@ -109,6 +117,8 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         uint256 refslot
     );
 
+    error PivotSlotInThePast(uint256 currentSlot, uint256 requestedSlot);
+
     constructor(
         address _verifier,
         bytes32 _vkey,
@@ -118,13 +128,15 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         LidoValidatorState memory _initial_state,
         address _admin
     ) {
-        VERIFIER = _verifier;
-        VKEY = _vkey;
         WITHDRAWAL_CREDENTIALS = _lido_withdrawal_credentials;
         WITHDRAWAL_VAULT_ADDRESS = _withdrawal_vault_address;
         GENESIS_BLOCK_TIMESTAMP = _genesis_timestamp;
         _recordLidoValidatorStateHash(_initial_state.slot, _initial_state.merkle_root);
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+
+        _verifier_parameters_pivot_slot = type(uint256).max;
+        _verifier_parameters_current = Sp1VerifierParameters(_verifier, _vkey);
+        _verifier_parameters_next = Sp1VerifierParameters(_verifier, _vkey);
     }
 
     function getReport(uint256 refSlot)
@@ -204,9 +216,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         // Check that public values from ZK program match expected blockchain state
         _verify_public_values(public_values);
 
+        Sp1VerifierParameters memory sp1_parameters = getVerifierParameters(metadata.bc_slot);
+
         // Verify ZK-program and public values
-        try ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof) {
-            // If SP1 verifier didn't revert - it means that proof is valid
+        try ISP1Verifier(sp1_parameters.verifier).verifyProof(sp1_parameters.vkey, publicValues, proof) {
+        // If SP1 verifier didn't revert - it means that proof is valid
         } catch (bytes memory reason) {
             if (reason.length > 0) {
                 revert Sp1VerificationError(string(reason));
@@ -390,6 +404,10 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         return GENESIS_BLOCK_TIMESTAMP + slot * SECONDS_PER_SLOT;
     }
 
+    function _timestampToSlot(uint256 timestamp) internal view returns (uint256) {
+        return (timestamp - GENESIS_BLOCK_TIMESTAMP) / SECONDS_PER_SLOT;
+    }
+
     function _recordReport(Report memory report) internal {
         _reports[report.reference_slot] = report;
         emit ReportAccepted(report);
@@ -401,5 +419,43 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
             _latestValidatorStateSlot = slot;
         }
         emit LidoValidatorStateHashRecorded(slot, state_merkle_root);
+    }
+
+    /// @notice Sets new SP1 parameters to take effect at a future slot
+    /// @param stateSlot Slot to get SP1 paramters for
+    /// @return parameters New SP1 parameters to use
+    /// @dev Reverts if sender don't have PIVOT_SP1_PARAMETERS_ROLE
+    function getVerifierParameters(uint256 stateSlot) public view returns (Sp1VerifierParameters memory) {
+        return stateSlot < _verifier_parameters_pivot_slot ? _verifier_parameters_current : _verifier_parameters_next;
+    }
+
+    /// @notice Sets new SP1 parameters to take effect at a future slot
+    /// @param pivotSlot Switching to the new SP1 parameters happen at this slot.
+    /// @param parameters New SP1 parameters to use
+    /// @dev Reverts if sender don't have PIVOT_SP1_PARAMETERS_ROLE
+    /// @dev Reverts if pivotSlot is already in the past
+    function setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) public {
+        _setVerifierParametersPivot(pivotSlot, parameters); // <<<--- this is the real implementation
+        // _setVerifierParametersPivot_noChecks(pivotSlot, parameters); // <<<--- this is for test_vkey_rollover recipe ONLY
+    }
+
+    function _setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) 
+        internal 
+        onlyRole(PIVOT_SP1_PARAMETERS_ROLE) 
+    {
+        uint256 currentSlot = _timestampToSlot(block.timestamp);
+        if (pivotSlot < currentSlot) {
+            revert PivotSlotInThePast(currentSlot, pivotSlot);
+        }
+        _setVerifierParametersPivot_noChecks(pivotSlot, parameters);
+    }
+    
+    /// @dev NOTE: Only call via _setVerifierParametersPivot (above) or from tests - bypasses ACL and sanity checks
+    function _setVerifierParametersPivot_noChecks(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) 
+        internal 
+    {
+        _verifier_parameters_current = _verifier_parameters_next;
+        _verifier_parameters_next = parameters;
+        _verifier_parameters_pivot_slot = pivotSlot;
     }
 }
