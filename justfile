@@ -114,6 +114,9 @@ print_vkey: build
 store_report target_slot previous_slot: build
     ./target/release/store_report --target-ref-slot {{target_slot}} --previous-ref-slot {{previous_slot}}
 
+submit_stored_report target_slot: build
+    ./target/release/submit_cached --target-slot {{target_slot}}
+
 download_state target_slot format="ssz":
     curl -H {{ if format == "ssz" { "'Accept:application/octet-stream'" } else { "'Accept:application/json'" } }} ${CONSENSUS_LAYER_RPC}/eth/v2/debug/beacon/states/{{target_slot}} > temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
 
