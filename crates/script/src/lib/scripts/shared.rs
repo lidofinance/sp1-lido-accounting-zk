@@ -87,8 +87,8 @@ pub fn prepare_program_input(
     let report = ReportData::compute(
         reference_slot,
         bs.epoch(),
-        &bs.validators(),
-        &bs.balances(),
+        bs.validators(),
+        bs.balances(),
         *lido_withdrawal_credentials,
     )?;
 

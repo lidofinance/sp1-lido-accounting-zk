@@ -185,11 +185,16 @@ impl IntegrationTestEnvironment {
             Self::parse_envs()?;
         let temp_bs_folder = TempDir::new()?;
         let temp_bs_folder_path = temp_bs_folder.path();
+        let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
+
         let cached_reader = CachedReqwestBeaconStateReader::new(
             &rpc_endpoint,
             &bs_endpoint,
             &file_store_location,
-            &[temp_bs_folder_path],
+            &[
+                temp_bs_folder_path,                  // used for beacon state overrides
+                test_files.beacon_states().as_path(), // for cached test data
+            ],
             METRICS.services.beacon_state_client.clone(),
         )?;
         let beacon_state_reader = Arc::new(BeaconStateReaderEnum::RPCCached(cached_reader));
@@ -214,7 +219,6 @@ impl IntegrationTestEnvironment {
         ));
         let eth_client = EthELClient::new(Arc::clone(&provider), METRICS.services.eth_client.clone());
 
-        let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
         let deploy_bs: BeaconState = test_files
             .read_beacon_state(&StateId::Slot(deploy_slot))
             .await
@@ -605,9 +609,7 @@ impl AdjusterWrapper {
 
         assert!(
             existing_non_exited.len() >= count,
-            "Need to have at least {} existing validators, had {:?}",
-            count,
-            existing_non_exited,
+            "Need to have at least {count} existing validators, had {existing_non_exited:?}",
         );
 
         for to_exit in existing_non_exited.iter().take(count) {

@@ -29,11 +29,11 @@ impl FileBasedBeaconChainStore {
     }
 
     pub fn get_beacon_state_path(&self, state_id: &str) -> PathBuf {
-        self.store_location.join(format!("bs_{}.ssz", state_id))
+        self.store_location.join(format!("bs_{state_id}.ssz"))
     }
 
     pub fn get_beacon_block_header_path(&self, state_id: &str) -> PathBuf {
-        self.store_location.join(format!("bs_{}_header.json", state_id))
+        self.store_location.join(format!("bs_{state_id}_header.json"))
     }
 
     pub fn exists(path: &Path) -> bool {
