@@ -44,15 +44,16 @@ This section lists files that are in scope for the metrics report.
 
 ### <span id=t-source-Units-in-Scope>Source Units in Scope</span>
 
-Source Units Analyzed: **`3`**<br>
-Source Units in Scope: **`3`** (**100%**)
+Source Units Analyzed: **`4`**<br>
+Source Units in Scope: **`4`** (**100%**)
 
 | Type | File   | Logic Contracts | Interfaces | Lines | nLines | nSLOC | Comment Lines | Complex. Score | Capabilities |
 | ---- | ------ | --------------- | ---------- | ----- | ------ | ----- | ------------- | -------------- | ------------ | 
+| 📝 | contracts/src/HashConsensusStub.sol | 1 | **** | 34 | 28 | 20 | 2 | 7 | **** |
 | 🔍 | contracts/src/ISecondOpinionOracle.sol | **** | 1 | 16 | 6 | 3 | 2 | 3 | **** |
 | 📝 | contracts/src/PausableUntil.sol | 1 | **** | 102 | 102 | 72 | 14 | 32 | **** |
-| 📝 | contracts/src/Sp1LidoAccountingReportContract.sol | 1 | **** | 461 | 436 | 279 | 87 | 141 | **<abbr title='Uses Hash-Functions'>🧮</abbr><abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
-| 📝🔍 | **Totals** | **2** | **1** | **579**  | **544** | **354** | **103** | **176** | **<abbr title='Uses Hash-Functions'>🧮</abbr><abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 📝 | contracts/src/Sp1LidoAccountingReportContract.sol | 1 | **** | 453 | 433 | 279 | 84 | 148 | **<abbr title='Uses Hash-Functions'>🧮</abbr><abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
+| 📝🔍 | **Totals** | **3** | **1** | **605**  | **569** | **374** | **102** | **190** | **<abbr title='Uses Hash-Functions'>🧮</abbr><abbr title='TryCatch Blocks'>♻️</abbr><abbr title='Unchecked Blocks'>Σ</abbr>** |
 
 <sub>
 Legend: <a onclick="toggleVisibility('table-legend', this)">[➕]</a>
@@ -71,7 +72,8 @@ Legend: <a onclick="toggleVisibility('table-legend', this)">[➕]</a>
 
 
 ##### <span id=t-deployable-contracts>Deployable Logic Contracts</span>
-Total: 1
+Total: 2
+* 📝 `HashConsensusStub`
 * 📝 `Sp1LidoAccountingReportContract`
 
 
@@ -140,14 +142,14 @@ The analysis finished with **`0`** errors and **`0`** duplicate files.
 
 #### <span id=t-inline-documentation>Inline Documentation</span>
 
-- **Comment-to-Source Ratio:** On average there are`3.78` code lines per comment (lower=better).
+- **Comment-to-Source Ratio:** On average there are`4.02` code lines per comment (lower=better).
 - **ToDo's:** `0` 
 
 #### <span id=t-components>Components</span>
 
 | 📝Contracts   | 📚Libraries | 🔍Interfaces | 🎨Abstract |
 | ------------- | ----------- | ------------ | ---------- |
-| 2 | 0  | 1  | 0 |
+| 3 | 0  | 1  | 0 |
 
 #### <span id=t-exposed-functions>Exposed Functions</span>
 
@@ -155,17 +157,17 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 | 🌐Public   | 💰Payable |
 | ---------- | --------- |
-| 13 | 0  | 
+| 15 | 0  | 
 
 | External   | Internal | Private | Pure | View |
 | ---------- | -------- | ------- | ---- | ---- |
-| 6 | 33  | 1 | 0 | 20 |
+| 10 | 31  | 1 | 0 | 21 |
 
 #### <span id=t-statevariables>StateVariables</span>
 
 | Total      | 🌐Public  |
 | ---------- | --------- |
-| 17  | 10 |
+| 19  | 15 |
 
 #### <span id=t-capabilities>Capabilities</span>
 
@@ -245,9 +247,10 @@ This section lists functions that are explicitly declared public or payable. Ple
 
 |  File Name  |  SHA-1 Hash  |
 |-------------|--------------|
+| contracts/src/HashConsensusStub.sol | 2e70b4382c99b0ff03ab279ed29c1cbc9ea2f8a9 |
 | contracts/src/ISecondOpinionOracle.sol | aae4a41a136aa0bae4c90f868431f5863f86ddad |
 | contracts/src/PausableUntil.sol | f384a4a37d3c1cd3311fce52acb734d3515df644 |
-| contracts/src/Sp1LidoAccountingReportContract.sol | 97b6be85ff5d652d47102e6cd3adf399030e2110 |
+| contracts/src/Sp1LidoAccountingReportContract.sol | 00fa90ba2708319abb422303cfaee80d09dd9356 |
 
 
  Contracts Description Table
@@ -256,6 +259,11 @@ This section lists functions that are explicitly declared public or payable. Ple
 |  Contract  |         Type        |       Bases      |                  |                 |
 |:----------:|:-------------------:|:----------------:|:----------------:|:---------------:|
 |     └      |  **Function Name**  |  **Visibility**  |  **Mutability**  |  **Modifiers**  |
+||||||
+| **HashConsensusStub** | Implementation |  |||
+| └ | <Constructor> | Public ❗️ | 🛑  |NO❗️ |
+| └ | setCurrentFrame | External ❗️ | 🛑  |NO❗️ |
+| └ | getCurrentFrame | External ❗️ |   |NO❗️ |
 ||||||
 | **SecondOpinionOracle** | Interface |  |||
 | └ | getReport | External ❗️ |   |NO❗️ |
@@ -277,7 +285,9 @@ This section lists functions that are explicitly declared public or payable. Ple
 | └ | getLatestLidoValidatorStateSlot | Public ❗️ |   |NO❗️ |
 | └ | getLidoValidatorStateHash | Public ❗️ |   |NO❗️ |
 | └ | getBeaconBlockHash | Public ❗️ |   |NO❗️ |
-| └ | submitReportData | Public ❗️ | 🛑  | whenResumed |
+| └ | submitReportData | External ❗️ | 🛑  | whenResumed |
+| └ | getVerifierParameters | Public ❗️ |   |NO❗️ |
+| └ | setVerifierParametersPivot | External ❗️ | 🛑  | onlyRole |
 | └ | pauseFor | External ❗️ | 🛑  | onlyRole |
 | └ | pauseUntil | External ❗️ | 🛑  | onlyRole |
 | └ | resume | External ❗️ | 🛑  | onlyRole |
@@ -292,10 +302,6 @@ This section lists functions that are explicitly declared public or payable. Ple
 | └ | _timestampToSlot | Internal 🔒 |   | |
 | └ | _recordReport | Internal 🔒 | 🛑  | |
 | └ | _recordLidoValidatorStateHash | Internal 🔒 | 🛑  | |
-| └ | getVerifierParameters | Public ❗️ |   |NO❗️ |
-| └ | setVerifierParametersPivot | Public ❗️ | 🛑  |NO❗️ |
-| └ | _setVerifierParametersPivot | Internal 🔒 | 🛑  | onlyRole |
-| └ | _setVerifierParametersPivot_noChecks | Internal 🔒 | 🛑  | |
 
 
  Legend
