@@ -10,6 +10,8 @@ pub use ssz_types::{typenum, typenum::Unsigned, BitList, BitVector, FixedVector,
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
+use superstruct::superstruct;
+
 pub type Address = alloy_primitives::Address;
 pub type CommitteeIndex = u64;
 pub type Hash256 = alloy_primitives::B256;
@@ -162,8 +164,15 @@ pub struct PendingConsolidation {
 }
 
 // Simplified https://github.com/sigp/lighthouse/blob/master/consensus/types/src/beacon_state.rs#L212
-// Primarily - flattening the "superstruct" part on different eth specs,
+// Primarily - dropping the "metastruct" and flattening "superstruct" to Electra and Fulu variants.
+#[superstruct(
+    variants(Electra, Fulu),
+    variant_attributes(derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)),
+    map_into(BeaconStatePrecomputedHashes)
+)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[tree_hash(enum_behaviour = "transparent")]
+#[ssz(enum_behaviour = "transparent")]
 pub struct BeaconState {
     // Versioning
     // #[serde(with = "serde_utils::quoted_u64")]
@@ -225,6 +234,7 @@ pub struct BeaconState {
     pub next_withdrawal_validator_index: u64,
     // Deep history valid from Capella onwards.
     pub historical_summaries: VariableList<HistoricalSummary, eth_spec::HistoricalRootsLimit>,
+
     // Electra
     // #[serde(with = "serde_utils::quoted_u64")]
     pub deposit_requests_start_index: u64,
@@ -239,6 +249,11 @@ pub struct BeaconState {
     pub pending_deposits: VariableList<PendingDeposit, eth_spec::PendingDepositsLimit>,
     pub pending_partial_withdrawals: VariableList<PendingPartialWithdrawal, eth_spec::PendingPartialWithdrawalsLimit>,
     pub pending_consolidations: VariableList<PendingConsolidation, eth_spec::PendingConsolidationsLimit>,
+
+    // Fulu
+    #[superstruct(only(Fulu))]
+    pub proposer_lookahead:
+        FixedVector<ValidatorIndex, typenum::Prod<typenum::Add1<eth_spec::MinSeedLookahead>, eth_spec::SlotsPerEpoch>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, MerkleTreeFieldLeaves)]
@@ -309,10 +324,12 @@ pub struct BeaconStatePrecomputedHashes {
     pub pending_deposits: Hash256,
     pub pending_partial_withdrawals: Hash256,
     pub pending_consolidations: Hash256,
+    // Fulu
+    pub proposer_lookahead: Hash256,
 }
 
-impl From<&BeaconState> for BeaconStatePrecomputedHashes {
-    fn from(value: &BeaconState) -> Self {
+impl From<&BeaconStateFulu> for BeaconStatePrecomputedHashes {
+    fn from(value: &BeaconStateFulu) -> Self {
         Self {
             genesis_time: value.genesis_time.tree_hash_root(),
             genesis_validators_root: value.genesis_validators_root.tree_hash_root(),
@@ -351,13 +368,14 @@ impl From<&BeaconState> for BeaconStatePrecomputedHashes {
             pending_deposits: value.pending_deposits.tree_hash_root(),
             pending_partial_withdrawals: value.pending_partial_withdrawals.tree_hash_root(),
             pending_consolidations: value.pending_consolidations.tree_hash_root(),
+            proposer_lookahead: value.proposer_lookahead.tree_hash_root(),
         }
     }
 }
 
-impl From<BeaconState> for BeaconStatePrecomputedHashes {
-    fn from(value: BeaconState) -> Self {
-        let borrowed: &BeaconState = &value;
+impl From<BeaconStateFulu> for BeaconStatePrecomputedHashes {
+    fn from(value: BeaconStateFulu) -> Self {
+        let borrowed: &BeaconStateFulu = &value;
         borrowed.into()
     }
 }
@@ -392,8 +410,8 @@ impl From<BeaconBlockHeader> for BeaconBlockHeaderPrecomputedHashes {
 
 pub type BeaconStateFields = BeaconStatePrecomputedHashesFields;
 
-impl MerkleTreeFieldLeaves for BeaconState {
-    const FIELD_COUNT: usize = 28;
+impl MerkleTreeFieldLeaves for BeaconStateFulu {
+    const FIELD_COUNT: usize = 29;
     type TFields = BeaconStateFields;
     fn get_leaf_index(field_name: &Self::TFields) -> usize {
         BeaconStatePrecomputedHashes::get_leaf_index(field_name)

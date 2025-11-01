@@ -8,7 +8,7 @@ use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateI
 use sp1_lido_accounting_scripts::consts::NetworkInfo;
 use sp1_lido_accounting_scripts::eth_client::ContractDeployParametersRust;
 use sp1_lido_accounting_scripts::proof_storage::StoredProof;
-use sp1_lido_accounting_scripts::utils::read_json;
+use sp1_lido_accounting_scripts::utils::{read_binary, read_json};
 use sp1_lido_accounting_scripts::{prometheus_metrics, proof_storage, utils};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconBlockHeader, BeaconState};
 use sp1_lido_accounting_zk_shared::io::eth_io::BeaconChainSlot;
@@ -46,7 +46,7 @@ impl TestFiles {
         self.base.join("proofs")
     }
 
-    fn beacon_states(&self) -> PathBuf {
+    pub fn beacon_states(&self) -> PathBuf {
         self.base.join("beacon_states")
     }
 
@@ -63,13 +63,18 @@ impl TestFiles {
             .deploys()
             .join(format!("{}-{}-deploy.json", network.as_str(), slot.0));
         utils::read_json(deploy_args_file.as_path())
-            .wrap_err(format!("Failed to read deploy args from file {:#?}", deploy_args_file))
+            .wrap_err(format!("Failed to read deploy args from file {deploy_args_file:#?}"))
     }
 
     pub fn read_proof(&self, file_name: &str) -> Result<StoredProof> {
         let proof_file = self.proofs().join(file_name);
         proof_storage::read_proof_and_metadata(proof_file.as_path())
-            .wrap_err(format!("Failed to read proof from file {:#?}", proof_file))
+            .wrap_err(format!("Failed to read proof from file {proof_file:#?}"))
+    }
+
+    pub async fn read_bs_ssz(&self, slot: u64) -> Result<Vec<u8>> {
+        let location = self.beacon_states().join(format!("bs_{slot}.ssz"));
+        read_binary(&location).wrap_err(format!("Failed to read proof from file {location:#?}"))
     }
 
     pub async fn read_beacon_state(&self, state_id: &StateId) -> Result<BeaconState> {
@@ -100,7 +105,7 @@ impl TestFiles {
         let permanent_state_id = state_id
             .get_permanent_str()
             .map_err(|err| eyre!("Failed to get permanent str for StateId {:#?}", err))?;
-        let file_path = folder.join(format!("vault_data_{}.json", permanent_state_id));
+        let file_path = folder.join(format!("vault_data_{permanent_state_id}.json"));
         tracing::info!("Reading WithdrawalVault account proof from file {:?}", &file_path);
         let res: WithdrawalVaultData = read_json(&file_path)?;
         Ok(res)

@@ -13,6 +13,14 @@ use crate::prometheus_metrics;
 
 pub const ELF: &[u8] = include_elf!("sp1-lido-accounting-zk-program");
 
+pub fn vk_bytes(sp1_vk: &SP1VerifyingKey) -> Result<[u8; 32]> {
+    let mut vk_bytes: [u8; 32] = [0; 32];
+    let vk = sp1_vk.bytes32();
+    let stripped_vk = vk.strip_prefix("0x").unwrap_or(&vk);
+    hex::decode_to_slice(stripped_vk.as_bytes(), &mut vk_bytes)?;
+    Ok(vk_bytes)
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Failed to generate proof {0:?}")]
@@ -100,11 +108,7 @@ impl SP1ClientWrapper for SP1ClientWrapperImpl {
     }
 
     fn vk_bytes(&self) -> Result<[u8; 32]> {
-        let mut vk_bytes: [u8; 32] = [0; 32];
-        let vk = self.vk.bytes32();
-        let stripped_vk = vk.strip_prefix("0x").unwrap_or(&vk);
-        hex::decode_to_slice(stripped_vk.as_bytes(), &mut vk_bytes)?;
-        Ok(vk_bytes)
+        vk_bytes(&self.vk)
     }
 
     fn prove(&self, input: ProgramInput) -> Result<SP1ProofWithPublicValues> {

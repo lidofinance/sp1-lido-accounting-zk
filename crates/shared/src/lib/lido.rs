@@ -186,7 +186,11 @@ impl LidoValidatorState {
     }
 
     pub fn compute_from_beacon_state(bs: &BeaconState, lido_withdrawal_credentials: &Hash256) -> Self {
-        Self::compute(BeaconChainSlot(bs.slot), &bs.validators, lido_withdrawal_credentials)
+        Self::compute(
+            BeaconChainSlot(*bs.slot()),
+            bs.validators(),
+            lido_withdrawal_credentials,
+        )
     }
 
     pub fn merge_validator_delta(

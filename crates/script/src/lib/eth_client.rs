@@ -156,7 +156,7 @@ impl fmt::Display for ContractDeployParametersRust {
 
 impl Debug for ContractDeployParametersRust {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self) // just use display
+        write!(f, "{self}") // just use display
     }
 }
 

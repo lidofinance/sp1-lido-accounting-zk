@@ -239,10 +239,10 @@ mod stale_data {
             .eth_client
             .get_withdrawal_vault_data(
                 withdrawal_vault_address,
-                old_bs.latest_execution_payload_header.block_hash,
+                old_bs.latest_execution_payload_header().block_hash,
             )
             .await?;
-        program_input.latest_execution_header_data = (&old_bs.latest_execution_payload_header).into();
+        program_input.latest_execution_header_data = old_bs.latest_execution_payload_header().into();
         executor.assert_fails_in_prover(program_input).await
     }
 }
@@ -309,14 +309,14 @@ mod multi_modifications {
 
         update_program_input(&mut program_input, bs, old_bs, &lido_credentials, |mut bs| {
             let balance = 32000000123;
-            bs.validators
+            bs.validators_mut()
                 .push(validator::make(
                     executor.env.script_runtime.lido_settings.withdrawal_credentials,
                     validator::Status::Active(target_slot.epoch()),
                     balance,
                 ))
                 .expect("...");
-            bs.balances.push(balance).expect("...");
+            bs.balances_mut().push(balance).expect("...");
             bs
         });
         executor.assert_fails_in_prover(program_input).await
@@ -338,14 +338,14 @@ mod multi_modifications {
 
         update_program_input(&mut program_input, bs, old_bs, &lido_credentials, |mut bs| {
             let lido_validators: Vec<usize> = bs
-                .validators
+                .validators()
                 .iter()
                 .enumerate()
                 .filter(|(_idx, val)| val.withdrawal_credentials == lido_credentials)
                 .map(|(idx, _val)| idx)
                 .collect();
             let modify_idx = lido_validators.iter().choose(&mut rand::rng()).expect("...");
-            bs.balances[*modify_idx] += 250;
+            bs.balances_mut()[*modify_idx] += 250;
             bs
         });
         executor.assert_fails_in_prover(program_input).await
@@ -689,7 +689,7 @@ mod vals_and_bals {
             let mut program_input = executor.prepare_input_no_ver(target_slot).await?;
             let bs = executor.env.read_beacon_state(&StateId::Slot(target_slot)).await?;
             let target_validator_index = 67;
-            let validator = bs.validators[target_validator_index].clone();
+            let validator = bs.validators()[target_validator_index].clone();
 
             program_input.validators_and_balances.validators_delta.all_added = vecs::append(
                 program_input.validators_and_balances.validators_delta.all_added,
@@ -853,7 +853,7 @@ mod vals_and_bals {
             let mut program_input = executor.prepare_input_no_ver(target_slot).await?;
             let bs = executor.env.read_beacon_state(&StateId::Slot(target_slot)).await?;
             let target_validator_index = 50;
-            let validator = bs.validators[target_validator_index].clone();
+            let validator = bs.validators()[target_validator_index].clone();
 
             program_input.validators_and_balances.validators_delta.lido_changed = vecs::append(
                 program_input.validators_and_balances.validators_delta.lido_changed,
@@ -1281,7 +1281,7 @@ mod new_state {
             .iter()
             .map(|v| v.index.try_into().expect("Index must fit into usize"))
             .collect();
-        bs.validators.get_serialized_multiproof(&indices)
+        bs.validators().get_serialized_multiproof(&indices)
     }
 
     fn push_index(validator_indices: &mut ValidatorIndexList, index: ValidatorIndex) {
@@ -1478,7 +1478,7 @@ mod withdrawal_vault {
             .eth_client
             .get_withdrawal_vault_data(
                 withdrawal_vault_address,
-                old_bs.latest_execution_payload_header.block_hash,
+                old_bs.latest_execution_payload_header().block_hash,
             )
             .await?;
         executor.assert_fails_in_prover(program_input).await
@@ -1501,7 +1501,7 @@ mod withdrawal_vault {
             .eth_client
             .get_withdrawal_vault_data(
                 test_consts::ANY_RANDOM_ADDRESS.into(),
-                bs.latest_execution_payload_header.block_hash,
+                bs.latest_execution_payload_header().block_hash,
             )
             .await?;
 
@@ -1540,7 +1540,7 @@ mod exec_payload {
         let old_slot = target_slot - eth_spec::SlotsPerEpoch::to_u64();
         let old_bs = executor.env.read_beacon_state(&StateId::Slot(old_slot)).await?;
 
-        program_input.latest_execution_header_data.state_root = old_bs.latest_execution_payload_header.state_root;
+        program_input.latest_execution_header_data.state_root = old_bs.latest_execution_payload_header().state_root;
         executor.assert_fails_in_prover(program_input).await
     }
 
@@ -1554,7 +1554,7 @@ mod exec_payload {
         let old_slot = target_slot - eth_spec::SlotsPerEpoch::to_u64();
         let old_bs = executor.env.read_beacon_state(&StateId::Slot(old_slot)).await?;
 
-        program_input.latest_execution_header_data = (&old_bs.latest_execution_payload_header).into();
+        program_input.latest_execution_header_data = old_bs.latest_execution_payload_header().into();
         executor.assert_fails_in_prover(program_input).await
     }
 }
