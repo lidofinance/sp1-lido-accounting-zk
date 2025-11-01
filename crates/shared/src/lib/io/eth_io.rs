@@ -215,7 +215,7 @@ pub trait HaveSlotWithBlock {
 
 impl HaveSlotWithBlock for BeaconState {
     fn bc_slot(&self) -> BeaconChainSlot {
-        BeaconChainSlot(self.slot)
+        BeaconChainSlot(*self.slot())
     }
 }
 
@@ -243,7 +243,7 @@ impl HaveEpoch for ReferenceSlot {
 
 impl HaveEpoch for BeaconState {
     fn epoch(&self) -> Epoch {
-        self.slot / eth_spec::SlotsPerEpoch::to_u64()
+        self.slot() / eth_spec::SlotsPerEpoch::to_u64()
     }
 }
 

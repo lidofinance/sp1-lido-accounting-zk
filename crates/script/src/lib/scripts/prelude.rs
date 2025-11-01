@@ -27,7 +27,6 @@ use alloy::transports::http::reqwest::Url;
 const DEFAULT_DRY_RUN: bool = true; // Fail close
 const DEFAULT_REPORT_CYCLES: bool = false; // Reporting cycles causes higher load on the current server
 const DEFAULT_PROMETHEUS_NAMESPACE: &str = "zk_accounting_sp1";
-const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
 
 #[derive(Debug, Error)]
 pub enum Error {

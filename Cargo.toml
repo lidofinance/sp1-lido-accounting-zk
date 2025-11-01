@@ -53,6 +53,7 @@ sp1-derive = "5.2.1"
 sp1-helper = "5.2.1"
 sp1-sdk = {version = "5.2.1", features = ["network"] }
 sp1-zkvm = "5.2.1"
+superstruct = "0.8.0"
 syn-solidity = "1.3"
 thiserror = "2.0"
 tokio = "1.47.1"

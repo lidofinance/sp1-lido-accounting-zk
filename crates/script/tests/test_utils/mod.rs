@@ -4,6 +4,7 @@ use hex_literal::hex;
 use sp1_lido_accounting_scripts::consts::{Network, WrappedNetwork};
 use sp1_lido_accounting_scripts::eth_client::Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractErrors;
 use sp1_lido_accounting_scripts::{eth_client, sp1_client_wrapper};
+use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconState, Validator};
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::{BeaconStateFields, BeaconStatePrecomputedHashes, Hash256};
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, ReferenceSlot};
 
@@ -30,7 +31,29 @@ pub fn mark_as_refslot(slot: BeaconChainSlot) -> ReferenceSlot {
     ReferenceSlot(slot.0)
 }
 
+pub fn set_validators(bs: &mut BeaconState, new_validators: Vec<Validator>) {
+    match bs {
+        BeaconState::Electra(inner_bs) => inner_bs.validators = new_validators.into(),
+        BeaconState::Fulu(inner_bs) => inner_bs.validators = new_validators.into(),
+    }
+}
+
+pub fn set_balances(bs: &mut BeaconState, new_balances: Vec<u64>) {
+    match bs {
+        BeaconState::Electra(inner_bs) => inner_bs.balances = new_balances.into(),
+        BeaconState::Fulu(inner_bs) => inner_bs.balances = new_balances.into(),
+    }
+}
+
+pub fn set_slot(bs: &mut BeaconState, new_slot: u64) {
+    match bs {
+        BeaconState::Electra(inner_bs) => inner_bs.slot = new_slot,
+        BeaconState::Fulu(inner_bs) => inner_bs.slot = new_slot,
+    }
+}
+
 pub mod adjustments {
+    use super::set_slot;
     use sp1_lido_accounting_zk_shared::{
         eth_consensus_layer::{BeaconBlockHeader, BeaconState, Validator},
         io::eth_io::BeaconChainSlot,
@@ -51,17 +74,20 @@ pub mod adjustments {
         }
 
         pub fn set_slot(&mut self, slot: &BeaconChainSlot) -> &mut Self {
-            self.beacon_state.slot = slot.0;
+            set_slot(&mut self.beacon_state, slot.0);
             self.block_header.slot = slot.0;
             self
         }
 
         pub fn add_validator(&mut self, validator: Validator, balance: u64) -> &mut Self {
             self.beacon_state
-                .validators
+                .validators_mut()
                 .push(validator)
                 .expect("Too many validators");
-            self.beacon_state.balances.push(balance).expect("Too many balances");
+            self.beacon_state
+                .balances_mut()
+                .push(balance)
+                .expect("Too many balances");
             self
         }
 
@@ -78,17 +104,17 @@ pub mod adjustments {
         }
 
         pub fn set_validator(&mut self, index: usize, validator: Validator) -> &mut Self {
-            self.beacon_state.validators[index] = validator;
+            self.beacon_state.validators_mut()[index] = validator;
             self
         }
 
         pub fn change_validator(&mut self, index: usize, modifier: impl FnOnce(&mut Validator)) -> &mut Self {
-            modifier(&mut self.beacon_state.validators[index]);
+            modifier(&mut self.beacon_state.validators_mut()[index]);
             self
         }
 
         pub fn set_balance(&mut self, index: usize, balance: u64) -> &mut Self {
-            self.beacon_state.balances[index] = balance;
+            self.beacon_state.balances_mut()[index] = balance;
             self
         }
 

@@ -19,7 +19,10 @@ use sp1_lido_accounting_zk_shared::{
     },
     lido::{ValidatorOps, ValidatorStatus},
 };
-use test_utils::{env::IntegrationTestEnvironment, mark_as_refslot, TestAssertions, TestError, DEPLOY_SLOT};
+use test_utils::{
+    env::IntegrationTestEnvironment, mark_as_refslot, set_balances, set_validators, TestAssertions, TestError,
+    DEPLOY_SLOT,
+};
 use tree_hash::TreeHash;
 
 type WithdrawalVaultDataMutator = dyn Fn(WithdrawalVaultData) -> WithdrawalVaultData;
@@ -198,7 +201,7 @@ fn all_validator_indices<P>(bs: &BeaconState, predicate: P) -> Vec<usize>
 where
     P: Fn(&Validator) -> bool,
 {
-    bs.validators
+    bs.validators()
         .iter()
         .enumerate()
         .filter_map(
@@ -309,8 +312,11 @@ async fn data_tampering_add_active_lido_validator() -> Result<()> {
                 withdrawable_epoch: beacon_state.epoch() - 1,
             };
             let mut new_bs = beacon_state.clone();
-            new_bs.validators.push(new_validator).expect("Failed to add balance");
-            new_bs.balances.push(balance).expect("Failed to add validator");
+            new_bs
+                .validators_mut()
+                .push(new_validator)
+                .expect("Failed to add balance");
+            new_bs.balances_mut().push(balance).expect("Failed to add validator");
             new_bs
         },
     );
@@ -343,8 +349,11 @@ async fn data_tampering_add_pending_lido_validator() -> Result<()> {
                 withdrawable_epoch: u64::MAX,
             };
             let mut new_bs = beacon_state.clone();
-            new_bs.validators.push(new_validator).expect("Failed to add balance");
-            new_bs.balances.push(balance).expect("Failed to add validator");
+            new_bs
+                .validators_mut()
+                .push(new_validator)
+                .expect("Failed to add balance");
+            new_bs.balances_mut().push(balance).expect("Failed to add validator");
             new_bs
         },
     );
@@ -377,8 +386,11 @@ async fn data_tampering_add_exited_lido_validator() -> Result<()> {
                 withdrawable_epoch: beacon_state.epoch() - 3,
             };
             let mut new_bs = beacon_state.clone();
-            new_bs.validators.push(new_validator).expect("Failed to add balance");
-            new_bs.balances.push(balance).expect("Failed to add validator");
+            new_bs
+                .validators_mut()
+                .push(new_validator)
+                .expect("Failed to add balance");
+            new_bs.balances_mut().push(balance).expect("Failed to add validator");
             new_bs
         },
     );
@@ -407,8 +419,11 @@ async fn data_tampering_add_active_non_lido_validator() -> Result<()> {
             withdrawable_epoch: beacon_state.epoch() - 1,
         };
         let mut new_bs = beacon_state.clone();
-        new_bs.validators.push(new_validator).expect("Failed to add balance");
-        new_bs.balances.push(balance).expect("Failed to add validator");
+        new_bs
+            .validators_mut()
+            .push(new_validator)
+            .expect("Failed to add balance");
+        new_bs.balances_mut().push(balance).expect("Failed to add validator");
         new_bs
     });
 
@@ -431,12 +446,13 @@ async fn data_tampering_remove_lido_validator() -> Result<()> {
             let is_lido_pred = is_lido(lido_creds);
 
             let validator_idx = positional_validator_indices(&beacon_state, &[0], is_lido_pred)[0];
-            let mut new_validators: Vec<Validator> = new_bs.validators.to_vec();
+            let mut new_validators: Vec<Validator> = new_bs.validators().to_vec();
             new_validators.remove(validator_idx);
-            new_bs.validators = new_validators.into();
-            let mut new_balances: Vec<u64> = new_bs.balances.to_vec();
+            set_validators(&mut new_bs, new_validators);
+
+            let mut new_balances: Vec<u64> = new_bs.balances().to_vec();
             new_balances.remove(validator_idx);
-            new_bs.balances = new_balances.into();
+            set_balances(&mut new_bs, new_balances);
             new_bs
         },
     );
@@ -459,7 +475,7 @@ async fn data_tampering_remove_multi_lido_validator() -> Result<()> {
 
             let remove_idxs = positional_validator_indices(&beacon_state, &[0, 1, 3], is_lido_pred);
             let new_validators: Vec<Validator> = new_bs
-                .validators
+                .validators()
                 .to_vec()
                 .iter()
                 .enumerate()
@@ -473,7 +489,7 @@ async fn data_tampering_remove_multi_lido_validator() -> Result<()> {
                 .cloned()
                 .collect();
             let new_balances: Vec<u64> = new_bs
-                .balances
+                .balances()
                 .to_vec()
                 .iter()
                 .enumerate()
@@ -486,8 +502,9 @@ async fn data_tampering_remove_multi_lido_validator() -> Result<()> {
                 })
                 .cloned()
                 .collect();
-            new_bs.validators = new_validators.into();
-            new_bs.balances = new_balances.into();
+
+            set_validators(&mut new_bs, new_validators);
+            set_balances(&mut new_bs, new_balances);
             new_bs
         },
     );
@@ -509,7 +526,7 @@ async fn data_tampering_change_lido_to_non_lido_validator() -> Result<()> {
             let is_lido_pred = is_lido(lido_creds);
 
             let validator_idx = positional_validator_indices(&beacon_state, &[0], is_lido_pred)[0];
-            new_bs.validators[validator_idx].withdrawal_credentials = [0u8; 32].into();
+            new_bs.validators_mut()[validator_idx].withdrawal_credentials = [0u8; 32].into();
             new_bs
         },
     );
@@ -531,7 +548,7 @@ async fn data_tampering_change_non_lido_to_lido_validator() -> Result<()> {
             let is_non_lido_pred = is_non_lido(lido_creds);
 
             let validator_idx = positional_validator_indices(&beacon_state, &[0], is_non_lido_pred)[0];
-            new_bs.validators[validator_idx].withdrawal_credentials =
+            new_bs.validators_mut()[validator_idx].withdrawal_credentials =
                 executor.env.script_runtime.lido_settings.withdrawal_credentials;
             new_bs
         },
@@ -555,7 +572,7 @@ async fn data_tampering_change_lido_make_exited() -> Result<()> {
             let is_lido_pred = is_lido(lido_creds);
 
             let validator_idx = positional_validator_indices(&beacon_state, &[0], is_lido_pred)[0];
-            new_bs.validators[validator_idx].exit_epoch = new_bs.epoch() - 10;
+            new_bs.validators_mut()[validator_idx].exit_epoch = new_bs.epoch() - 10;
             new_bs
         },
     );
@@ -573,7 +590,7 @@ async fn data_tampering_omit_new_deposited_lido_validator() -> Result<()> {
     let lido_creds = executor.lido_withdrawal_credentials();
 
     let old_bs = executor.env.read_beacon_state(&StateId::Slot(DEPLOY_SLOT)).await?;
-    let max_old_validator_index = old_bs.validators.len() - 1;
+    let max_old_validator_index = old_bs.validators().len() - 1;
 
     executor.set_bs_mutator(
         StateId::Slot(target_slot),
@@ -589,12 +606,13 @@ async fn data_tampering_omit_new_deposited_lido_validator() -> Result<()> {
             .filter(|&idx| idx > max_old_validator_index)
             .collect();
             let validator_idx = all_lido_deposited[0];
-            let mut new_validators: Vec<Validator> = new_bs.validators.to_vec();
+            let mut new_validators: Vec<Validator> = new_bs.validators().to_vec();
             new_validators.remove(validator_idx);
-            new_bs.validators = new_validators.into();
-            let mut new_balances: Vec<u64> = new_bs.balances.to_vec();
+            set_validators(&mut new_bs, new_validators);
+
+            let mut new_balances: Vec<u64> = new_bs.balances().to_vec();
             new_balances.remove(validator_idx);
-            new_bs.balances = new_balances.into();
+            set_balances(&mut new_bs, new_balances);
             new_bs
         },
     );
@@ -622,12 +640,13 @@ async fn data_tampering_omit_change_to_exited_state_lido_validator_naive() -> Re
             });
 
             let validator_idx = all_lido_exited[1]; // picking the second exited validator
-            let mut new_validators: Vec<Validator> = new_bs.validators.to_vec();
+            let mut new_validators: Vec<Validator> = new_bs.validators().to_vec();
             new_validators.remove(validator_idx);
-            new_bs.validators = new_validators.into();
-            let mut new_balances: Vec<u64> = new_bs.balances.to_vec();
+            set_validators(&mut new_bs, new_validators);
+
+            let mut new_balances: Vec<u64> = new_bs.balances().to_vec();
             new_balances.remove(validator_idx);
-            new_bs.balances = new_balances.into();
+            set_balances(&mut new_bs, new_balances);
             new_bs
         },
     );
@@ -652,12 +671,12 @@ async fn data_tampering_omit_change_to_exited_state_lido_validator_adjust_old_st
         });
 
         let validator_idx = all_lido_exited[EXITED_VALIDATOR_TO_REMOVE]; // picking the second exited validator
-        let mut new_validators: Vec<Validator> = new_bs.validators.to_vec();
+        let mut new_validators: Vec<Validator> = new_bs.validators().to_vec();
         new_validators.remove(validator_idx);
-        new_bs.validators = new_validators.into();
-        let mut new_balances: Vec<u64> = new_bs.balances.to_vec();
+        set_validators(&mut new_bs, new_validators);
+        let mut new_balances: Vec<u64> = new_bs.balances().to_vec();
         new_balances.remove(validator_idx);
-        new_bs.balances = new_balances.into();
+        set_balances(&mut new_bs, new_balances);
         new_bs
     };
 
@@ -690,12 +709,13 @@ async fn data_tampering_omit_pending_lido_validator() -> Result<()> {
             });
 
             let validator_idx = all_lido_pending[1]; // picking the second pending validator
-            let mut new_validators: Vec<Validator> = new_bs.validators.to_vec();
+            let mut new_validators: Vec<Validator> = new_bs.validators().to_vec();
             new_validators.remove(validator_idx);
-            new_bs.validators = new_validators.into();
-            let mut new_balances: Vec<u64> = new_bs.balances.to_vec();
+            set_validators(&mut new_bs, new_validators);
+
+            let mut new_balances: Vec<u64> = new_bs.balances().to_vec();
             new_balances.remove(validator_idx);
-            new_bs.balances = new_balances.into();
+            set_balances(&mut new_bs, new_balances);
             new_bs
         },
     );
@@ -720,7 +740,7 @@ async fn data_tampering_balance_change_lido_validator_balance() -> Result<()> {
             let is_lido_pred = is_lido(lido_creds);
 
             let validator_idx = positional_validator_indices(&beacon_state, &[0], is_lido_pred)[0];
-            new_bs.balances[validator_idx] += 10;
+            new_bs.balances_mut()[validator_idx] += 10;
             new_bs
         },
     );
@@ -746,7 +766,7 @@ async fn data_tampering_balance_change_multi_lido_validator_balance() -> Result<
 
             let _adjust_idxs = positional_validator_indices(&beacon_state, &[0, 1, 3], is_lido_pred);
             for idx in _adjust_idxs {
-                new_bs.balances[idx] = 0;
+                new_bs.balances_mut()[idx] = 0;
             }
             new_bs
         },
@@ -774,13 +794,16 @@ async fn data_tampering_balance_change_lido_validator_balance_cancel_out() -> Re
             let indices_to_adjust = positional_validator_indices(&beacon_state, &[1, 3], is_lido_pred);
             let source = indices_to_adjust[0];
             let dest = indices_to_adjust[1];
-            print!(
-                "Source idx={}, balance={}; dest idx={}, balance={}",
-                source, new_bs.balances[source], dest, new_bs.balances[dest]
-            );
+            // print!(
+            //     "Source idx={}, balance={}; dest idx={}, balance={}",
+            //     source,
+            //     new_bs.balances()[source],
+            //     dest,
+            //     new_bs.balances()[dest]
+            // );
             let amount: u64 = 5_000_000_000;
-            new_bs.balances[source] -= amount;
-            new_bs.balances[dest] += amount;
+            new_bs.balances_mut()[source] -= amount;
+            new_bs.balances_mut()[dest] += amount;
             new_bs
         },
     );

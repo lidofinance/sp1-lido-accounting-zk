@@ -84,7 +84,7 @@ pub async fn run(
         .read_beacon_state(&StateId::Slot(actual_previous_slot))
         .await?;
 
-    let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
+    let execution_layer_block_hash = target_bs.latest_execution_payload_header().block_hash;
     let withdrawal_vault_data = runtime
         .eth_infra
         .eth_client

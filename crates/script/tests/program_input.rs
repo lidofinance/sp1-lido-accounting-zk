@@ -46,7 +46,7 @@ async fn program_input_integration_test() -> Result<()> {
 
     // sanity-check
     let actual_lido_validator_ids: Vec<usize> = new_bs
-        .validators
+        .validators()
         .iter()
         .enumerate()
         .filter_map(|(idx, v)| {
@@ -61,9 +61,10 @@ async fn program_input_integration_test() -> Result<()> {
     let expected_lido_validator_ids = [1973, 1974, 1975, 1976, 1977, 1978];
     assert_eq!(actual_lido_validator_ids, expected_lido_validator_ids);
 
+    let all_new_balances = new_bs.balances();
     let balances: Vec<u64> = actual_lido_validator_ids
         .iter()
-        .map(|idx| new_bs.balances[*idx])
+        .map(|idx| all_new_balances[*idx])
         .collect();
     let cl_balance_sum: u64 = balances.iter().sum();
 

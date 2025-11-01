@@ -59,10 +59,10 @@ pub fn prepare_program_input(
 
     tracing::info!(
         "Processing BeaconState. Current slot: {}, Previous Slot: {}, Block Hash: {}, Validator count:{}",
-        bs.slot,
-        old_bs.slot,
+        bs.slot(),
+        old_bs.slot(),
         hex::encode(beacon_block_hash),
-        bs.validators.len()
+        bs.validators().len()
     );
     let old_validator_state = LidoValidatorState::compute_from_beacon_state(old_bs, lido_withdrawal_credentials);
     let new_validator_state = LidoValidatorState::compute_from_beacon_state(bs, lido_withdrawal_credentials);
@@ -83,12 +83,12 @@ pub fn prepare_program_input(
         new_validator_state.exited_lido_validator_indices.len(),
     );
 
-    tracing::info!(validators_count = bs.validators.len(), "Computing report");
+    tracing::info!(validators_count = bs.validators().len(), "Computing report");
     let report = ReportData::compute(
         reference_slot,
         bs.epoch(),
-        &bs.validators,
-        &bs.balances,
+        &bs.validators(),
+        &bs.balances(),
         *lido_withdrawal_credentials,
     )?;
 
@@ -127,17 +127,23 @@ pub fn prepare_program_input(
         compute_validators_and_balances(bs, old_bs, &old_validator_state, lido_withdrawal_credentials)?;
 
     tracing::info!("Obtaining execution header data");
-    let execution_header_data: ExecutionPayloadHeaderData = (&bs.latest_execution_payload_header).into();
+    let execution_header_data: ExecutionPayloadHeaderData = (bs.latest_execution_payload_header()).into();
     tracing::debug!("Obtained BeaconState.latest_execution_header.state_root proof");
 
     tracing::info!("Creating program input");
+    let bs_precomp_hashes = match bs {
+        BeaconState::Fulu(bs_fulu) => bs_fulu.into(),
+        _ => {
+            panic!("Only BeaconState::Fulu is supported in program input")
+        }
+    };
     let program_input = ProgramInput {
         reference_slot,
         bc_slot: bs.bc_slot(),
         beacon_block_hash,
         beacon_block_header: bh.into(),
         latest_execution_header_data: execution_header_data,
-        beacon_state: bs.into(),
+        beacon_state: bs_precomp_hashes,
         validators_and_balances,
         old_lido_validator_state: old_validator_state.clone(),
         new_lido_validator_state_hash: new_validator_state.tree_hash_root(),
@@ -192,17 +198,17 @@ fn compute_validators_and_balances(
         .map(|v| u64_to_usize(*v))
         .collect();
 
-    let added_validators_proof = bs.validators.get_serialized_multiproof(added_indices.as_slice());
-    let changed_validators_proof = bs.validators.get_serialized_multiproof(changed_indices.as_slice());
+    let added_validators_proof = bs.validators().get_serialized_multiproof(added_indices.as_slice());
+    let changed_validators_proof = bs.validators().get_serialized_multiproof(changed_indices.as_slice());
     tracing::info!("Obtained validators multiproofs for added and changed validators");
 
     Ok(ValsAndBals {
         lido_withdrawal_credentials: *lido_withdrawal_credentials,
-        total_validators: usize_to_u64(bs.validators.len()),
+        total_validators: usize_to_u64(bs.validators().len()),
         validators_delta: validator_delta,
         added_validators_inclusion_proof: added_validators_proof,
         changed_validators_inclusion_proof: changed_validators_proof,
-        balances: bs.balances.clone(),
+        balances: bs.balances().clone(),
     })
 }
 
