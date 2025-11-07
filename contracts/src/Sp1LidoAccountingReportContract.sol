@@ -12,7 +12,9 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @notice The address of the beacon roots precompile.
     /// @dev https://eips.ethereum.org/EIPS/eip-4788
     address public constant BEACON_ROOTS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
-
+    
+    /// @notice role that allows to change pivot parameters
+    bytes32 public constant PIVOT_SP1_PARAMETERS_ROLE = keccak256("Sp1LidoAccountingReportContract.PivotSp1ParametersRole");
     /// @notice role that allows to pause the contract
     bytes32 public constant PAUSE_ROLE = keccak256("Sp1LidoAccountingReportContract.PauseRole");
     /// @notice role that allows to resume the contract
@@ -21,24 +23,13 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @notice The length of the beacon roots ring buffer.
     uint256 internal constant BEACON_ROOTS_HISTORY_BUFFER_LENGTH = 8191;
 
-    address public immutable VERIFIER;
-    /// @notice The verification key for the SP1 program.
-    /// See https://docs.succinct.xyz/onchain-verification/solidity-sdk.html
-    /// Essentially, vkey pins the code of ZK program to a particular state
-    /// and changes with any code modification
-    bytes32 public immutable VKEY;
+    /// @notice Seconds per slot
+    uint256 public constant SECONDS_PER_SLOT = 12;
+        
     bytes32 public immutable WITHDRAWAL_CREDENTIALS;
     address public immutable WITHDRAWAL_VAULT_ADDRESS;
-
-    /// @notice Seconds per slot
-    uint256 public immutable SECONDS_PER_SLOT = 12;
-
     /// @notice The genesis block timestamp.
     uint256 public immutable GENESIS_BLOCK_TIMESTAMP;
-
-    mapping(uint256 refSlot => Report) private _reports;
-    mapping(uint256 refSlot => bytes32 state) private _states;
-    uint256 private _latestValidatorStateSlot;
 
     struct Report {
         uint256 reference_slot;
@@ -73,8 +64,27 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         ReportMetadata metadata;
     }
 
+    struct Sp1VerifierParameters {
+        address verifier;    
+        /// @notice The verification key for the SP1 program.
+        /// See https://docs.succinct.xyz/onchain-verification/solidity-sdk.html
+        /// Essentially, vkey pins the code of ZK program to a particular state
+        /// and changes with any code modification
+        bytes32 vkey;
+    }
+
+    uint256 public verifier_parameters_pivot_slot;
+    Sp1VerifierParameters public verifier_parameters_before_pivot;
+    Sp1VerifierParameters public verifier_parameters_after_pivot;
+
+    mapping(uint256 refSlot => Report) private _reports;
+    mapping(uint256 refSlot => bytes32 state) private _states;
+    uint256 private _latestValidatorStateSlot;  
+
+
     event ReportAccepted(Report report);
     event LidoValidatorStateHashRecorded(uint256 indexed slot, bytes32 merkle_root);
+    event PivotParametersChanged(uint256 indexed slot, Sp1VerifierParameters parameters);
 
     /// @dev Timestamp out of range for the the beacon roots precompile.
     error TimestampOutOfRange(uint256 target_slot, uint256 target_timestamp, uint256 earliest_available_timestamp);
@@ -106,8 +116,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
 
     /// @dev Report already recorder for given slot
     error ReportAlreadyRecorded(
-        uint256 refslot
+        uint256 reference_slot
     );
+
+    /// @dev Pivot slot is in the past
+    error PivotSlotInThePast(uint256 current_slot, uint256 requested_slot);
 
     constructor(
         address _verifier,
@@ -118,13 +131,18 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         LidoValidatorState memory _initial_state,
         address _admin
     ) {
-        VERIFIER = _verifier;
-        VKEY = _vkey;
+        require(_verifier != address(0), "Verifier address cannot be zero");
+        require(_withdrawal_vault_address != address(0), "Withdrawal vault address cannot be zero");
+        require(_admin != address(0), "Admin address cannot be zero");
         WITHDRAWAL_CREDENTIALS = _lido_withdrawal_credentials;
         WITHDRAWAL_VAULT_ADDRESS = _withdrawal_vault_address;
         GENESIS_BLOCK_TIMESTAMP = _genesis_timestamp;
         _recordLidoValidatorStateHash(_initial_state.slot, _initial_state.merkle_root);
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+
+        verifier_parameters_pivot_slot = type(uint256).max;
+        verifier_parameters_before_pivot = Sp1VerifierParameters(_verifier, _vkey);
+        verifier_parameters_after_pivot = Sp1VerifierParameters(_verifier, _vkey);
     }
 
     function getReport(uint256 refSlot)
@@ -186,7 +204,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     ///         This function is INTENTIONALLY public and have no access modifiers - ANYONE
     ///         should be allowed to call it, and bring the report+proof to the contract - it is the responsibility
     ///         of this contract and SP1 verifier to reject invalid reports.
-    function submitReportData(bytes calldata proof, bytes calldata publicValues) public whenResumed {
+    function submitReportData(bytes calldata proof, bytes calldata publicValues) external whenResumed {
         PublicValues memory public_values = abi.decode(publicValues, (PublicValues));
         Report memory report = public_values.report;
         ReportMetadata memory metadata = public_values.metadata;
@@ -204,9 +222,11 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         // Check that public values from ZK program match expected blockchain state
         _verify_public_values(public_values);
 
+        Sp1VerifierParameters memory sp1_parameters = getVerifierParameters(metadata.bc_slot);
+
         // Verify ZK-program and public values
-        try ISP1Verifier(VERIFIER).verifyProof(VKEY, publicValues, proof) {
-            // If SP1 verifier didn't revert - it means that proof is valid
+        try ISP1Verifier(sp1_parameters.verifier).verifyProof(sp1_parameters.vkey, publicValues, proof) {
+        // If SP1 verifier didn't revert - it means that proof is valid
         } catch (bytes memory reason) {
             if (reason.length > 0) {
                 revert Sp1VerificationError(string(reason));
@@ -217,6 +237,30 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         // If all checks pass - record report and state
         _recordReport(report);
         _recordLidoValidatorStateHash(metadata.new_state.slot, metadata.new_state.merkle_root);
+    }
+
+    /// @notice Gets SP1 parameters for a given slot
+    /// @param stateSlot Slot to get SP1 paramters for
+    /// @return parameters New SP1 parameters to use
+    function getVerifierParameters(uint256 stateSlot) public view returns (Sp1VerifierParameters memory) {
+        return stateSlot < verifier_parameters_pivot_slot ? verifier_parameters_before_pivot : verifier_parameters_after_pivot;
+    }
+
+    /// @notice Sets new SP1 parameters to take effect at a future slot
+    /// @param pivotSlot Switching to the new SP1 parameters happen at this slot.
+    /// @param parameters New SP1 parameters to use
+    /// @dev Reverts if sender don't have PIVOT_SP1_PARAMETERS_ROLE
+    /// @dev Reverts if pivotSlot is already in the past
+    function setVerifierParametersPivot(uint256 pivotSlot, Sp1VerifierParameters calldata parameters) external onlyRole(PIVOT_SP1_PARAMETERS_ROLE) {
+        require(parameters.verifier != address(0), "Verifier address cannot be zero");
+        uint256 currentSlot = _timestampToSlot(block.timestamp);
+        if (pivotSlot < currentSlot) {
+            revert PivotSlotInThePast(currentSlot, pivotSlot);
+        }
+        verifier_parameters_before_pivot = verifier_parameters_after_pivot;
+        verifier_parameters_after_pivot = parameters;
+        verifier_parameters_pivot_slot = pivotSlot;
+        emit PivotParametersChanged(pivotSlot, parameters);
     }
 
     /// @notice Pause submit report data
@@ -388,6 +432,10 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
 
     function _slotToTimestamp(uint256 slot) internal view returns (uint256) {
         return GENESIS_BLOCK_TIMESTAMP + slot * SECONDS_PER_SLOT;
+    }
+
+    function _timestampToSlot(uint256 timestamp) internal view returns (uint256) {
+        return (timestamp - GENESIS_BLOCK_TIMESTAMP) / SECONDS_PER_SLOT;
     }
 
     function _recordReport(Report memory report) internal {
