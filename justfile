@@ -114,6 +114,9 @@ print_vkey: build
 store_report target_slot previous_slot: build
     ./target/release/store_report --target-ref-slot {{target_slot}} --previous-ref-slot {{previous_slot}}
 
+submit_stored_report target_slot: build
+    ./target/release/submit_cached --target-slot {{target_slot}}
+
 download_state target_slot format="ssz":
     curl -H {{ if format == "ssz" { "'Accept:application/octet-stream'" } else { "'Accept:application/json'" } }} ${CONSENSUS_LAYER_RPC}/eth/v2/debug/beacon/states/{{target_slot}} > temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
 
@@ -127,6 +130,7 @@ add_test_bs target_slot format="ssz": (download_bs target_slot) (download_bs tar
     cp temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }} crates/script/tests/data/beacon_states/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
 
 read_validators target_slot:
+    mkdir -p temp/vals_bals/$EVM_CHAIN
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validators > temp/vals_bals/$EVM_CHAIN/validators_{{target_slot}}.json
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validator_balances > temp/vals_bals/$EVM_CHAIN/balances_{{target_slot}}.json
 

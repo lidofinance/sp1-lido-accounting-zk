@@ -128,7 +128,7 @@ impl ReqwestBeaconStateReader {
     }
 
     fn map_err<E: std::fmt::Debug>(label: &str, state_id: &StateId, err: E) -> anyhow::Error {
-        let msg = format!("{}: {:#?}", label, err);
+        let msg = format!("{label}: {err:#?}");
         tracing::debug!(state_id=?state_id, msg);
         anyhow!(msg)
     }
@@ -199,7 +199,7 @@ impl ReqwestBeaconStateReader {
 
         BeaconState::from_ssz_bytes(&bytes)
             .inspect(
-                |bs| tracing::info!(state_id=?state_id, slot=bs.slot, "Read BeaconState {} for {state_id:?}", bs.slot),
+                |bs| tracing::info!(state_id=?state_id, slot=bs.slot(), "Read BeaconState {} for {state_id:?}", bs.slot()),
             )
             .map_err(|decode_err| Self::map_err("Couldn't decode BeaconState ssz", state_id, decode_err))
     }

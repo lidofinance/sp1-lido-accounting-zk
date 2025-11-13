@@ -32,15 +32,9 @@ fn build_contract_abi(rel_path: &str, not_found_behavior: ContractFolderNotFound
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    println!(
-        "====== Forge stdout ======\n {}\n====== Forge stdout end ======",
-        stdout
-    );
+    println!("====== Forge stdout ======\n {stdout}\n====== Forge stdout end ======",);
     if !output.status.success() {
-        eprintln!(
-            "====== Forge stderr ======\n {}\n====== Forge stderr end ======",
-            stderr
-        );
+        eprintln!("====== Forge stderr ======\n {stderr}\n====== Forge stderr end ======",);
         panic!("Forge build failed: {}", output.status);
     }
 

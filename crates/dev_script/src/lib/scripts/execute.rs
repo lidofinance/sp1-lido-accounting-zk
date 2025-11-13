@@ -51,7 +51,7 @@ pub async fn run(
 
     let lido_withdrawal_credentials: Hash256 = runtime.lido_settings.withdrawal_credentials;
 
-    let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
+    let execution_layer_block_hash = target_bs.latest_execution_payload_header().block_hash;
     let withdrawal_vault_data = runtime
         .eth_infra
         .eth_client

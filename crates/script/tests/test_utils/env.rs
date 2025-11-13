@@ -185,11 +185,16 @@ impl IntegrationTestEnvironment {
             Self::parse_envs()?;
         let temp_bs_folder = TempDir::new()?;
         let temp_bs_folder_path = temp_bs_folder.path();
+        let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
+
         let cached_reader = CachedReqwestBeaconStateReader::new(
             &rpc_endpoint,
             &bs_endpoint,
             &file_store_location,
-            &[temp_bs_folder_path],
+            &[
+                temp_bs_folder_path,                  // used for beacon state overrides
+                test_files.beacon_states().as_path(), // for cached test data
+            ],
             METRICS.services.beacon_state_client.clone(),
         )?;
         let beacon_state_reader = Arc::new(BeaconStateReaderEnum::RPCCached(cached_reader));
@@ -203,7 +208,7 @@ impl IntegrationTestEnvironment {
 
         let fork_block_bs =
             Self::read_latest_bs_at_or_before(Arc::clone(&beacon_state_reader), bs_slot_fork, RETRIES).await?;
-        let fork_el_block = fork_block_bs.latest_execution_payload_header.block_number + 2;
+        let fork_el_block = fork_block_bs.latest_execution_payload_header().block_number + 2;
 
         let anvil = Self::start_anvil(fork_url, fork_el_block, FORWARD_ANVIL_LOGS).await?;
 
@@ -214,7 +219,6 @@ impl IntegrationTestEnvironment {
         ));
         let eth_client = EthELClient::new(Arc::clone(&provider), METRICS.services.eth_client.clone());
 
-        let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
         let deploy_bs: BeaconState = test_files
             .read_beacon_state(&StateId::Slot(deploy_slot))
             .await
@@ -306,7 +310,7 @@ impl IntegrationTestEnvironment {
     pub async fn get_balance_proof(&self, state_id: &StateId) -> anyhow::Result<WithdrawalVaultData> {
         let address = self.script_runtime.lido_settings.withdrawal_vault_address;
         let bs: BeaconState = self.read_beacon_state(state_id).await?;
-        let execution_layer_block_hash = bs.latest_execution_payload_header.block_hash;
+        let execution_layer_block_hash = bs.latest_execution_payload_header().block_hash;
         let withdrawal_vault_data = self
             .script_runtime
             .eth_infra
@@ -326,7 +330,7 @@ impl IntegrationTestEnvironment {
 
     pub async fn stub_state(&self, beacon_state: &BeaconState, block_header: &BeaconBlockHeader) -> anyhow::Result<()> {
         let state_hash = beacon_state.tree_hash_root();
-        assert_eq!(beacon_state.slot, block_header.slot);
+        assert_eq!(*beacon_state.slot(), block_header.slot);
         assert_eq!(state_hash, block_header.state_root);
 
         self.file_writer.write_beacon_state(beacon_state)?;
@@ -591,7 +595,7 @@ impl AdjusterWrapper {
 
     pub fn exit_lido(mut self, count: usize) -> Self {
         let bs = self.beacon_state();
-        let validators = bs.validators.to_vec();
+        let validators = bs.validators().to_vec();
         let existing_validator_indices: Vec<usize> = self.get_all_lido_indices(&validators);
 
         let old_epoch = bs.epoch();
@@ -605,9 +609,7 @@ impl AdjusterWrapper {
 
         assert!(
             existing_non_exited.len() >= count,
-            "Need to have at least {} existing validators, had {:?}",
-            count,
-            existing_non_exited,
+            "Need to have at least {count} existing validators, had {existing_non_exited:?}",
         );
 
         for to_exit in existing_non_exited.iter().take(count) {
