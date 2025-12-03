@@ -1,0 +1,13 @@
+{
+  "network": "mainnet",
+  "verifier": "0x0459d576a6223feea177fb3df53c9c77bf84c459",
+  "vkey": "0x008db7f7aa8ec18a860f84fd796e00d95427d88805b7b151d6b969348eef090d",
+  "withdrawal_credentials": "0x010000000000000000000000b9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
+  "withdrawal_vault_address": "0xb9d7934878b5fb9610b3fe8a5e441e8fad7e293f",
+  "genesis_timestamp": 1606824023,
+  "initial_validator_state": {
+    "slot": 13147199,
+    "merkle_root": "0x8e39c38c60b27edb12cabe95f45fccb7c4dba969f409a6883effe8ca2cc1fbf2"
+  },
+  "admin": "0xed196e43b32384416f6fdfe61270e249a842d803"
+}

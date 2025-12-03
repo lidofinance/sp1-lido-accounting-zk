@@ -2,7 +2,7 @@ set dotenv-load := true
 set dotenv-required := false
 
 local_verify_proof:="false"
-verify_contract:="false"
+verify_contract:="true"
 
 # need to limit number of concurrent compile and test threads to avoid OOM during build and execution
 compile_threads:="8"

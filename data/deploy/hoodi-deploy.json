@@ -1,0 +1,13 @@
+{
+  "network": "hoodi",
+  "verifier": "0x4b1c210d746f117f7bcea5dbc8ed8dcf351d65c9",
+  "vkey": "0x00186ce28025af2608611414db2b447a9a98fbf935273c9c1a7043fe1f88acf7",
+  "withdrawal_credentials": "0x0100000000000000000000004473dcddbf77679a643bdb654dbd86d67f8d32f2",
+  "withdrawal_vault_address": "0x4473dcddbf77679a643bdb654dbd86d67f8d32f2",
+  "genesis_timestamp": 1742213400,
+  "initial_validator_state": {
+    "slot": 1871356,
+    "merkle_root": "0x30b00465c14d54f720533087497c5e22e86547be3a3200426c6f476bc5574705"
+  },
+  "admin": "0x0534aa41907c9631fae990960bcc72d75fa7cfed"
+}
