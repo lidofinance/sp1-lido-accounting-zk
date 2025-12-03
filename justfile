@@ -91,7 +91,8 @@ contract_set_vkey_rollover target_slot new_vkey:
         "setVerifierParametersPivot(uint256,(address,bytes32))" \
         "{{target_slot}}" \
         "("$SP1_VERIFIER_ADDRESS", {{new_vkey}})" \
-        --private-key $PRIVATE_KEY
+        --private-key $PRIVATE_KEY \
+        --rpc-url $EXECUTION_LAYER_RPC
 
 block_root_mock_setup:
     #!/usr/bin/env bash
