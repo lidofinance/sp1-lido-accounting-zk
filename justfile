@@ -226,7 +226,7 @@ update_meta:
 
 ### Docker
 docker_build *args:
-    docker build -t lido_sp1_oracle . --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) {{args}} --debug
+    docker build -t lido_sp1_oracle . --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) {{args}} --debug --load
 
 docker_build_print_elf_sha: (docker_build "--build-arg PRINT_ELF_SHA=$(date +%s) --progress plain")
 
