@@ -19,7 +19,7 @@ RUN echo "$PRINT_ELF_SHA" && sha256sum target/elf-compilation/riscv32im-succinct
 # (only for docker), and using slightly larger base image, the latter seems a lesser evil
 FROM --platform=linux/amd64 debian:stable-slim AS lido_sp1_oracle
 WORKDIR /usr/data/sp1-lido-zk
-RUN apt-get update && apt install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt install -y curl openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/src/sp1-lido-zk/target/release/service /usr/local/bin/service
 COPY --from=builder /usr/src/sp1-lido-zk/target/release/deploy /usr/local/bin/deploy
 COPY --from=builder /usr/src/sp1-lido-zk/target/release/store_report /usr/local/bin/store_report
