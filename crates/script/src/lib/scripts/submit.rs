@@ -106,7 +106,7 @@ async fn prepare_input(
         .read_beacon_state(&StateId::Slot(resolved_slot_values.previous_slot))
         .await?;
 
-    let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
+    let execution_layer_block_hash = target_bs.latest_execution_payload_header().block_hash;
     let withdrawal_vault_data = runtime
         .eth_infra
         .eth_client

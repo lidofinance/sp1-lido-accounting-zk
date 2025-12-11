@@ -21,7 +21,7 @@ impl<'a> ValidatorDeltaComputeBeaconStateProjection<'a> {
         Self { slot, validators }
     }
     pub fn from_bs(bs: &'a BeaconState) -> Self {
-        Self::new(BeaconChainSlot(bs.slot), &bs.validators)
+        Self::new(BeaconChainSlot(*bs.slot()), bs.validators())
     }
 }
 

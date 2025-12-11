@@ -84,7 +84,7 @@ pub async fn run(
         .read_beacon_state(&StateId::Slot(actual_previous_slot))
         .await?;
 
-    let execution_layer_block_hash = target_bs.latest_execution_payload_header.block_hash;
+    let execution_layer_block_hash = target_bs.latest_execution_payload_header().block_hash;
     let withdrawal_vault_data = runtime
         .eth_infra
         .eth_client
@@ -101,7 +101,7 @@ pub async fn run(
     )?;
 
     tracing::info!("Storing input");
-    let input_file_name = format!("input_{}_{}.json", network, target_slot);
+    let input_file_name = format!("input_{network}_{target_slot}.json");
     let input_path =
         PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(input_file_name);
     utils::write_json(&input_path, &program_input).expect("failed to write fixture");
@@ -115,7 +115,7 @@ pub async fn run(
     tracing::info!("Generated proof");
 
     tracing::info!("Storing proof");
-    let file_name = format!("proof_{}_{}.json", network, target_slot);
+    let file_name = format!("proof_{network}_{target_slot}.json");
     let proof_file = PathBuf::from(std::env::var("PROOF_CACHE_DIR").expect("")).join(file_name);
     let store_result = proof_storage::store_proof_and_metadata(
         &proof,

@@ -156,7 +156,7 @@ impl fmt::Display for ContractDeployParametersRust {
 
 impl Debug for ContractDeployParametersRust {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self) // just use display
+        write!(f, "{self}") // just use display
     }
 }
 
@@ -439,17 +439,17 @@ mod tests {
 
     fn default_params() -> ContractDeployParametersRust {
         ContractDeployParametersRust {
-            network: "anvil-sepolia".to_owned(),
-            verifier: hex!("e00a3cbfc45241b33c0a44c78e26168cbc55ec63"),
-            vkey: hex!("00a13852b52626b0cc77128e2935361ed27c3ba6e97ffa92a9faaa62f0720643"),
-            withdrawal_credentials: hex!("010000000000000000000000de7318afa67ead6d6bbc8224dfce5ed6e4b86d76"),
-            withdrawal_vault_address: hex!("De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76"),
-            genesis_timestamp: 1655733600,
+            network: "fusaka".to_owned(),
+            verifier: hex!("17435cce3d1b4fa2e5f8a08ed921d57c6762a180"),
+            vkey: hex!("00cacf583f09b87b96201653eec2d8c946616c026cb4e369106008e9b4001d9c"),
+            withdrawal_credentials: hex!("010000000000000000000000f0179dec45a37423ead4fad5fcb136197872ead9"),
+            withdrawal_vault_address: hex!("b4b46bdaa835f8e4b4d8e208b6559cd267851051"),
+            genesis_timestamp: 1760348240,
             initial_validator_state: LidoValidatorStateRust {
-                slot: BeaconChainSlot(7643456),
-                merkle_root: hex!("5d22a84a06f79d4b9f4d94769190a9f5afb077607f5084b781c1d996c4bd3c16"),
+                slot: BeaconChainSlot(1200),
+                merkle_root: hex!("d9d0aaed20248d7eb129b77c92a2ef72b9701d1c7cc136297fcb96aa652f15f6"),
             },
-            admin: hex!("3e40d73eb977dc6a537af587d48316fee66e9c8c"),
+            admin: hex!("8943545177806ed17b9f23f0a21ee5948ecaa776"),
         }
     }
 
@@ -467,7 +467,7 @@ mod tests {
     #[test]
     fn deployment_parameters_from_file() {
         let deploy_args_file =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/deploy/anvil-sepolia-7643456-deploy.json");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/deploy/fusaka-deploy.json");
         let deploy_params: ContractDeployParametersRust =
             utils::read_json(deploy_args_file).expect("Failed to read deployment args");
 

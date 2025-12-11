@@ -2,7 +2,7 @@ set dotenv-load := true
 set dotenv-required := false
 
 local_verify_proof:="false"
-verify_contract:="false"
+verify_contract:="true"
 
 # need to limit number of concurrent compile and test threads to avoid OOM during build and execution
 compile_threads:="8"
@@ -91,7 +91,8 @@ contract_set_vkey_rollover target_slot new_vkey:
         "setVerifierParametersPivot(uint256,(address,bytes32))" \
         "{{target_slot}}" \
         "("$SP1_VERIFIER_ADDRESS", {{new_vkey}})" \
-        --private-key $PRIVATE_KEY
+        --private-key $PRIVATE_KEY \
+        --rpc-url $EXECUTION_LAYER_RPC
 
 block_root_mock_setup:
     #!/usr/bin/env bash
@@ -114,6 +115,9 @@ print_vkey: build
 store_report target_slot previous_slot: build
     ./target/release/store_report --target-ref-slot {{target_slot}} --previous-ref-slot {{previous_slot}}
 
+submit_stored_report target_slot: build
+    ./target/release/submit_cached --target-slot {{target_slot}}
+
 download_state target_slot format="ssz":
     curl -H {{ if format == "ssz" { "'Accept:application/octet-stream'" } else { "'Accept:application/json'" } }} ${CONSENSUS_LAYER_RPC}/eth/v2/debug/beacon/states/{{target_slot}} > temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
 
@@ -127,6 +131,7 @@ add_test_bs target_slot format="ssz": (download_bs target_slot) (download_bs tar
     cp temp/beacon_states/$EVM_CHAIN/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }} crates/script/tests/data/beacon_states/bs_{{target_slot}}.{{ if format == "ssz" { "ssz" } else { "json" } }}
 
 read_validators target_slot:
+    mkdir -p temp/vals_bals/$EVM_CHAIN
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validators > temp/vals_bals/$EVM_CHAIN/validators_{{target_slot}}.json
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validator_balances > temp/vals_bals/$EVM_CHAIN/balances_{{target_slot}}.json
 
@@ -221,7 +226,7 @@ update_meta:
 
 ### Docker
 docker_build *args:
-    docker build -t lido_sp1_oracle . --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) {{args}} --debug
+    docker build -t lido_sp1_oracle . --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) {{args}} --debug --load
 
 docker_build_print_elf_sha: (docker_build "--build-arg PRINT_ELF_SHA=$(date +%s) --progress plain")
 

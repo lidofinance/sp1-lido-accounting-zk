@@ -29,11 +29,11 @@ impl FileBasedBeaconChainStore {
     }
 
     pub fn get_beacon_state_path(&self, state_id: &str) -> PathBuf {
-        self.store_location.join(format!("bs_{}.ssz", state_id))
+        self.store_location.join(format!("bs_{state_id}.ssz"))
     }
 
     pub fn get_beacon_block_header_path(&self, state_id: &str) -> PathBuf {
-        self.store_location.join(format!("bs_{}_header.json", state_id))
+        self.store_location.join(format!("bs_{state_id}_header.json"))
     }
 
     pub fn exists(path: &Path) -> bool {
@@ -107,7 +107,7 @@ impl FileBasedBeaconStateReader {
         BeaconState::from_ssz_bytes(&data)
             .map_err(|decode_err| anyhow::anyhow!("Couldn't decode BeaconState ssz for {state_id:?} {decode_err:#?}"))
             .inspect(
-                |bs| tracing::debug!(state_id=?state_id, slot=bs.slot, "Read BeaconState {} for {state_id:?}", bs.slot),
+                |bs| tracing::debug!(state_id=?state_id, slot=bs.slot(), "Read BeaconState {} for {state_id:?}", bs.slot()),
             )
             .inspect_err(|e| tracing::debug!(state_id=?state_id, "{e:?}"))
     }
@@ -202,13 +202,14 @@ impl FileBeaconStateWriter {
 
     fn write_beacon_state_impl(&self, bs: &BeaconState) -> anyhow::Result<()> {
         self.ensure_folder_exists()?;
-        let file_path = self.file_store.get_beacon_state_path(&bs.slot.to_string());
-        tracing::info!(slot = bs.slot, "Writing BeaconState {} to {:?}", bs.slot, file_path);
+        let slot = *bs.slot();
+        let file_path = self.file_store.get_beacon_state_path(&slot.to_string());
+        tracing::info!(slot = slot, "Writing BeaconState {} to {:?}", bs.slot(), file_path);
 
         fs::write(file_path, bs.as_ssz_bytes())
-            .map_err(|write_err| anyhow::anyhow!("Couldn't write BeaconState {}, {write_err:#?}", bs.slot))
-            .inspect(|_val| tracing::debug!(slot = bs.slot, "Wrote BeaconState {}", bs.slot))
-            .inspect_err(|e| tracing::debug!(slot = bs.slot, "{e:?}"))
+            .map_err(|write_err| anyhow::anyhow!("Couldn't write BeaconState {}, {write_err:#?}", slot))
+            .inspect(|_val| tracing::debug!(slot = bs.slot(), "Wrote BeaconState {}", slot))
+            .inspect_err(|e| tracing::debug!(slot = bs.slot(), "{e:?}"))
     }
 
     pub fn write_beacon_state(&self, bs: &BeaconState) -> anyhow::Result<()> {

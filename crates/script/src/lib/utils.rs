@@ -1,6 +1,5 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::fmt;
 use std::fs::{self, File};
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -9,29 +8,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    JsonError(serde_json::Error),
-    IoError(std::io::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::JsonError(err) => write!(f, "JsonError({:#?}", err),
-            Self::IoError(err) => write!(f, "IoError({:#?}", err),
-        }
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(value: std::io::Error) -> Self {
-        Error::IoError(value)
-    }
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(value: serde_json::Error) -> Self {
-        Error::JsonError(value)
-    }
+    #[error("Json error: {0}")]
+    JsonError(#[from] serde_json::Error),
+    #[error("Io error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
