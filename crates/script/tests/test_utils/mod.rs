@@ -12,8 +12,8 @@ pub mod env;
 pub mod files;
 
 pub static NETWORK: WrappedNetwork = WrappedNetwork::Anvil(Network::Hoodi);
-pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(1621090);
-pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(1646720);
+pub const DEPLOY_SLOT: BeaconChainSlot = BeaconChainSlot(1871356);
+pub const REPORT_COMPUTE_SLOT: BeaconChainSlot = BeaconChainSlot(1890000);
 
 pub const ZERO_HASH: [u8; 32] = [0; 32];
 pub const NONZERO_HASH: [u8; 32] = hex!("0101010101010101010101010101010101010101010101010101010101010101");
