@@ -1,0 +1,120 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  rust-coverage:
+    name: Rust Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          echo "$HOME/.sp1/bin" >> $GITHUB_PATH
+          source ~/.bashrc || true
+          sp1up || true
+      
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+      
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-git-
+      
+      - name: Build project
+        run: cargo build --locked --release
+        env:
+          VERGEN_GIT_SHA: ${{ github.sha }}
+      
+      - name: Generate coverage for shared crate
+        working-directory: crates/shared
+        run: cargo llvm-cov --lcov --output-path ../../lcov-shared.info
+      
+      - name: Generate coverage for program crate
+        working-directory: crates/program
+        run: cargo llvm-cov --lcov --output-path ../../lcov-program.info
+      
+      - name: Generate coverage for script crate (excluding integration)
+        working-directory: crates/script
+        run: SP1_SKIP_PROGRAM_BUILD=true cargo llvm-cov --lcov --output-path ../../lcov-script.info -- --test-threads=8
+        env:
+          RUST_LOG: info
+      
+      - name: Upload Rust coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./lcov-shared.info,./lcov-program.info,./lcov-script.info
+          flags: rust
+          name: rust-coverage
+          fail_ci_if_error: false
+
+  solidity-coverage:
+    name: Solidity Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+      
+      - name: Cache Forge dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            contracts/cache
+            contracts/out
+          key: ${{ runner.os }}-forge-${{ hashFiles('**/foundry.toml') }}-${{ hashFiles('contracts/lib/**') }}
+          restore-keys: |
+            ${{ runner.os }}-forge-
+      
+      - name: Run coverage
+        working-directory: contracts
+        run: forge coverage --report lcov
+      
+      - name: Upload Solidity coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./contracts/lcov.info
+          flags: solidity
+          name: solidity-coverage
+          fail_ci_if_error: false
+      
+      - name: Generate coverage report
+        working-directory: contracts
+        run: |
+          forge coverage --report summary > coverage-report.txt
+          cat coverage-report.txt
+      
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: solidity-coverage-report
+          path: contracts/coverage-report.txt
+
