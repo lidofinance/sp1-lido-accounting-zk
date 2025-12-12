@@ -37,7 +37,7 @@ async fn test_deser_fulu() -> Result<()> {
     let test_files = TestFiles::new_from_manifest_dir();
     let raw_ssz = test_files.read_bs_ssz(FULU_BS_SLOT).await?;
     let beacon_state =
-        BeaconState::from_ssz_bytes(&raw_ssz).map_err(|err| eyre!("Failed to decode Electra BeaconState {err:#?}"))?;
+        BeaconState::from_ssz_bytes(&raw_ssz).map_err(|err| eyre!("Failed to decode Fulu BeaconState {err:#?}"))?;
 
     match beacon_state {
         BeaconState::Fulu(inner) => assert_eq!(inner.slot, FULU_BS_SLOT),

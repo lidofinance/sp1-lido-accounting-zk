@@ -410,19 +410,6 @@ impl From<BeaconBlockHeader> for BeaconBlockHeaderPrecomputedHashes {
 
 pub type BeaconStateFields = BeaconStatePrecomputedHashesFields;
 
-impl MerkleTreeFieldLeaves for BeaconStateFulu {
-    const FIELD_COUNT: usize = 29;
-    type TFields = BeaconStateFields;
-    fn get_leaf_index(field_name: &Self::TFields) -> usize {
-        BeaconStatePrecomputedHashes::get_leaf_index(field_name)
-    }
-
-    fn get_fields(&self) -> Vec<Hash256> {
-        let precomp: BeaconStatePrecomputedHashes = self.into();
-        precomp.get_fields()
-    }
-}
-
 #[cfg(test)]
 pub mod test_utils {
     use arbitrary::Arbitrary;
