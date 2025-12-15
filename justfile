@@ -223,7 +223,7 @@ update_meta:
     scc --by-file --format-multi "wide:metadata/total_sloc.txt,json:metadata/total_sloc.json" ./
 
 
-### Docker
+### Docker (Production)
 docker_build *args:
     docker build -t lido_sp1_oracle . --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) {{args}} --debug
 
@@ -239,3 +239,54 @@ docker_shell:
 
 docker_env:
     docker run --env-file .env -it --rm lido_sp1_oracle:latest env
+
+### Docker (Testing) - Platform-independent reproducible builds
+# Build the reproducible test image
+docker_test_build:
+    docker build -f Dockerfile.test -t sp1-lido-test:latest --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) .
+
+# Run all tests in Docker (platform-independent, reproducible)
+docker_test:
+    docker run --rm --platform linux/amd64 sp1-lido-test:latest just test
+
+# Run integration tests in Docker
+docker_integration_test:
+    docker run --rm --platform linux/amd64 --env-file .env --network host -e RUST_LOG={{tests_log_level}} sp1-lido-test:latest just integration_test
+
+# Run contract tests in Docker
+docker_contract_test:
+    docker run --rm --platform linux/amd64 sp1-lido-test:latest just test_contracts
+
+# Generate fixtures in Docker (ensures reproducibility)
+docker_generate_fixtures:
+    docker run --rm --platform linux/amd64 --env-file .env \
+        -v $(pwd)/contracts/test/fixtures:/workspace/contracts/test/fixtures \
+        -v $(pwd)/crates/script/tests/data:/workspace/crates/script/tests/data \
+        sp1-lido-test:latest just test_update_fixtures
+
+# Open interactive shell in test container
+docker_test_shell:
+    docker run --rm -it --platform linux/amd64 --env-file .env --entrypoint /bin/bash sp1-lido-test:latest
+
+# Verify ELF reproducibility (build twice, compare hashes)
+docker_verify_reproducibility:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Building first image..."
+    docker build -f Dockerfile.test -t sp1-lido-test:verify1 --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) . > /dev/null 2>&1
+    HASH1=$(docker run --rm sp1-lido-test:verify1 sha256sum target/elf-compilation/riscv32im-succinct-zkvm-elf/release/sp1-lido-accounting-zk-program | awk '{print $1}')
+    echo "First build hash: $HASH1"
+    echo "Building second image..."
+    docker build -f Dockerfile.test -t sp1-lido-test:verify2 --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) . > /dev/null 2>&1
+    HASH2=$(docker run --rm sp1-lido-test:verify2 sha256sum target/elf-compilation/riscv32im-succinct-zkvm-elf/release/sp1-lido-accounting-zk-program | awk '{print $1}')
+    echo "Second build hash: $HASH2"
+    if [ "$HASH1" = "$HASH2" ]; then
+        echo "✅ Builds are reproducible!"
+    else
+        echo "❌ Builds are NOT reproducible!"
+        exit 1
+    fi
+
+# Clean Docker test images
+docker_test_clean:
+    docker rmi sp1-lido-test:latest 2>/dev/null || true
