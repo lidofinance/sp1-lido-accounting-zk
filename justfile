@@ -135,7 +135,7 @@ read_validators target_slot:
     curl $CONSENSUS_LAYER_RPC/eth/v1/beacon/states/{{target_slot}}/validator_balances > temp/vals_bals/$EVM_CHAIN/balances_{{target_slot}}.json
 
 ### Testing ###
-test_update_fixtures target_slot='0' previous_slot='0': build
+test_update_fixtures target_slot='1890000' previous_slot='1871356': build
     ./target/release/write_test_fixture {{ if target_slot != "0" { "--target-ref-slot "+target_slot } else { "" } }} {{ if previous_slot != "0" { "--previous-ref-slot "+previous_slot } else { "" } }}
 
     
@@ -247,7 +247,7 @@ docker_test_build:
 
 # Run all tests in Docker (platform-independent, reproducible)
 docker_test:
-    docker run --rm --platform linux/amd64 sp1-lido-test:latest just test
+    docker run --rm --platform linux/amd64 --env-file .env sp1-lido-test:latest just test
 
 # Run integration tests in Docker
 docker_integration_test:

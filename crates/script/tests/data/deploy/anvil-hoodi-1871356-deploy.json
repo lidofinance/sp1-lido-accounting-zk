@@ -1,7 +1,7 @@
 {
   "network": "anvil-hoodi",
   "verifier": "0x4b1c210d746f117f7bcea5dbc8ed8dcf351d65c9",
-  "vkey": "0x0001e3944cf622bf6e43a2750462fd0cfd06faaddabb2eaffa6de28330e24093",
+  "vkey": "0x006e68e0b88e71bf283c7bf41ba2aa4c6ddebc80a77931294677aced4b681bf4",
   "withdrawal_credentials": "0x0100000000000000000000004473dcddbf77679a643bdb654dbd86d67f8d32f2",
   "withdrawal_vault_address": "0x4473dcddbf77679a643bdb654dbd86d67f8d32f2",
   "genesis_timestamp": 1742213400,
