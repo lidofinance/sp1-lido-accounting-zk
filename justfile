@@ -258,8 +258,10 @@ docker_contract_test:
     docker run --rm --platform linux/amd64 sp1-lido-test:latest just test_contracts
 
 # Generate fixtures in Docker (ensures reproducibility)
+# Skips local verification by default to avoid Docker-in-Docker issues
 docker_generate_fixtures:
     docker run --rm --platform linux/amd64 --env-file .env \
+        -e SP1_SKIP_LOCAL_PROOF_VERIFICATION=true \
         -v $(pwd)/contracts/test/fixtures:/workspace/contracts/test/fixtures \
         -v $(pwd)/crates/script/tests/data:/workspace/crates/script/tests/data \
         sp1-lido-test:latest just test_update_fixtures
