@@ -206,7 +206,25 @@ where
         proof: Vec<u8>,
         public_values: Vec<u8>,
     ) -> Result<TransactionReceipt, ContractError> {
+        let proof_for_call = proof.clone();
+        let public_values_for_call = public_values.clone();
+
         let tx_builder = self.contract.submitReportData(proof.into(), public_values.into());
+
+        // Optional preflight call to surface revert reasons before sending a tx.
+        // This mirrors what we send on-chain, so if it already reverts we can fail fast.
+        if std::env::var("SKIP_PREFLIGHT_CALL").is_err() {
+            let preflight = self
+                .contract
+                .submitReportData(proof_for_call.clone().into(), public_values_for_call.clone().into())
+                .call()
+                .await;
+            if let Err(err) = preflight {
+                tracing::error!("Preflight call for submitReportData reverted: {err:?}");
+                return Err(err.into());
+            }
+        }
+
         tracing::info!("Submitting report transaction");
         let tx = tx_builder
             .send()
@@ -220,8 +238,33 @@ where
             .get_receipt()
             .instrument(tracing::info_span!("get_receipt"))
             .await
-            .inspect(|val| tracing::info!("Transaction completed {:#?}", val.transaction_hash))
+            .inspect(|val| {
+                if val.status() {
+                    tracing::info!("Transaction completed {:#?}", val.transaction_hash)
+                } else {
+                    tracing::error!("Transaction reverted {:#?}", val.transaction_hash)
+                }
+            })
             .inspect_err(|err| tracing::error!("Transaction failed {err:?}"))?;
+
+        // Short-circuit on on-chain revert so callers see an error, not Ok(receipt)
+        if !tx_result.status() {
+            tracing::debug!("Receipt status=0, decoding revert for tx {}", tx_result.transaction_hash);
+            let call_result = self
+                .contract
+                .submitReportData(proof_for_call.into(), public_values_for_call.into())
+                .call()
+                .await;
+
+            return match call_result {
+                Ok(_) => Err(ContractError::CustomRejection(format!(
+                    "Transaction reverted without reason: {:#?}",
+                    tx_result.transaction_hash
+                ))),
+                Err(e) => Err(e.into()),
+            };
+        }
+
         Ok(tx_result)
     }
 
@@ -466,8 +509,7 @@ mod tests {
 
     #[test]
     fn deployment_parameters_from_file() {
-        let deploy_args_file =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/deploy/fusaka-deploy.json");
+        let deploy_args_file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data/deploy/fusaka-deploy.json");
         let deploy_params: ContractDeployParametersRust =
             utils::read_json(deploy_args_file).expect("Failed to read deployment args");
 
