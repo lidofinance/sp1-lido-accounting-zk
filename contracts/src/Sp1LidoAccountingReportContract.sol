@@ -222,7 +222,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
         // Check that public values from ZK program match expected blockchain state
         _verify_public_values(public_values);
 
-        Sp1VerifierParameters memory sp1_parameters = getVerifierParameters(metadata.bc_slot);
+        Sp1VerifierParameters memory sp1_parameters = _getVerifierParameters(metadata.bc_slot);
 
         // Verify ZK-program and public values
         try ISP1Verifier(sp1_parameters.verifier).verifyProof(sp1_parameters.vkey, publicValues, proof) {
@@ -242,7 +242,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @notice Gets SP1 parameters for a given slot
     /// @param stateSlot Slot to get SP1 paramters for
     /// @return parameters New SP1 parameters to use
-    function getVerifierParameters(uint256 stateSlot) public view returns (Sp1VerifierParameters memory) {
+    function _getVerifierParameters(uint256 stateSlot) internal view returns (Sp1VerifierParameters memory) {
         return stateSlot < verifier_parameters_pivot_slot ? verifier_parameters_before_pivot : verifier_parameters_after_pivot;
     }
 
