@@ -242,7 +242,7 @@ contract Sp1LidoAccountingReportContract is SecondOpinionOracle, AccessControlEn
     /// @notice Gets SP1 parameters for a given slot
     /// @param stateSlot Slot to get SP1 paramters for
     /// @return parameters New SP1 parameters to use
-    function getVerifierParameters(uint256 stateSlot) public view returns (Sp1VerifierParameters memory) {
+    function getVerifierParameters(uint256 stateSlot) internal view returns (Sp1VerifierParameters memory) {
         return stateSlot < verifier_parameters_pivot_slot ? verifier_parameters_before_pivot : verifier_parameters_after_pivot;
     }
 

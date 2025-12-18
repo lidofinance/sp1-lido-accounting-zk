@@ -28,4 +28,8 @@ contract Sp1LidoAccountingReportContractTestWrapper is Sp1LidoAccountingReportCo
     function recordLidoValidatorStateHash(uint256 slot, bytes32 state_merkle_root) public {
         _recordLidoValidatorStateHash(slot, state_merkle_root);
     }
+
+    function getVerifierParameters(uint256 stateSlot) public view returns (Sp1VerifierParameters memory) {
+        return super.getVerifierParameters(stateSlot);
+    }
 }
