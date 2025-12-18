@@ -1,5 +1,11 @@
 *
 !contracts
+!contracts/lib
+!contracts/src
+!contracts/script
+!contracts/test
+!contracts/foundry.toml
+!contracts/remappings.txt
 contracts/out
 contracts/cache
 !crates
