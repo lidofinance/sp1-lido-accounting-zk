@@ -18,9 +18,9 @@ contract Sp1LidoAccountingReportContractTest is Test {
     uint256 private immutable SECONDS_PER_SLOT = 12;
 
     bytes32 private SLOT_EXISTED_SENTIEL = 0x1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff;
-    
+
     address private NEW_VERIFIER_ADDRESS = address(1234567890098765);
-    bytes32 private NEW_VKEY             = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
+    bytes32 private NEW_VKEY = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
 
     struct SP1ProofFixtureJson {
         bytes32 vkey;
@@ -34,12 +34,12 @@ contract Sp1LidoAccountingReportContractTest is Test {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/test/fixtures/fixture.json");
         string memory json = vm.readFile(path);
-        // bytes memory raw = json.parseRaw(""); 
+        // bytes memory raw = json.parseRaw("");
         // // This should be
         // return abi.decode(raw, (SP1ProofFixtureJson));
         // // ... but it reverts with no explanation - so just doing it manually
-        SP1ProofFixtureJson memory result = (
-            SP1ProofFixtureJson(
+        SP1ProofFixtureJson memory result =
+        (SP1ProofFixtureJson(
                 json.readBytes32(".vkey"),
                 Sp1LidoAccountingReportContract.Report(
                     json.readUint(".report.reference_slot"),
@@ -67,8 +67,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
                 ),
                 json.readBytes(".publicValues"),
                 json.readBytes(".proof")
-            )
-        );
+            ));
         return (result);
     }
 
@@ -146,7 +145,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
     }
 
     function _createDyn(bytes32 val1, bytes32 val2, bytes32 val3, bytes32 val4)
-        private pure
+        private
+        pure
         returns (bytes32[] memory result)
     {
         result = new bytes32[](4);
@@ -157,7 +157,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
     }
 
     function _createDyn(bytes32 val1, bytes32 val2, bytes32 val3, bytes32 val4, bytes32 val5)
-        private pure
+        private
+        pure
         returns (bytes32[] memory result)
     {
         result = new bytes32[](5);
@@ -169,7 +170,9 @@ contract Sp1LidoAccountingReportContractTest is Test {
     }
 
     function illegal_old_state_slot(uint256 bc_slot, uint256 old_state_slot) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(Sp1LidoAccountingReportContract.IllegalOldStateSlotError.selector, bc_slot, old_state_slot);
+        return abi.encodeWithSelector(
+            Sp1LidoAccountingReportContract.IllegalOldStateSlotError.selector, bc_slot, old_state_slot
+        );
     }
 
     function verification_error(string memory message) internal pure returns (bytes memory) {
@@ -180,7 +183,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         return abi.encodeWithSelector(Sp1LidoAccountingReportContract.ReportAlreadyRecorded.selector, refslot);
     }
 
-    function sp1_rejection_error(bytes memory err) internal pure returns (bytes memory)  {
+    function sp1_rejection_error(bytes memory err) internal pure returns (bytes memory) {
         return abi.encodeWithSelector(Sp1LidoAccountingReportContract.Sp1VerificationError.selector, string(err));
     }
 
@@ -190,9 +193,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         returns (bytes memory)
     {
         return abi.encodeWithSelector(
-            Sp1LidoAccountingReportContract.BeaconBlockHashMismatch.selector,
-            expected_hash,
-            actual_hash
+            Sp1LidoAccountingReportContract.BeaconBlockHashMismatch.selector, expected_hash, actual_hash
         );
     }
 
@@ -288,7 +289,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         Sp1LidoAccountingReportContract.PublicValues memory public_values =
             abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
         public_values.metadata.lido_withdrawal_credentials =
-            0xABCDEF0000000000000000000000000000000000000000000000000000FEDCBA;
+        0xABCDEF0000000000000000000000000000000000000000000000000000FEDCBA;
         bytes memory public_values_encoded = abi.encode(public_values);
 
         vm.expectRevert(verification_error("Withdrawal credentials mismatch"));
@@ -357,7 +358,7 @@ contract Sp1LidoAccountingReportContractTest is Test {
         Sp1LidoAccountingReportContract.PublicValues memory public_values =
             abi.decode(fixture.publicValues, (Sp1LidoAccountingReportContract.PublicValues));
         public_values.metadata.old_state.merkle_root =
-            0x0102030405060708090000000000000000000000000000000000000000000000;
+        0x0102030405060708090000000000000000000000000000000000000000000000;
         bytes memory public_values_encoded = abi.encode(public_values);
 
         vm.expectRevert(verification_error("Old state merkle_root mismatch"));
@@ -632,7 +633,8 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
     function test_setPivot_nonRole_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams = Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams =
+            Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
 
         vm.prank(address(42)); // use random address not having PIVOT_SP1_PARAMETERS_ROLE
         vm.expectRevert();
@@ -641,35 +643,40 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
     function test_setPivot_inRole_success() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams = Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
-        uint256 pivotSlot = fixture.metadata.bc_slot + 100;       
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams =
+            Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
+        uint256 pivotSlot = fixture.metadata.bc_slot + 100;
 
         // making sure that pivot is greater than current
         warpToSlot(fixture.metadata.bc_slot + 50);
         assertGe(getSlotTimestamp(pivotSlot), block.timestamp); // self-check
-        
+
         Sp1LidoAccountingReportContract.Sp1VerifierParameters memory original = _contract.getVerifierParameters(1);
         assertEq(original.verifier, verifier);
         assertEq(original.vkey, fixture.vkey);
 
         _contract.setVerifierParametersPivot(pivotSlot, newParams);
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory beforePivot = _contract.getVerifierParameters(pivotSlot - 10);
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory beforePivot =
+            _contract.getVerifierParameters(pivotSlot - 10);
         assertEq(beforePivot.verifier, original.verifier);
         assertEq(beforePivot.vkey, original.vkey);
 
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory atPivot = _contract.getVerifierParameters(pivotSlot);
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory atPivot =
+            _contract.getVerifierParameters(pivotSlot);
         assertEq(atPivot.verifier, newParams.verifier);
         assertEq(atPivot.vkey, newParams.vkey);
 
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory afterPivot = _contract.getVerifierParameters(pivotSlot + 10);
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory afterPivot =
+            _contract.getVerifierParameters(pivotSlot + 10);
         assertEq(afterPivot.verifier, newParams.verifier);
         assertEq(afterPivot.vkey, newParams.vkey);
     }
 
     function test_setPivot_inRole_pivotInPast_reverts() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams = Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
-        uint256 pivotSlot = fixture.metadata.bc_slot + 100;       
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams =
+            Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
+        uint256 pivotSlot = fixture.metadata.bc_slot + 100;
 
         // making sure that pivot is less than current
         warpToSlot(fixture.metadata.bc_slot + 150);
@@ -681,27 +688,31 @@ contract Sp1LidoAccountingReportContractTest is Test {
 
     function test_setPivot_inRole_pivotImmediately_success() public {
         SP1ProofFixtureJson memory fixture = loadFixture();
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams = Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
-        uint256 pivotSlot = fixture.metadata.bc_slot + 100;       
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory newParams =
+            Sp1LidoAccountingReportContract.Sp1VerifierParameters(NEW_VERIFIER_ADDRESS, NEW_VKEY);
+        uint256 pivotSlot = fixture.metadata.bc_slot + 100;
 
         // making sure that pivot is greater than current
         warpToSlot(pivotSlot);
         assertEq(getSlotTimestamp(pivotSlot), block.timestamp); // self-check
-        
+
         Sp1LidoAccountingReportContract.Sp1VerifierParameters memory original = _contract.getVerifierParameters(1);
         assertEq(original.verifier, verifier);
         assertEq(original.vkey, fixture.vkey);
 
         _contract.setVerifierParametersPivot(pivotSlot, newParams);
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory beforePivot = _contract.getVerifierParameters(pivotSlot - 10);
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory beforePivot =
+            _contract.getVerifierParameters(pivotSlot - 10);
         assertEq(beforePivot.verifier, original.verifier);
         assertEq(beforePivot.vkey, original.vkey);
 
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory atPivot = _contract.getVerifierParameters(pivotSlot);
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory atPivot =
+            _contract.getVerifierParameters(pivotSlot);
         assertEq(atPivot.verifier, newParams.verifier);
         assertEq(atPivot.vkey, newParams.vkey);
 
-        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory afterPivot = _contract.getVerifierParameters(pivotSlot + 10);
+        Sp1LidoAccountingReportContract.Sp1VerifierParameters memory afterPivot =
+            _contract.getVerifierParameters(pivotSlot + 10);
         assertEq(afterPivot.verifier, newParams.verifier);
         assertEq(afterPivot.vkey, newParams.vkey);
     }
