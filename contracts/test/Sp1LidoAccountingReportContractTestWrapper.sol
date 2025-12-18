@@ -30,6 +30,6 @@ contract Sp1LidoAccountingReportContractTestWrapper is Sp1LidoAccountingReportCo
     }
 
     function getVerifierParameters(uint256 stateSlot) public view returns (Sp1VerifierParameters memory) {
-        return super.getVerifierParameters(stateSlot);
+        return _getVerifierParameters(stateSlot);
     }
 }
