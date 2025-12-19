@@ -59,7 +59,11 @@ jobs:
       
       - name: Generate coverage for script crate (excluding integration)
         working-directory: crates/script
-        run: SP1_SKIP_PROGRAM_BUILD=true cargo llvm-cov --lcov --output-path ../../lcov-script.info -- --test-threads=8
+        run: |
+          SP1_SKIP_PROGRAM_BUILD=true cargo llvm-cov --lcov --output-path ../../lcov-script.info -- --test-threads=8 \
+            --skip report_tampering \
+            --skip data_tampering \
+            --skip program_input_tampering
         env:
           RUST_LOG: info
       

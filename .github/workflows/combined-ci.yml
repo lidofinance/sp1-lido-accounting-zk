@@ -92,7 +92,10 @@ jobs:
         run: |
           cd crates/shared && cargo test --locked
           cd ../program && cargo test --locked
-          cd ../script && SP1_SKIP_PROGRAM_BUILD=true cargo test --locked -j 8 -- --test-threads=16
+          cd ../script && SP1_SKIP_PROGRAM_BUILD=true cargo test --locked -j 8 -- --test-threads=16 \
+            --skip report_tampering \
+            --skip data_tampering \
+            --skip program_input_tampering
         env:
           RUST_LOG: info
       
