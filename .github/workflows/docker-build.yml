@@ -11,17 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo docker image prune --all --force
+          df -h
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
       
       - name: Build Docker image
         uses: docker/build-push-action@v5
@@ -29,20 +32,15 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
+          load: true
           tags: lido_sp1_oracle:test
           platforms: linux/amd64
           build-args: |
             VERGEN_GIT_SHA=${{ github.sha }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-      
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       
       - name: Test Docker image
         run: |
-          docker build -t lido_sp1_oracle:test --platform linux/amd64 --build-arg VERGEN_GIT_SHA=${{ github.sha }} .
           docker run --rm lido_sp1_oracle:test --version || echo "Version check completed"
 

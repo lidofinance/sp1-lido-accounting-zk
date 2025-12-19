@@ -24,16 +24,11 @@ jobs:
         with:
           version: nightly
       
-      - name: Cache dependencies
-        uses: actions/cache@v4
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          cache-on-failure: false
+          shared-key: "lint"
       
       - name: Rust format check
         run: cargo fmt --all -- --check
@@ -54,6 +49,15 @@ jobs:
         with:
           submodules: recursive
       
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo docker image prune --all --force
+          df -h
+      
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       
@@ -69,18 +73,21 @@ jobs:
           source ~/.bashrc || true
           sp1up || true
       
-      - name: Cache dependencies
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: false
+          shared-key: "test"
+      
+      - name: Cache Forge dependencies
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
             contracts/cache
             contracts/out
-          key: ${{ runner.os }}-test-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/foundry.toml') }}
+          key: ${{ runner.os }}-forge-${{ hashFiles('contracts/**/*.sol') }}
           restore-keys: |
-            ${{ runner.os }}-test-
+            ${{ runner.os }}-forge-
       
       - name: Build Rust project
         run: cargo build --locked --release -j 8
@@ -108,6 +115,17 @@ jobs:
     needs: lint-and-format
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo docker image prune --all --force
+          df -h
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -122,4 +140,6 @@ jobs:
           platforms: linux/amd64
           build-args: |
             VERGEN_GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
