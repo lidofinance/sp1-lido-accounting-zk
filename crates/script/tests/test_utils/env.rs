@@ -28,7 +28,6 @@ use sp1_lido_accounting_scripts::{
     tracing as tracing_config,
 };
 
-use hex_literal::hex;
 use sp1_lido_accounting_zk_shared::{
     eth_consensus_layer::{BeaconBlockHeader, BeaconState, Hash256, Slot, Validator},
     eth_spec,
@@ -112,13 +111,20 @@ impl IntegrationTestEnvironment {
         Self::new(test_utils::NETWORK.clone(), test_utils::DEPLOY_SLOT, Some(fork_bs_slot)).await
     }
 
-    fn parse_envs() -> anyhow::Result<(PathBuf, String, String, String, Address, Address)> {
+    fn parse_envs(
+    ) -> anyhow::Result<(PathBuf, String, String, String, Address, Address, Address, Hash256)> {
         let file_store_location = PathBuf::from(env::var("BS_FILE_STORE")?);
         let rpc_endpoint = env::var("CONSENSUS_LAYER_RPC")?;
         let bs_endpoint = env::var("BEACON_STATE_RPC")?;
         let fork_url = env::var("INTEGRATION_TEST_FORK_URL")?;
         let verifier_address: Address = env::var("SP1_VERIFIER_ADDRESS")?.parse()?;
         let hash_consensus_address: Address = env::var("HASH_CONSENSUS_ADDRESS")?.parse()?;
+        let withdrawal_vault_address: Address = env::var("WITHDRAWAL_VAULT_ADDRESS")?.parse()?;
+        let withdrawal_credentials: Hash256 = env::var("LIDO_WIDTHRAWAL_CREDENTIALS")?.parse().map_err(|e| {
+            anyhow!(
+                "Failed to parse LIDO_WIDTHRAWAL_CREDENTIALS, expected 0x-prefixed hash: {e:?}"
+            )
+        })?;
 
         Ok((
             file_store_location,
@@ -127,6 +133,8 @@ impl IntegrationTestEnvironment {
             fork_url,
             verifier_address,
             hash_consensus_address,
+            withdrawal_vault_address,
+            withdrawal_credentials,
         ))
     }
 
@@ -181,8 +189,16 @@ impl IntegrationTestEnvironment {
             tracing_config::setup_logger(tracing_config::LoggingConfig::default_for_test());
         }
 
-        let (file_store_location, rpc_endpoint, bs_endpoint, fork_url, verifier_address, hash_consensus_address) =
-            Self::parse_envs()?;
+        let (
+            file_store_location,
+            rpc_endpoint,
+            bs_endpoint,
+            fork_url,
+            verifier_address,
+            hash_consensus_address,
+            withdrawal_vault_address,
+            withdrawal_credentials,
+        ) = Self::parse_envs()?;
         let temp_bs_folder = TempDir::new()?;
         let temp_bs_folder_path = temp_bs_folder.path();
         let test_files = test_utils::files::TestFiles::new_from_manifest_dir();
@@ -223,10 +239,6 @@ impl IntegrationTestEnvironment {
             .read_beacon_state(&StateId::Slot(deploy_slot))
             .await
             .map_err(test_utils::eyre_to_anyhow)?;
-
-        // Sepolia values
-        let withdrawal_vault_address = hex!("De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76").into();
-        let withdrawal_credentials = hex!("010000000000000000000000De7318Afa67eaD6d6bbC8224dfCe5ed6e4b86d76").into();
 
         let vkey = SP1_CLIENT.vk_bytes()?;
 

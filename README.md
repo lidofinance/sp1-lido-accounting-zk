@@ -61,6 +61,8 @@ will not produce the `contracts/out`, which in turn will fail generating code fo
 
 ### Running tests
 
+#### Local Testing
+
 `cargo test` runs all unit (in `cfg(test)` blocks) and integration (in `tests` folders) tests, except:
 * integration tests that take very long time to run (minutes)
 * end-to-end tests that interact with the SP1 prover network (and hence incur real-life costs)
@@ -68,6 +70,52 @@ will not produce the `contracts/out`, which in turn will fail generating code fo
 To run those, use `cargo test -- --include-ignored` - note it will use Sepolia testnet and SP1 prover network. As such,
 env variables needed to access those (`CONSENSUS_LAYER_RPC`, `BEACON_STATE_RPC`, `NETWORK_PRIVATE_KEY`, etc.) need to be
 set for those tests to work.
+
+#### Docker Testing (Recommended for Reproducibility)
+
+For platform-independent, reproducible testing:
+
+```bash
+# Run all tests in Docker
+just docker_test
+
+# Run integration tests
+just docker_integration_test
+
+# Generate fixtures (ensures consistency)
+# Note: Skips local verification in Docker to avoid Docker-in-Docker issues
+just docker_generate_fixtures
+
+# Generate fixtures locally (with verification)
+just test_update_fixtures
+
+# Open interactive shell for debugging
+just docker_test_shell
+```
+
+**Why Docker testing?**
+- **Reproducible ELF builds**: Ensures consistent binary generation across different platforms (macOS, Linux, Windows)
+- **Platform independence**: Tests run identically regardless of host architecture
+- **Isolated environment**: No interference from local toolchain versions
+- **CI/CD ready**: Same environment used in continuous integration
+
+See [docs/DOCKER_TESTING.md](docs/DOCKER_TESTING.md) for detailed documentation.
+
+### Environment Variables
+
+Key environment variables for development:
+
+- **`SP1_SKIP_LOCAL_PROOF_VERIFICATION`** (default: `false`): Skip local proof verification. Set to `true` when running in Docker to avoid Docker-in-Docker issues with SP1's local verification. Automatically set when using `just docker_generate_fixtures`.
+  
+  ```bash
+  # Skip verification (useful in Docker)
+  SP1_SKIP_LOCAL_PROOF_VERIFICATION=true just test_update_fixtures
+  
+  # Normal verification (default, for local use)
+  just test_update_fixtures
+  ```
+
+See `.env.example` for all available environment variables.
 
 ### Development scripts
 

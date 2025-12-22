@@ -26,6 +26,7 @@ pub async fn run(
     previous_slot: ReferenceSlot,
     fixture_files: Vec<PathBuf>,
     withdrawal_vault_fixture_files: Vec<PathBuf>,
+    skip_verification: bool,
 ) -> anyhow::Result<()> {
     let bs_reader = runtime.bs_reader();
     let ref_slot_resolver = runtime.ref_slot_resolver();
@@ -72,16 +73,20 @@ pub async fn run(
         .expect("Failed to generate proof");
     tracing::info!("Generated proof");
 
-    runtime
-        .sp1_infra
-        .sp1_client
-        .verify_proof(&proof)
-        .expect("Failed to verify proof");
-    tracing::info!("Verified proof");
+    if skip_verification {
+        tracing::warn!("Skipping local proof verification (SP1_SKIP_LOCAL_PROOF_VERIFICATION=true)");
+    } else {
+        runtime
+            .sp1_infra
+            .sp1_client
+            .verify_proof(&proof)
+            .expect("Failed to verify proof");
+        tracing::info!("Verified proof");
 
-    shared_logic::verify_public_values(&proof.public_values, &public_values)
-        .expect("Failed to verify public inputs");
-    tracing::info!("Verified public values");
+        shared_logic::verify_public_values(&proof.public_values, &public_values)
+            .expect("Failed to verify public inputs");
+        tracing::info!("Verified public values");
+    }
 
     for fixture_file in fixture_files {
         proof_storage::store_proof_and_metadata(

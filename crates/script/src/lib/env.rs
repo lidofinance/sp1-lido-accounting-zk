@@ -103,6 +103,10 @@ pub const SP1_FULFILLMENT_STRATEGY: EnvVarSpec = EnvVarSpec {
     key: "SP1_FULFILLMENT_STRATEGY",
     sensitive: false,
 };
+pub const SP1_SKIP_LOCAL_PROOF_VERIFICATION: EnvVarSpec = EnvVarSpec {
+    key: "SP1_SKIP_LOCAL_PROOF_VERIFICATION",
+    sensitive: false,
+};
 pub const NETWORK_PRIVATE_KEY: EnvVarSpec = EnvVarSpec {
     key: "NETWORK_PRIVATE_KEY",
     sensitive: true,

@@ -1,0 +1,13 @@
+{
+  "network": "anvil-hoodi",
+  "verifier": "0xdbe9297df0851e319be65400f1d77845db853eca",
+  "vkey": "0x00c0b9274920bec03de8fca283f942aad41675b8236a02f3f7e683677624ddad",
+  "withdrawal_credentials": "0x0100000000000000000000004473dcddbf77679a643bdb654dbd86d67f8d32f2",
+  "withdrawal_vault_address": "0x4473dcddbf77679a643bdb654dbd86d67f8d32f2",
+  "genesis_timestamp": 1742213400,
+  "initial_validator_state": {
+    "slot": 1621090,
+    "merkle_root": "0x0edce0f12ada68c2cfd97f02a8b49421c2f3688118ad617ba3559f2f3039c2ca"
+  },
+  "admin": "0x935e08594693d5dfa5c8ee1389ecaa6d7a47e3c6"
+}

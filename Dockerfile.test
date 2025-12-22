@@ -1,0 +1,67 @@
+# Dockerfile for reproducible integration testing and fixture generation
+# Forces linux/amd64 platform for consistent ELF binary builds
+FROM --platform=linux/amd64 rust:1.88
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    jq \
+    openssl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Install SP1 toolchain
+COPY docker/docker_build_bootstrap.sh ./docker_build_bootstrap.sh
+RUN ./docker_build_bootstrap.sh && \
+    echo 'source /root/.bashrc' >> /root/.profile && \
+    /root/.sp1/bin/sp1up
+
+# Install Foundry (forge, cast, anvil)
+RUN /root/.foundry/bin/foundryup
+
+# Add toolchains to PATH
+ENV PATH="$PATH:/root/.sp1/bin:/root/.foundry/bin"
+
+# Install just (task runner)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
+# Copy workspace files for dependency caching
+# See .dockerignore for what gets copied
+COPY Cargo.toml Cargo.lock rust-toolchain ./
+COPY crates/program/rust-toolchain ./crates/program/
+COPY crates ./crates
+
+# Pre-build dependencies (without source files, will rebuild with sources)
+# This layer will be cached if dependencies don't change
+RUN cargo fetch --locked
+
+# Copy remaining source files
+COPY contracts ./contracts
+COPY test_contracts ./test_contracts
+COPY justfile ./justfile
+COPY data ./data
+
+# Set environment for git sha (can be overridden at build time)
+ARG VERGEN_GIT_SHA
+ENV VERGEN_GIT_SHA=${VERGEN_GIT_SHA}
+
+# Build the project (including ELF program)
+# This ensures the ELF binary is built in a consistent environment
+RUN cargo build --release --locked -j 8
+
+# Build contracts
+RUN cd contracts && forge build
+RUN cd test_contracts && forge build
+
+# Verify ELF build reproducibility by printing its hash
+RUN echo "ELF SHA256:" && \
+    sha256sum target/elf-compilation/riscv32im-succinct-zkvm-elf/release/sp1-lido-accounting-zk-program
+
+# Environment variables for testing
+ENV RUST_LOG=info
+ENV RUST_BACKTRACE=1
+

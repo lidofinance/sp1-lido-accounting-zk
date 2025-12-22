@@ -8,6 +8,7 @@ use sp1_lido_accounting_scripts::consts::NetworkInfo;
 use sp1_lido_accounting_scripts::scripts;
 use sp1_lido_accounting_scripts::scripts::prelude::EnvVars;
 use sp1_lido_accounting_zk_shared::io::eth_io::ReferenceSlot;
+use std::env;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -72,12 +73,22 @@ async fn main() {
         .join("../script/tests/data/withdrawal_vault_account_proofs/")
         .join(withdrawal_vault_data_filename)];
 
+    // Read SP1_SKIP_LOCAL_PROOF_VERIFICATION env var, default to false
+    let skip_verification = env::var("SP1_SKIP_LOCAL_PROOF_VERIFICATION")
+        .map(|v| v.to_lowercase() == "true" || v == "1")
+        .unwrap_or(false);
+
+    if skip_verification {
+        tracing::info!("Local proof verification will be skipped (SP1_SKIP_LOCAL_PROOF_VERIFICATION=true)");
+    }
+
     dev_scripts::write_test_fixture::run(
         &script_runtime,
         refslot,
         previous_slot,
         fixture_files,
         withdrawal_vault_fixture_files,
+        skip_verification,
     )
     .await
     .expect("Failed to run `write_test_fixture");
