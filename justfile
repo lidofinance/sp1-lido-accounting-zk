@@ -2,7 +2,7 @@ set dotenv-load := true
 set dotenv-required := false
 
 local_verify_proof:="false"
-verify_contract:="false"
+verify_contract:="true"
 
 # need to limit number of concurrent compile and test threads to avoid OOM during build and execution
 compile_threads:="8"
@@ -91,7 +91,8 @@ contract_set_vkey_rollover target_slot new_vkey:
         "setVerifierParametersPivot(uint256,(address,bytes32))" \
         "{{target_slot}}" \
         "("$SP1_VERIFIER_ADDRESS", {{new_vkey}})" \
-        --private-key $PRIVATE_KEY
+        --private-key $PRIVATE_KEY \
+        --rpc-url $EXECUTION_LAYER_RPC
 
 block_root_mock_setup:
     #!/usr/bin/env bash
@@ -225,7 +226,7 @@ update_meta:
 
 ### Docker (Production)
 docker_build *args:
-    docker build -t lido_sp1_oracle . --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) {{args}} --debug
+    docker build -t lido_sp1_oracle . --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) {{args}} --debug --load
 
 docker_build_print_elf_sha: (docker_build "--build-arg PRINT_ELF_SHA=$(date +%s) --progress plain")
 

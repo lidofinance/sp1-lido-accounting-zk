@@ -26,7 +26,7 @@ delivered via env vars - see [.env.example](.env.example) (and comments in it) f
 ## CLI interface
 * (OPTIONAL) target_ref_slot: int - slot number for report; if not set, determined from Lido's HashConsensus contract for Accounting Oracle
 * (OPTIONAL) previous_ref_slot:int - slot number for the previous report and cached validator state. If omitted, read from the contract `getLatestValidatorStateSlot`.
-* (OPTIONAL) dry_run: bool - if set, prepares the input for proving, but do not request the proof (and hence do not sumbit the report for on-chain verification). Default: false
+* (OPTIONAL) dry_run: bool - if set, prepares the input for proving, but do not request the proof (and hence do not submit the report for on-chain verification). Default: false
 * (OPTIONAL) verify_input: bool - if set, verifies the input for consistency/correctness. Default: false.
 * (OPTIONAL) verify_proof: bool - if set, verifies the proof locally. Default: false. **Note:** local proving requires docker to run.
 * (OPTIONAL) report_cycles: bool - if set, measures the SP1 cycles require to generate the proof - by locally "executing" (in SP1 terms) the program. Default: false.
@@ -126,7 +126,7 @@ Does **not** interact with the prover network, safe to run to quickly check chan
 * `write_test_fixture.rs` - updates the test fixtures used in scripts integration tests and contract tests. Needs to 
 be run when `vkey` changes (basically, any code or dependency change in `program` and `shared`).
 * `deploy.rs` - have two orthogonal features: (1) write deploy manifesto (`--store`) and (2) deploy contract (`--dry-run`).
-**Note:** deployment works, but doesn't perform code verfication yet. Preferred deployment workflow is to run `deploy.rs`
+**Note:** deployment works, but doesn't perform code verification yet. Preferred deployment workflow is to run `deploy.rs`
 with `--dry-run --store "../data/deploy/${EVM_CHAIN}-deploy.json"` - and then run deployment script in `contracts/script/Deploy.s.sol`
 that automatically picks the deploy manifesto from that location.
 * `store_report.rs` - generates report and stores it on disk for inspection and debugging.
