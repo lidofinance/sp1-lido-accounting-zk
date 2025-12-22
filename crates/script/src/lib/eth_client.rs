@@ -206,19 +206,11 @@ where
         proof: Vec<u8>,
         public_values: Vec<u8>,
     ) -> Result<TransactionReceipt, ContractError> {
-        let proof_for_call = proof.clone();
-        let public_values_for_call = public_values.clone();
-
         let tx_builder = self.contract.submitReportData(proof.into(), public_values.into());
-
         // Optional preflight call to surface revert reasons before sending a tx.
         // This mirrors what we send on-chain, so if it already reverts we can fail fast.
         if std::env::var("SKIP_PREFLIGHT_CALL").is_err() {
-            let preflight = self
-                .contract
-                .submitReportData(proof_for_call.clone().into(), public_values_for_call.clone().into())
-                .call()
-                .await;
+            let preflight = tx_builder.call().await;
             if let Err(err) = preflight {
                 tracing::error!("Preflight call for submitReportData reverted: {err:?}");
                 return Err(err.into());
@@ -250,9 +242,7 @@ where
         // Short-circuit on on-chain revert so callers see an error, not Ok(receipt)
         if !tx_result.status() {
             tracing::debug!("Receipt status=0, decoding revert for tx {}", tx_result.transaction_hash);
-            let call_result = self
-                .contract
-                .submitReportData(proof_for_call.into(), public_values_for_call.into())
+            let call_result = tx_builder
                 .call()
                 .await;
 
