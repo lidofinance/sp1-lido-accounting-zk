@@ -21,9 +21,9 @@ jobs:
           df -h
       
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --component llvm-tools-preview
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       
       - name: Install SP1 toolchain
         run: |
@@ -33,12 +33,20 @@ jobs:
           sp1up || true
       
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
       
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
         with:
-          cache-on-failure: false
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-coverage-
       
       - name: Build project
         run: cargo build --locked --release

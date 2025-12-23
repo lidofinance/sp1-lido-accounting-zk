@@ -17,14 +17,22 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --component rustfmt,clippy
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
         with:
-          cache-on-failure: false
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-lint-
       
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -47,7 +55,9 @@ jobs:
           df -h
       
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       
       - name: Install SP1 toolchain
         run: |
@@ -56,10 +66,18 @@ jobs:
           source ~/.bashrc || true
           sp1up || true
       
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
         with:
-          cache-on-failure: false
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-
       
       - name: Build project
         run: cargo build --locked --release -j 8
@@ -91,12 +109,22 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
         with:
-          cache-on-failure: false
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-check-
       
       - name: Check workspace
         run: cargo check --workspace --locked --all-targets
