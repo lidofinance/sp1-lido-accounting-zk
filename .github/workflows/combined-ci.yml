@@ -26,6 +26,13 @@ jobs:
         with:
           version: nightly
       
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          source "$HOME/.bashrc"
+          sp1up
+          echo "$HOME/.sp1/bin" >> $GITHUB_PATH
+      
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -41,6 +48,11 @@ jobs:
       
       - name: Rust format check
         run: cargo fmt --all -- --check
+      
+      - name: Build project (required for clippy)
+        run: cargo build --locked --release
+        env:
+          VERGEN_GIT_SHA: ${{ github.sha }}
       
       - name: Rust clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -81,9 +93,9 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
+          source "$HOME/.bashrc"
+          sp1up
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
-          source ~/.bashrc || true
-          sp1up || true
       
       - name: Cache Rust dependencies
         uses: actions/cache@v4
