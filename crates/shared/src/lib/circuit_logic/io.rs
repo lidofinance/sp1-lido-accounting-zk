@@ -5,6 +5,7 @@ use crate::io::eth_io::{
     ReportMetadataSolidity, ReportSolidity,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_public_values(
     report: &ReportData,
     bc_slot: BeaconChainSlot,
