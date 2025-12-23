@@ -58,7 +58,10 @@ async fn program_input_integration_test() -> Result<()> {
         })
         .collect();
 
-    assert!(actual_lido_validator_ids.len() > 0, "No Lido validators found in the new beacon state");
+    assert!(
+        actual_lido_validator_ids.len() > 0,
+        "No Lido validators found in the new beacon state"
+    );
 
     let all_new_balances = new_bs.balances();
     let balances: Vec<u64> = actual_lido_validator_ids

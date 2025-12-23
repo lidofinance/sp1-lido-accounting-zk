@@ -241,10 +241,11 @@ where
 
         // Short-circuit on on-chain revert so callers see an error, not Ok(receipt)
         if !tx_result.status() {
-            tracing::debug!("Receipt status=0, decoding revert for tx {}", tx_result.transaction_hash);
-            let call_result = tx_builder
-                .call()
-                .await;
+            tracing::debug!(
+                "Receipt status=0, decoding revert for tx {}",
+                tx_result.transaction_hash
+            );
+            let call_result = tx_builder.call().await;
 
             return match call_result {
                 Ok(_) => Err(ContractError::CustomRejection(format!(

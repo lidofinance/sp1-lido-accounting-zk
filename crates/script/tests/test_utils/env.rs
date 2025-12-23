@@ -111,8 +111,7 @@ impl IntegrationTestEnvironment {
         Self::new(test_utils::NETWORK.clone(), test_utils::DEPLOY_SLOT, Some(fork_bs_slot)).await
     }
 
-    fn parse_envs(
-    ) -> anyhow::Result<(PathBuf, String, String, String, Address, Address, Address, Hash256)> {
+    fn parse_envs() -> anyhow::Result<(PathBuf, String, String, String, Address, Address, Address, Hash256)> {
         let file_store_location = PathBuf::from(env::var("BS_FILE_STORE")?);
         let rpc_endpoint = env::var("CONSENSUS_LAYER_RPC")?;
         let bs_endpoint = env::var("BEACON_STATE_RPC")?;
@@ -120,11 +119,9 @@ impl IntegrationTestEnvironment {
         let verifier_address: Address = env::var("SP1_VERIFIER_ADDRESS")?.parse()?;
         let hash_consensus_address: Address = env::var("HASH_CONSENSUS_ADDRESS")?.parse()?;
         let withdrawal_vault_address: Address = env::var("WITHDRAWAL_VAULT_ADDRESS")?.parse()?;
-        let withdrawal_credentials: Hash256 = env::var("LIDO_WIDTHRAWAL_CREDENTIALS")?.parse().map_err(|e| {
-            anyhow!(
-                "Failed to parse LIDO_WIDTHRAWAL_CREDENTIALS, expected 0x-prefixed hash: {e:?}"
-            )
-        })?;
+        let withdrawal_credentials: Hash256 = env::var("LIDO_WIDTHRAWAL_CREDENTIALS")?
+            .parse()
+            .map_err(|e| anyhow!("Failed to parse LIDO_WIDTHRAWAL_CREDENTIALS, expected 0x-prefixed hash: {e:?}"))?;
 
         Ok((
             file_store_location,
