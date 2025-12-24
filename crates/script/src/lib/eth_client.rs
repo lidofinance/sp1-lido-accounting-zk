@@ -33,6 +33,7 @@ use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
 
 use crate::prometheus_metrics;
 
+#[allow(clippy::too_many_arguments)]
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
