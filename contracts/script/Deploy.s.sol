@@ -21,7 +21,7 @@ contract Deploy is Script {
         address owner;
     }
 
-    function stringsEqual(string memory _a, string memory _b) public pure returns(bool) {
+    function stringsEqual(string memory _a, string memory _b) public pure returns (bool) {
         return keccak256(abi.encodePacked(_a)) == keccak256(abi.encodePacked(_b));
     }
 
@@ -35,17 +35,16 @@ contract Deploy is Script {
         // return abi.decode(jsonBytes, (DeployManifesto));
         // ... but it reverts with no explanation - so just doing it manually
         DeployManifesto memory manifesto = DeployManifesto(
-                json.readString(".network"),
-                json.readAddress(".verifier"),
-                json.readBytes32(".vkey"),
-                json.readBytes32(".withdrawal_credentials"),
-                json.readAddress(".withdrawal_vault_address"),
-                json.readUint(".genesis_timestamp"),
-                Sp1LidoAccountingReportContract.LidoValidatorState(
-                    json.readUint(".initial_validator_state.slot"),
-                    json.readBytes32(".initial_validator_state.merkle_root")
-                ),
-                json.readAddress(".admin")
+            json.readString(".network"),
+            json.readAddress(".verifier"),
+            json.readBytes32(".vkey"),
+            json.readBytes32(".withdrawal_credentials"),
+            json.readAddress(".withdrawal_vault_address"),
+            json.readUint(".genesis_timestamp"),
+            Sp1LidoAccountingReportContract.LidoValidatorState(
+                json.readUint(".initial_validator_state.slot"), json.readBytes32(".initial_validator_state.merkle_root")
+            ),
+            json.readAddress(".admin")
         );
 
         // sanity check

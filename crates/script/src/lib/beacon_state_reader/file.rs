@@ -207,7 +207,7 @@ impl FileBeaconStateWriter {
         tracing::info!(slot = slot, "Writing BeaconState {} to {:?}", bs.slot(), file_path);
 
         fs::write(file_path, bs.as_ssz_bytes())
-            .map_err(|write_err| anyhow::anyhow!("Couldn't write BeaconState {}, {write_err:#?}", slot))
+            .map_err(|write_err| anyhow::anyhow!("Couldn't write BeaconState {slot}, {write_err:#?}"))
             .inspect(|_val| tracing::debug!(slot = bs.slot(), "Wrote BeaconState {}", slot))
             .inspect_err(|e| tracing::debug!(slot = bs.slot(), "{e:?}"))
     }
