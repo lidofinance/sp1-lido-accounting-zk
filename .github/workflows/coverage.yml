@@ -37,8 +37,9 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
-          export PATH="$HOME/.sp1/bin:$PATH"
+          source "$HOME/.bashrc"
           sp1up
+          rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
       - name: Install cargo-llvm-cov
@@ -80,13 +81,14 @@ jobs:
         env:
           RUST_LOG: info
       
-      - name: Upload Rust coverage to Codecov
-        uses: codecov/codecov-action@v4
+      - name: Upload Rust coverage reports
+        uses: actions/upload-artifact@v4
         with:
-          files: ./lcov-shared.info,./lcov-program.info,./lcov-script.info
-          flags: rust
           name: rust-coverage
-          fail_ci_if_error: false
+          path: |
+            ./lcov-shared.info
+            ./lcov-program.info
+            ./lcov-script.info
 
   solidity-coverage:
     name: Solidity Code Coverage
@@ -115,13 +117,11 @@ jobs:
         working-directory: contracts
         run: forge coverage --report lcov
       
-      - name: Upload Solidity coverage to Codecov
-        uses: codecov/codecov-action@v4
+      - name: Upload Solidity coverage report
+        uses: actions/upload-artifact@v4
         with:
-          files: ./contracts/lcov.info
-          flags: solidity
           name: solidity-coverage
-          fail_ci_if_error: false
+          path: ./contracts/lcov.info
       
       - name: Generate coverage report
         working-directory: contracts

@@ -33,8 +33,9 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
-          export PATH="$HOME/.sp1/bin:$PATH"
+          source "$HOME/.bashrc"
           sp1up
+          rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
       - name: Cache Rust dependencies
@@ -92,8 +93,9 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
-          export PATH="$HOME/.sp1/bin:$PATH"
+          source "$HOME/.bashrc"
           sp1up
+          rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
       - name: Cache Rust dependencies
@@ -150,6 +152,14 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+      
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          source "$HOME/.bashrc"
+          sp1up
+          rustup toolchain list
+          echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
       - name: Cache Rust dependencies
         uses: actions/cache@v4
