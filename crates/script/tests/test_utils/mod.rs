@@ -19,7 +19,7 @@ pub const ZERO_HASH: [u8; 32] = [0; 32];
 pub const NONZERO_HASH: [u8; 32] = hex!("0101010101010101010101010101010101010101010101010101010101010101");
 
 pub fn eyre_to_anyhow(err: eyre::Error) -> anyhow::Error {
-    anyhow!("Eyre error: {:#?}", err)
+    anyhow!("Eyre error: {err:#?}")
 }
 
 // This function not OK to use it outside tests. Don't copy-paste.
@@ -406,18 +406,18 @@ impl TestAssertions {
                 tracing::info!("As expected, contract accepted");
                 Ok(())
             }
-            Err(TestError::ContractRejected(err)) => Err(anyhow!("Contract rejected {:#?}", err)),
-            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+            Err(TestError::ContractRejected(err)) => Err(anyhow!("Contract rejected {err:#?}")),
+            Err(other_error) => Err(anyhow!("Other error {other_error:#?}")),
         }
     }
 
     pub fn assert_rejected<T>(result: Result<T, TestError>) -> anyhow::Result<()> {
         match result {
             Err(TestError::ContractRejected(err)) => {
-                tracing::info!("As expected, contract rejected {:#?}", err);
+                tracing::info!("As expected, contract rejected {err:#?}");
                 Ok(())
             }
-            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+            Err(other_error) => Err(anyhow!("Other error {other_error:#?}")),
             Ok(_txhash) => Err(anyhow!("Report accepted")),
         }
     }
@@ -428,11 +428,11 @@ impl TestAssertions {
     {
         match result {
             Err(TestError::ContractRejected(ref err)) if check(err) => {
-                tracing::info!("As expected, contract rejected {:#?}", err);
+                tracing::info!("As expected, contract rejected {err:#?}");
                 Ok(())
             }
-            Err(TestError::ContractRejected(err)) => Err(anyhow!("Unexpected rejection type: {:#?}", err)),
-            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+            Err(TestError::ContractRejected(err)) => Err(anyhow!("Unexpected rejection type: {err:#?}")),
+            Err(other_error) => Err(anyhow!("Other error {other_error:#?}")),
             Ok(_) => Err(anyhow!("Expected rejection, but got acceptance")),
         }
     }
@@ -440,10 +440,10 @@ impl TestAssertions {
     pub fn assert_failed_proof<T>(result: Result<T, TestError>) -> anyhow::Result<()> {
         match result {
             Err(TestError::ProofFailed(e)) => {
-                tracing::info!("Failed to create proof - as expected: {:?}", e);
+                tracing::info!("Failed to create proof - as expected: {e:?}");
                 Ok(())
             }
-            Err(other_error) => Err(anyhow!("Other error {:#?}", other_error)),
+            Err(other_error) => Err(anyhow!("Other error {other_error:#?}")),
             Ok(_) => Err(anyhow!("Report accepted")),
         }
     }

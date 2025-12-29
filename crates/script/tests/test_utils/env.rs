@@ -111,6 +111,7 @@ impl IntegrationTestEnvironment {
         Self::new(test_utils::NETWORK.clone(), test_utils::DEPLOY_SLOT, Some(fork_bs_slot)).await
     }
 
+    #[allow(clippy::type_complexity)]
     fn parse_envs() -> anyhow::Result<(PathBuf, String, String, String, Address, Address, Address, Hash256)> {
         let file_store_location = PathBuf::from(env::var("BS_FILE_STORE")?);
         let rpc_endpoint = env::var("CONSENSUS_LAYER_RPC")?;
