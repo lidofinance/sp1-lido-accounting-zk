@@ -1,0 +1,140 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+
+jobs:
+  rust-coverage:
+    name: Rust Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+      
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+      
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          source "$HOME/.cargo/env"
+          rustup component add llvm-tools-preview
+      
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+      
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          export PATH="$HOME/.sp1/bin:$PATH"
+          sp1up --version 5.2.1
+          rustup toolchain list
+          echo "$HOME/.sp1/bin" >> $GITHUB_PATH
+      
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-coverage-
+      
+      - name: Build project
+        run: cargo build --locked --release
+        env:
+          VERGEN_GIT_SHA: ${{ github.sha }}
+      
+      - name: Generate coverage for shared crate
+        working-directory: crates/shared
+        run: cargo llvm-cov --lcov --output-path ../../lcov-shared.info
+      
+      - name: Generate coverage for program crate
+        working-directory: crates/program
+        run: cargo llvm-cov --lcov --output-path ../../lcov-program.info
+      
+      - name: Generate coverage for script crate (excluding integration)
+        working-directory: crates/script
+        run: |
+          SP1_SKIP_PROGRAM_BUILD=true cargo llvm-cov --lcov --output-path ../../lcov-script.info -- --test-threads=8 \
+            --skip report_tampering \
+            --skip data_tampering \
+            --skip program_input_tampering \
+            --skip program_input_integration_test \
+            --skip check_vkey_matches
+        env:
+          RUST_LOG: info
+      
+      - name: Upload Rust coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage
+          path: |
+            ./lcov-shared.info
+            ./lcov-program.info
+            ./lcov-script.info
+
+  solidity-coverage:
+    name: Solidity Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+      
+      - name: Cache Forge dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            contracts/cache
+            contracts/out
+          key: ${{ runner.os }}-forge-${{ hashFiles('**/foundry.toml') }}-${{ hashFiles('contracts/lib/**') }}
+          restore-keys: |
+            ${{ runner.os }}-forge-
+      
+      - name: Run coverage
+        working-directory: contracts
+        run: forge coverage --report lcov
+      
+      - name: Upload Solidity coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: solidity-coverage
+          path: ./contracts/lcov.info
+      
+      - name: Generate coverage report
+        working-directory: contracts
+        run: |
+          forge coverage --report summary > coverage-report.txt
+          cat coverage-report.txt
+      
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: solidity-coverage-report
+          path: contracts/coverage-report.txt
+

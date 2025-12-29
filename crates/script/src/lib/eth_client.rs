@@ -33,13 +33,17 @@ use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
 
 use crate::prometheus_metrics;
 
-sol!(
-    #[allow(missing_docs)]
-    #[sol(rpc)]
-    #[derive(Debug)]
-    Sp1LidoAccountingReportContract,
-    "../../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
-);
+#[allow(clippy::too_many_arguments)]
+mod sp1_lido_contract {
+    alloy::sol!(
+        #[allow(missing_docs)]
+        #[sol(rpc)]
+        #[derive(Debug)]
+        Sp1LidoAccountingReportContract,
+        "../../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
+    );
+}
+pub use sp1_lido_contract::Sp1LidoAccountingReportContract;
 
 sol! {
     #[sol(rpc)]
@@ -241,10 +245,11 @@ where
 
         // Short-circuit on on-chain revert so callers see an error, not Ok(receipt)
         if !tx_result.status() {
-            tracing::debug!("Receipt status=0, decoding revert for tx {}", tx_result.transaction_hash);
-            let call_result = tx_builder
-                .call()
-                .await;
+            tracing::debug!(
+                "Receipt status=0, decoding revert for tx {}",
+                tx_result.transaction_hash
+            );
+            let call_result = tx_builder.call().await;
 
             return match call_result {
                 Ok(_) => Err(ContractError::CustomRejection(format!(

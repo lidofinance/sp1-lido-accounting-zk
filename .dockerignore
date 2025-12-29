@@ -1,19 +1,18 @@
-*
-!contracts
+# Build artifacts
+target
 contracts/out
 contracts/cache
-!crates
-!Cargo.toml
-!Cargo.lock
-!rust-toolchain
-!docker
-!justfile
-!data
-!test_contracts
 test_contracts/out
 test_contracts/cache
-!scripts
-target/
-.git/
-.env
+
+# Development files
+.github
+.vscode
+.idea
+*.md
+metadata
+
+# Temporary files
 *.log
+*.tmp
+.DS_Store
