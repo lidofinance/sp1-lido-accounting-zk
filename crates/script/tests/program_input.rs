@@ -59,7 +59,7 @@ async fn program_input_integration_test() -> Result<()> {
         .collect();
 
     assert!(
-        actual_lido_validator_ids.len() > 0,
+        !actual_lido_validator_ids.is_empty(),
         "No Lido validators found in the new beacon state"
     );
 
