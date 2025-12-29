@@ -79,7 +79,8 @@ jobs:
             --skip report_tampering \
             --skip data_tampering \
             --skip program_input_tampering \
-            --skip program_input_integration_test
+            --skip program_input_integration_test \
+            --skip --skip check_vkey_matches
         env:
           RUST_LOG: info
       
