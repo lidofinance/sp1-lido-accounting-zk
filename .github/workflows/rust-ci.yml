@@ -33,7 +33,8 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up
+          export PATH="$HOME/.sp1/bin:$PATH"
+          sp1up
           rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
@@ -92,7 +93,8 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up
+          export PATH="$HOME/.sp1/bin:$PATH"
+          sp1up
           rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
@@ -154,7 +156,8 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up
+          export PATH="$HOME/.sp1/bin:$PATH"
+          sp1up
           rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
