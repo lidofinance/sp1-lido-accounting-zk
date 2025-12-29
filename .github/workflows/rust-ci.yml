@@ -34,7 +34,7 @@ jobs:
         run: |
           curl -L https://sp1.succinct.xyz | bash
           export PATH="$HOME/.sp1/bin:$PATH"
-          sp1up
+          sp1up --version 5.2.1
           rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
@@ -94,7 +94,7 @@ jobs:
         run: |
           curl -L https://sp1.succinct.xyz | bash
           export PATH="$HOME/.sp1/bin:$PATH"
-          sp1up
+          sp1up --version 5.2.1
           rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
@@ -157,7 +157,7 @@ jobs:
         run: |
           curl -L https://sp1.succinct.xyz | bash
           export PATH="$HOME/.sp1/bin:$PATH"
-          sp1up
+          sp1up --version 5.2.1
           rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
