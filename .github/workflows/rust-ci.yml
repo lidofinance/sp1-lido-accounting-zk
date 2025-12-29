@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          lfs: true
       
       - name: Install Rust toolchain
         run: |
@@ -70,6 +71,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          lfs: true
       
       - name: Free up disk space
         run: |
@@ -141,6 +143,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          lfs: true
       
       - name: Install Rust toolchain
         run: |
