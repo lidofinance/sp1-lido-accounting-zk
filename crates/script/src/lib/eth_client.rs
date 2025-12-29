@@ -34,13 +34,16 @@ use Sp1LidoAccountingReportContract::Sp1LidoAccountingReportContractInstance;
 use crate::prometheus_metrics;
 
 #[allow(clippy::too_many_arguments)]
-sol!(
-    #[allow(missing_docs)]
-    #[sol(rpc)]
-    #[derive(Debug)]
-    Sp1LidoAccountingReportContract,
-    "../../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
-);
+mod sp1_lido_contract {
+    alloy::sol!(
+        #[allow(missing_docs)]
+        #[sol(rpc)]
+        #[derive(Debug)]
+        Sp1LidoAccountingReportContract,
+        "../../contracts/out/Sp1LidoAccountingReportContract.sol/Sp1LidoAccountingReportContract.json",
+    );
+}
+pub use sp1_lido_contract::Sp1LidoAccountingReportContract;
 
 sol! {
     #[sol(rpc)]
