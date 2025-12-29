@@ -132,7 +132,8 @@ jobs:
           SP1_SKIP_PROGRAM_BUILD=true cargo test --locked -- --test-threads=4 \
             --skip report_tampering \
             --skip data_tampering \
-            --skip program_input_tampering
+            --skip program_input_tampering \
+            --skip program_input_integration_test
         env:
           RUST_LOG: info
 

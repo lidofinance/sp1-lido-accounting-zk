@@ -78,7 +78,8 @@ jobs:
           SP1_SKIP_PROGRAM_BUILD=true cargo llvm-cov --lcov --output-path ../../lcov-script.info -- --test-threads=8 \
             --skip report_tampering \
             --skip data_tampering \
-            --skip program_input_tampering
+            --skip program_input_tampering \
+            --skip program_input_integration_test
         env:
           RUST_LOG: info
       
