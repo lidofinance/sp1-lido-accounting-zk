@@ -1,0 +1,24 @@
+{
+  "name": "report-matcher",
+  "version": "1.0.0",
+  "description": "Report Matcher",
+  "license": "MIT",
+  "scripts": {
+    "start": "hardhat run scripts/match-reports.ts"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^4.0.2",
+    "@nomicfoundation/hardhat-keystore": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^3.0.1",
+    "@nomicfoundation/hardhat-typechain": "^3.0.0",
+    "@nomicfoundation/hardhat-verify": "^3.0.3",
+    "@types/node": "^22.8.5",
+    "dotenv": "^16.5.0",
+    "ethers": "^6.14.0",
+    "forge-std": "foundry-rs/forge-std#v1.9.4",
+    "hardhat": "^3.0.7",
+    "typescript": "~5.8.0"
+  },
+  "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610",
+  "type": "module"
+}
