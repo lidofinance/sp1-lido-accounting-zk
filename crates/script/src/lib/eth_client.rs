@@ -193,22 +193,21 @@ impl RetryConfig {
 
 pub struct Sp1LidoAccountingReportContractWrapper<P>
 where
-    P: alloy::providers::Provider<Ethereum> + std::clone::Clone,
+    P: alloy::providers::Provider<Ethereum> + alloy::providers::WalletProvider + std::clone::Clone,
 {
     contract: Sp1LidoAccountingReportContractInstance<Arc<P>>,
-    wallet_address: Address,
 }
 
 impl<P> Sp1LidoAccountingReportContractWrapper<P>
 where
-    P: alloy::providers::Provider<Ethereum> + std::clone::Clone,
+    P: alloy::providers::Provider<Ethereum> + alloy::providers::WalletProvider + std::clone::Clone,
 {
-    pub fn new(provider: Arc<P>, contract_address: Address, wallet_address: Address) -> Self {
+    pub fn new(provider: Arc<P>, contract_address: Address) -> Self {
         let contract = Sp1LidoAccountingReportContract::new(contract_address, Arc::clone(&provider));
-        Sp1LidoAccountingReportContractWrapper { contract, wallet_address }
+        Sp1LidoAccountingReportContractWrapper { contract }
     }
 
-    pub async fn deploy(provider: Arc<P>, constructor_args: &ContractDeployParametersRust, wallet_address: Address) -> Result<Self> {
+    pub async fn deploy(provider: Arc<P>, constructor_args: &ContractDeployParametersRust) -> Result<Self> {
         // Deploy the `Counter` contract.
         let validator_state_solidity: Sp1LidoAccountingReportContract::LidoValidatorState =
             Sp1LidoAccountingReportContract::LidoValidatorState {
@@ -226,7 +225,7 @@ where
             constructor_args.admin.into(),
         )
         .await?;
-        Ok(Sp1LidoAccountingReportContractWrapper { contract, wallet_address })
+        Ok(Sp1LidoAccountingReportContractWrapper { contract })
     }
 
     pub fn address(&self) -> &Address {
@@ -234,7 +233,8 @@ where
     }
 
     // Check nonces to detect pending transactions
-    async fn check_nonces(&self, wallet_address: Address) -> Result<NonceInfo, ContractError> {
+    async fn check_nonces(&self) -> Result<NonceInfo, ContractError> {
+        let wallet_address = self.contract.provider().default_signer_address();
         let pending = self.contract.provider()
             .get_transaction_count(wallet_address)
             .pending()
@@ -306,7 +306,6 @@ where
         }
 
         let config = RetryConfig::from_env();
-        let wallet_address = self.wallet_address;
         let mut last_error: Option<ContractError> = None;
         
         // Retry loop
@@ -326,7 +325,7 @@ where
             }
             
             // Check for pending transactions
-            let nonce_info = match self.check_nonces(wallet_address).await {
+            let nonce_info = match self.check_nonces().await {
                 Ok(info) => info,
                 Err(e) => {
                     tracing::warn!("Failed to get nonce info: {:?}", e);
@@ -435,8 +434,7 @@ where
                 }
             };
 
-            // Wait for transaction receipt with timeout
-            let tx_hash = *tx.tx_hash();  // Dereference to copy the hash before consuming tx
+            let tx_hash = *tx.tx_hash();
             tracing::info!(
                 attempt,
                 tx_hash = %tx_hash,
