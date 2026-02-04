@@ -201,62 +201,339 @@ where
         self.contract.address()
     }
 
+    // Helper structs for cleaner code
+    struct RetryConfig {
+        max_retries: u32,
+        base_gas_markup: u128,
+        receipt_timeout_secs: u64,
+    }
+    
+    struct NonceInfo {
+        pending: u64,
+        confirmed: u64,
+        has_pending_tx: bool,
+    }
+    
+    impl RetryConfig {
+        fn from_env() -> Self {
+            Self {
+                max_retries: std::env::var("TX_MAX_RETRIES")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(2),
+                base_gas_markup: std::env::var("TX_GAS_MARKUP_PERCENT")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(120),
+                receipt_timeout_secs: std::env::var("TX_RECEIPT_TIMEOUT_SECS")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(300),
+            }
+        }
+    }
+    
+    // Check nonces to detect pending transactions
+    async fn check_nonces(&self, wallet_address: Address) -> Result<NonceInfo, ContractError> {
+        let pending = self.contract.provider()
+            .get_transaction_count(wallet_address)
+            .pending()
+            .await?;
+        
+        let confirmed = self.contract.provider()
+            .get_transaction_count(wallet_address)
+            .latest()
+            .await?;
+        
+        let has_pending_tx = pending > confirmed;
+        
+        if has_pending_tx {
+            tracing::warn!(
+                pending,
+                confirmed,
+                wallet = %wallet_address,
+                "Found {} pending transaction(s) - will replace with higher gas",
+                pending - confirmed
+            );
+        }
+        
+        Ok(NonceInfo { pending, confirmed, has_pending_tx })
+    }
+    
+    // Calculate gas markup for current attempt
+    fn calculate_gas_markup(
+        nonce_info: &NonceInfo,
+        attempt: u32,
+        base_gas_markup: u128,
+    ) -> u128 {
+        let retry_multiplier = 100 + (attempt * 20) as u128; // 100%, 120%, 140%, etc.
+        
+        if nonce_info.has_pending_tx {
+            let base_bump = std::env::var("TX_REPLACEMENT_BUMP_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(150);
+            (base_bump * retry_multiplier) / 100
+        } else {
+            (base_gas_markup * retry_multiplier) / 100
+        }
+    }
+    
+    // Configure transaction gas parameters (generic over the call builder type)
+    fn configure_transaction_gas<T>(
+        mut tx_builder: T,
+        gas_markup_percent: u128,
+        nonce_info: &NonceInfo,
+        attempt: u32,
+    ) -> T
+    where
+        T: alloy::contract::CallBuilder,
+    {
+        tracing::info!(
+            attempt,
+            gas_markup_percent,
+            "Using gas markup: {}%",
+            gas_markup_percent
+        );
+        
+        // Set nonce for replacement
+        if nonce_info.has_pending_tx {
+            tx_builder = tx_builder.nonce(nonce_info.confirmed);
+            tracing::info!(
+                nonce = nonce_info.confirmed,
+                "Using confirmed nonce {} to replace pending transaction",
+                nonce_info.confirmed
+            );
+        }
+        
+        // Configure gas limit
+        if let Ok(gas_limit_str) = std::env::var("TX_GAS_LIMIT") {
+            if let Ok(gas_limit) = gas_limit_str.parse::<u64>() {
+                tracing::info!(gas_limit, "Using explicit gas limit");
+                tx_builder = tx_builder.gas(gas_limit);
+            }
+        }
+        
+        // Configure max fee per gas
+        if let Ok(max_fee_gwei_str) = std::env::var("TX_MAX_FEE_PER_GAS_GWEI") {
+            if let Ok(max_fee_gwei) = max_fee_gwei_str.parse::<u128>() {
+                let bumped_max_fee_gwei = (max_fee_gwei * gas_markup_percent) / 100;
+                let max_fee_wei = bumped_max_fee_gwei * 1_000_000_000;
+                tracing::info!(
+                    attempt,
+                    base_max_fee_gwei = max_fee_gwei,
+                    bumped_max_fee_gwei,
+                    bump_percent = gas_markup_percent,
+                    "Setting max fee per gas"
+                );
+                tx_builder = tx_builder.max_fee_per_gas(max_fee_wei);
+            }
+        }
+        
+        // Configure max priority fee per gas
+        if let Ok(priority_fee_gwei_str) = std::env::var("TX_MAX_PRIORITY_FEE_PER_GAS_GWEI") {
+            if let Ok(priority_fee_gwei) = priority_fee_gwei_str.parse::<u128>() {
+                let bumped_priority_fee_gwei = (priority_fee_gwei * gas_markup_percent) / 100;
+                let priority_fee_wei = bumped_priority_fee_gwei * 1_000_000_000;
+                tracing::info!(
+                    attempt,
+                    base_priority_fee_gwei = priority_fee_gwei,
+                    bumped_priority_fee_gwei,
+                    bump_percent = gas_markup_percent,
+                    "Setting max priority fee per gas"
+                );
+                tx_builder = tx_builder.max_priority_fee_per_gas(priority_fee_wei);
+            }
+        }
+        
+        tx_builder
+    }
+    
+    // Check if error is retryable
+    fn is_error_retryable(error: &ContractError) -> bool {
+        let err_msg = format!("{:?}", error);
+        err_msg.contains("could not replace")
+            || err_msg.contains("nonce too low")
+            || err_msg.contains("timeout")
+            || err_msg.contains("connection")
+    }
+    
     async fn submit_report_data_impl(
         &self,
         proof: Vec<u8>,
         public_values: Vec<u8>,
     ) -> Result<TransactionReceipt, ContractError> {
         let tx_builder = self.contract.submitReportData(proof.into(), public_values.into());
-        // Optional preflight call to surface revert reasons before sending a tx.
-        // This mirrors what we send on-chain, so if it already reverts we can fail fast.
+        
+        // Preflight call to detect reverts early
         if std::env::var("SKIP_PREFLIGHT_CALL").is_err() {
-            let preflight = tx_builder.call().await;
-            if let Err(err) = preflight {
+            if let Err(err) = tx_builder.call().await {
                 tracing::error!("Preflight call for submitReportData reverted: {err:?}");
                 return Err(err.into());
             }
         }
 
-        tracing::info!("Submitting report transaction");
-        let tx = tx_builder
-            .send()
-            .instrument(tracing::info_span!("send_tx"))
-            .await
-            .inspect(|val| tracing::debug!("Submitted transaction {}", val.tx_hash()))
-            .inspect_err(|err| tracing::error!("Failed to submit transaction {err:?}"))?;
-
-        tracing::info!("Waiting for report transaction");
-        let tx_result = tx
-            .get_receipt()
-            .instrument(tracing::info_span!("get_receipt"))
-            .await
-            .inspect(|val| {
-                if val.status() {
-                    tracing::info!("Transaction completed {:#?}", val.transaction_hash)
-                } else {
-                    tracing::error!("Transaction reverted {:#?}", val.transaction_hash)
+        let config = RetryConfig::from_env();
+        let wallet_address = self.wallet.address();
+        let mut last_error: Option<ContractError> = None;
+        
+        // Retry loop
+        for attempt in 0..=config.max_retries {
+            // Log retry attempt
+            if attempt > 0 {
+                tracing::warn!(
+                    attempt,
+                    max_retries = config.max_retries,
+                    "Retrying transaction submission (attempt {}/{})",
+                    attempt + 1,
+                    config.max_retries + 1
+                );
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            } else {
+                tracing::info!("Submitting report transaction");
+            }
+            
+            // Check for pending transactions
+            let nonce_info = match self.check_nonces(wallet_address).await {
+                Ok(info) => info,
+                Err(e) => {
+                    tracing::warn!("Failed to get nonce info: {:?}", e);
+                    last_error = Some(e);
+                    continue;
                 }
-            })
-            .inspect_err(|err| tracing::error!("Transaction failed {err:?}"))?;
-
-        // Short-circuit on on-chain revert so callers see an error, not Ok(receipt)
-        if !tx_result.status() {
-            tracing::debug!("Receipt status=0, decoding revert for tx {}", tx_result.transaction_hash);
-            let call_result = tx_builder
-                .call()
-                .await;
-
-            return match call_result {
-                Ok(_) => Err(ContractError::CustomRejection(format!(
-                    "Transaction reverted without reason: {:#?}",
-                    tx_result.transaction_hash
-                ))),
-                Err(e) => Err(e.into()),
             };
-        }
+            
+            // Calculate gas markup for this attempt
+            let gas_markup_percent = Self::calculate_gas_markup(
+                &nonce_info,
+                attempt,
+                config.base_gas_markup,
+            );
+            
+            // Configure transaction with gas parameters
+            let tx_builder = Self::configure_transaction_gas(
+                tx_builder.clone(),
+                gas_markup_percent,
+                &nonce_info,
+                attempt,
+            );
+            
+            // Send transaction
+            let tx = match tx_builder
+                .send()
+                .instrument(tracing::info_span!("send_tx", attempt))
+                .await
+            {
+                Ok(tx) => {
+                    tracing::info!(
+                        attempt,
+                        tx_hash = %tx.tx_hash(),
+                        "Transaction submitted successfully"
+                    );
+                    tx
+                }
+                Err(err) => {
+                    tracing::error!(
+                        attempt,
+                        error = ?err,
+                        "Failed to submit transaction: {:?}",
+                        err
+                    );
+                    let contract_err: ContractError = err.into();
+                    let is_retryable = Self::is_error_retryable(&contract_err);
+                    last_error = Some(contract_err);
+                    
+                    if !is_retryable && attempt < config.max_retries {
+                        tracing::error!("Error is not retryable, aborting retries");
+                        break;
+                    }
+                    continue;
+                }
+            };
 
-        Ok(tx_result)
+            // Wait for transaction receipt with timeout
+            let tx_hash = tx.tx_hash();
+            tracing::info!(
+                attempt,
+                tx_hash = %tx_hash,
+                timeout_secs = config.receipt_timeout_secs,
+                "Waiting for receipt: tx_hash={} (timeout: {}s)",
+                tx_hash,
+                config.receipt_timeout_secs
+            );
+            
+            let tx_result = match tokio::time::timeout(
+                tokio::time::Duration::from_secs(config.receipt_timeout_secs),
+                tx.get_receipt().instrument(tracing::info_span!("get_receipt", attempt))
+            )
+            .await
+            {
+                Ok(Ok(receipt)) => receipt,
+                Ok(Err(err)) => {
+                    tracing::error!(
+                        attempt,
+                        tx_hash = %tx_hash,
+                        error = ?err,
+                        "Failed to get receipt for tx {}: {:?}",
+                        tx_hash,
+                        err
+                    );
+                    last_error = Some(err.into());
+                    continue;
+                }
+                Err(_timeout) => {
+                    tracing::error!(
+                        attempt,
+                        tx_hash = %tx_hash,
+                        timeout_secs = config.receipt_timeout_secs,
+                        "⏰ Timeout after {}s - tx {} may still be pending",
+                        config.receipt_timeout_secs,
+                        tx_hash
+                    );
+                    last_error = Some(ContractError::CustomRejection(format!(
+                        "Transaction {} receipt timeout after {}s",
+                        tx_hash,
+                        config.receipt_timeout_secs
+                    )));
+                    continue;
+                }
+            };
+            
+            // Check transaction result
+            if tx_result.status() {
+                tracing::info!(
+                    attempt,
+                    tx_hash = ?tx_result.transaction_hash,
+                    block = ?tx_result.block_number,
+                    "✅ Transaction completed successfully"
+                );
+                return Ok(tx_result);
+            } else {
+                tracing::error!(
+                    attempt,
+                    tx_hash = ?tx_result.transaction_hash,
+                    "Transaction reverted on-chain"
+                );
+                last_error = Some(ContractError::CustomRejection(format!(
+                    "Transaction reverted: {:?}",
+                    tx_result.transaction_hash
+                )));
+                break; // On-chain revert is not retryable
+            }
+        }
+        
+        // All retries exhausted
+        tracing::error!(
+            max_retries = config.max_retries,
+            "All retry attempts exhausted ({} attempts)",
+            config.max_retries + 1
+        );
+        
+        Err(last_error.unwrap_or_else(|| ContractError::CustomRejection(
+            "Transaction submission failed after all retries".to_string()
+        )))
     }
+    
 
     pub async fn submit_report_data(
         &self,

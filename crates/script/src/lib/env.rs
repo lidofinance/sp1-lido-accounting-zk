@@ -169,3 +169,23 @@ pub const PROMETHEUS_NAMESPACE: EnvVarSpec = EnvVarSpec {
     key: "PROMETHEUS_NAMESPACE",
     sensitive: false,
 };
+pub const TX_GAS_LIMIT: EnvVarSpec = EnvVarSpec {
+    key: "TX_GAS_LIMIT",
+    sensitive: false,
+};
+pub const TX_MAX_FEE_PER_GAS_GWEI: EnvVarSpec = EnvVarSpec {
+    key: "TX_MAX_FEE_PER_GAS_GWEI",
+    sensitive: false,
+};
+pub const TX_MAX_PRIORITY_FEE_PER_GAS_GWEI: EnvVarSpec = EnvVarSpec {
+    key: "TX_MAX_PRIORITY_FEE_PER_GAS_GWEI",
+    sensitive: false,
+};
+pub const TX_GAS_MARKUP_PERCENT: EnvVarSpec = EnvVarSpec {
+    key: "TX_GAS_MARKUP_PERCENT",
+    sensitive: false,
+};
+pub const TX_REPLACEMENT_BUMP_PERCENT: EnvVarSpec = EnvVarSpec {
+    key: "TX_REPLACEMENT_BUMP_PERCENT",
+    sensitive: false,
+};
