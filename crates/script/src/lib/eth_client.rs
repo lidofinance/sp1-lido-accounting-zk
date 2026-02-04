@@ -160,23 +160,55 @@ impl Debug for ContractDeployParametersRust {
     }
 }
 
+struct RetryConfig {
+    max_retries: u32,
+    base_gas_markup: u128,
+    receipt_timeout_secs: u64,
+}
+
+struct NonceInfo {
+    pending: u64,
+    confirmed: u64,
+    has_pending_tx: bool,
+}
+
+impl RetryConfig {
+    fn from_env() -> Self {
+        Self {
+            max_retries: std::env::var("TX_MAX_RETRIES")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(2),
+            base_gas_markup: std::env::var("TX_GAS_MARKUP_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(120),
+            receipt_timeout_secs: std::env::var("TX_RECEIPT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(300),
+        }
+    }
+}
+
 pub struct Sp1LidoAccountingReportContractWrapper<P>
 where
     P: alloy::providers::Provider<Ethereum> + std::clone::Clone,
 {
     contract: Sp1LidoAccountingReportContractInstance<Arc<P>>,
+    wallet_address: Address,
 }
 
 impl<P> Sp1LidoAccountingReportContractWrapper<P>
 where
     P: alloy::providers::Provider<Ethereum> + std::clone::Clone,
 {
-    pub fn new(provider: Arc<P>, contract_address: Address) -> Self {
+    pub fn new(provider: Arc<P>, contract_address: Address, wallet_address: Address) -> Self {
         let contract = Sp1LidoAccountingReportContract::new(contract_address, Arc::clone(&provider));
-        Sp1LidoAccountingReportContractWrapper { contract }
+        Sp1LidoAccountingReportContractWrapper { contract, wallet_address }
     }
 
-    pub async fn deploy(provider: Arc<P>, constructor_args: &ContractDeployParametersRust) -> Result<Self> {
+    pub async fn deploy(provider: Arc<P>, constructor_args: &ContractDeployParametersRust, wallet_address: Address) -> Result<Self> {
         // Deploy the `Counter` contract.
         let validator_state_solidity: Sp1LidoAccountingReportContract::LidoValidatorState =
             Sp1LidoAccountingReportContract::LidoValidatorState {
@@ -194,56 +226,26 @@ where
             constructor_args.admin.into(),
         )
         .await?;
-        Ok(Sp1LidoAccountingReportContractWrapper { contract })
+        Ok(Sp1LidoAccountingReportContractWrapper { contract, wallet_address })
     }
 
     pub fn address(&self) -> &Address {
         self.contract.address()
     }
 
-    // Helper structs for cleaner code
-    struct RetryConfig {
-        max_retries: u32,
-        base_gas_markup: u128,
-        receipt_timeout_secs: u64,
-    }
-    
-    struct NonceInfo {
-        pending: u64,
-        confirmed: u64,
-        has_pending_tx: bool,
-    }
-    
-    impl RetryConfig {
-        fn from_env() -> Self {
-            Self {
-                max_retries: std::env::var("TX_MAX_RETRIES")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(2),
-                base_gas_markup: std::env::var("TX_GAS_MARKUP_PERCENT")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(120),
-                receipt_timeout_secs: std::env::var("TX_RECEIPT_TIMEOUT_SECS")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(300),
-            }
-        }
-    }
-    
     // Check nonces to detect pending transactions
     async fn check_nonces(&self, wallet_address: Address) -> Result<NonceInfo, ContractError> {
         let pending = self.contract.provider()
             .get_transaction_count(wallet_address)
             .pending()
-            .await?;
+            .await
+            .map_err(|e| ContractError::from(alloy::contract::Error::TransportError(e)))?;
         
         let confirmed = self.contract.provider()
             .get_transaction_count(wallet_address)
             .latest()
-            .await?;
+            .await
+            .map_err(|e| ContractError::from(alloy::contract::Error::TransportError(e)))?;
         
         let has_pending_tx = pending > confirmed;
         
@@ -279,76 +281,6 @@ where
         }
     }
     
-    // Configure transaction gas parameters (generic over the call builder type)
-    fn configure_transaction_gas<T>(
-        mut tx_builder: T,
-        gas_markup_percent: u128,
-        nonce_info: &NonceInfo,
-        attempt: u32,
-    ) -> T
-    where
-        T: alloy::contract::CallBuilder,
-    {
-        tracing::info!(
-            attempt,
-            gas_markup_percent,
-            "Using gas markup: {}%",
-            gas_markup_percent
-        );
-        
-        // Set nonce for replacement
-        if nonce_info.has_pending_tx {
-            tx_builder = tx_builder.nonce(nonce_info.confirmed);
-            tracing::info!(
-                nonce = nonce_info.confirmed,
-                "Using confirmed nonce {} to replace pending transaction",
-                nonce_info.confirmed
-            );
-        }
-        
-        // Configure gas limit
-        if let Ok(gas_limit_str) = std::env::var("TX_GAS_LIMIT") {
-            if let Ok(gas_limit) = gas_limit_str.parse::<u64>() {
-                tracing::info!(gas_limit, "Using explicit gas limit");
-                tx_builder = tx_builder.gas(gas_limit);
-            }
-        }
-        
-        // Configure max fee per gas
-        if let Ok(max_fee_gwei_str) = std::env::var("TX_MAX_FEE_PER_GAS_GWEI") {
-            if let Ok(max_fee_gwei) = max_fee_gwei_str.parse::<u128>() {
-                let bumped_max_fee_gwei = (max_fee_gwei * gas_markup_percent) / 100;
-                let max_fee_wei = bumped_max_fee_gwei * 1_000_000_000;
-                tracing::info!(
-                    attempt,
-                    base_max_fee_gwei = max_fee_gwei,
-                    bumped_max_fee_gwei,
-                    bump_percent = gas_markup_percent,
-                    "Setting max fee per gas"
-                );
-                tx_builder = tx_builder.max_fee_per_gas(max_fee_wei);
-            }
-        }
-        
-        // Configure max priority fee per gas
-        if let Ok(priority_fee_gwei_str) = std::env::var("TX_MAX_PRIORITY_FEE_PER_GAS_GWEI") {
-            if let Ok(priority_fee_gwei) = priority_fee_gwei_str.parse::<u128>() {
-                let bumped_priority_fee_gwei = (priority_fee_gwei * gas_markup_percent) / 100;
-                let priority_fee_wei = bumped_priority_fee_gwei * 1_000_000_000;
-                tracing::info!(
-                    attempt,
-                    base_priority_fee_gwei = priority_fee_gwei,
-                    bumped_priority_fee_gwei,
-                    bump_percent = gas_markup_percent,
-                    "Setting max priority fee per gas"
-                );
-                tx_builder = tx_builder.max_priority_fee_per_gas(priority_fee_wei);
-            }
-        }
-        
-        tx_builder
-    }
-    
     // Check if error is retryable
     fn is_error_retryable(error: &ContractError) -> bool {
         let err_msg = format!("{:?}", error);
@@ -374,7 +306,7 @@ where
         }
 
         let config = RetryConfig::from_env();
-        let wallet_address = self.wallet.address();
+        let wallet_address = self.wallet_address;
         let mut last_error: Option<ContractError> = None;
         
         // Retry loop
@@ -411,15 +343,67 @@ where
             );
             
             // Configure transaction with gas parameters
-            let tx_builder = Self::configure_transaction_gas(
-                tx_builder.clone(),
-                gas_markup_percent,
-                &nonce_info,
+            tracing::info!(
                 attempt,
+                gas_markup_percent,
+                "Using gas markup: {}%",
+                gas_markup_percent
             );
             
+            let mut tx_builder_for_attempt = tx_builder.clone();
+            
+            // Set nonce for replacement
+            if nonce_info.has_pending_tx {
+                tx_builder_for_attempt = tx_builder_for_attempt.nonce(nonce_info.confirmed);
+                tracing::info!(
+                    nonce = nonce_info.confirmed,
+                    "Using confirmed nonce {} to replace pending transaction",
+                    nonce_info.confirmed
+                );
+            }
+            
+            // Configure gas limit
+            if let Ok(gas_limit_str) = std::env::var("TX_GAS_LIMIT") {
+                if let Ok(gas_limit) = gas_limit_str.parse::<u64>() {
+                    tracing::info!(gas_limit, "Using explicit gas limit");
+                    tx_builder_for_attempt = tx_builder_for_attempt.gas(gas_limit);
+                }
+            }
+            
+            // Configure max fee per gas
+            if let Ok(max_fee_gwei_str) = std::env::var("TX_MAX_FEE_PER_GAS_GWEI") {
+                if let Ok(max_fee_gwei) = max_fee_gwei_str.parse::<u128>() {
+                    let bumped_max_fee_gwei = (max_fee_gwei * gas_markup_percent) / 100;
+                    let max_fee_wei = bumped_max_fee_gwei * 1_000_000_000;
+                    tracing::info!(
+                        attempt,
+                        base_max_fee_gwei = max_fee_gwei,
+                        bumped_max_fee_gwei,
+                        bump_percent = gas_markup_percent,
+                        "Setting max fee per gas"
+                    );
+                    tx_builder_for_attempt = tx_builder_for_attempt.max_fee_per_gas(max_fee_wei);
+                }
+            }
+            
+            // Configure max priority fee per gas
+            if let Ok(priority_fee_gwei_str) = std::env::var("TX_MAX_PRIORITY_FEE_PER_GAS_GWEI") {
+                if let Ok(priority_fee_gwei) = priority_fee_gwei_str.parse::<u128>() {
+                    let bumped_priority_fee_gwei = (priority_fee_gwei * gas_markup_percent) / 100;
+                    let priority_fee_wei = bumped_priority_fee_gwei * 1_000_000_000;
+                    tracing::info!(
+                        attempt,
+                        base_priority_fee_gwei = priority_fee_gwei,
+                        bumped_priority_fee_gwei,
+                        bump_percent = gas_markup_percent,
+                        "Setting max priority fee per gas"
+                    );
+                    tx_builder_for_attempt = tx_builder_for_attempt.max_priority_fee_per_gas(priority_fee_wei);
+                }
+            }
+            
             // Send transaction
-            let tx = match tx_builder
+            let tx = match tx_builder_for_attempt
                 .send()
                 .instrument(tracing::info_span!("send_tx", attempt))
                 .await
@@ -452,7 +436,7 @@ where
             };
 
             // Wait for transaction receipt with timeout
-            let tx_hash = tx.tx_hash();
+            let tx_hash = *tx.tx_hash();  // Dereference to copy the hash before consuming tx
             tracing::info!(
                 attempt,
                 tx_hash = %tx_hash,

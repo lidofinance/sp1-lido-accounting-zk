@@ -14,7 +14,8 @@ use crate::eth_client::{
     DefaultProvider, EthELClient, ExecutionLayerClient, HashConsensusContract, HashConsensusContractWrapper,
     ProviderFactory, ReportContract, Sp1LidoAccountingReportContractWrapper,
 };
-use alloy::primitives::Address;
+use alloy::primitives::{Address, B256};
+use alloy::signers::local::PrivateKeySigner;
 
 use std::collections::HashMap;
 use std::env;
@@ -302,6 +303,20 @@ impl ScriptRuntime {
     }
 
     pub fn init(env_vars: &EnvVars) -> Result<Self, Error> {
+        // Extract wallet address from private key
+        let private_key_str = env_vars.private_key.value.clone();
+        let private_key_hex = private_key_str
+            .split("0x")
+            .last()
+            .ok_or(crate::eth_client::ProviderError::ParsePrivateKeyError)?
+            .trim();
+        let private_key_bytes = hex::decode(private_key_hex)
+            .map_err(|_| crate::eth_client::ProviderError::FromHexError)?;
+        let private_key_b256 = B256::from_slice(&private_key_bytes);
+        let signer = PrivateKeySigner::from_bytes(&private_key_b256)
+            .map_err(|_| crate::eth_client::ProviderError::DeserializePrivateKeyError)?;
+        let wallet_address = signer.address();
+
         let provider = Arc::new(ProviderFactory::create_provider_decode_key(
             env_vars.private_key.value.clone(),
             env_vars.execution_layer_rpc.value.clone(),
@@ -333,6 +348,7 @@ impl ScriptRuntime {
                 report_contract: Sp1LidoAccountingReportContractWrapper::new(
                     Arc::clone(&provider),
                     env_vars.contract_address.value,
+                    wallet_address,
                 ),
                 hash_consensus_contract: HashConsensusContractWrapper::new(
                     Arc::clone(&provider),
