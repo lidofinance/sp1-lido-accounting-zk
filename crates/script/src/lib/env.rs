@@ -157,6 +157,10 @@ pub const EXECUTION_LAYER_RPC: EnvVarSpec = EnvVarSpec {
     key: "EXECUTION_LAYER_RPC",
     sensitive: true,
 };
+pub const EXECUTION_LAYER_RPC_FALLBACK: EnvVarSpec = EnvVarSpec {
+    key: "EXECUTION_LAYER_RPC_FALLBACK",
+    sensitive: true,
+};
 pub const CONSENSUS_LAYER_RPC: EnvVarSpec = EnvVarSpec {
     key: "CONSENSUS_LAYER_RPC",
     sensitive: true,
