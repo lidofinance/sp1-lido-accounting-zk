@@ -377,6 +377,19 @@ where
         }
     }
 
+    /// Convert a proof response to WithdrawalVaultData
+    fn map_proof_to_withdrawal_vault_data(
+        address: Address,
+        proof_response: alloy::rpc::types::EIP1186AccountProofResponse,
+    ) -> WithdrawalVaultData {
+        let proof_as_vecs = proof_response.account_proof.iter().map(|val| val.to_vec()).collect();
+        WithdrawalVaultData {
+            vault_address: address,
+            balance: proof_response.balance,
+            account_proof: proof_as_vecs,
+        }
+    }
+
     async fn get_withdrawal_vault_data_impl(
         &self,
         address: Address,
@@ -413,14 +426,9 @@ where
                     .block_id(BlockId::Hash(block_hash))
                     .await;
                 
-                return fallback_result.map(|resp| {
-                    let proof_as_vecs = resp.account_proof.iter().map(|val| val.to_vec()).collect();
-                    WithdrawalVaultData {
-                        vault_address: address,
-                        balance: resp.balance,
-                        account_proof: proof_as_vecs,
-                    }
-                }).map_err(RPCError::Error);
+                return fallback_result
+                    .map(|resp| Self::map_proof_to_withdrawal_vault_data(address, resp))
+                    .map_err(RPCError::Error);
             } else {
                 tracing::warn!(
                     "Primary RPC failed with 'historical state not available' but no fallback provider configured"
@@ -428,14 +436,9 @@ where
             }
         }
 
-        result.map(|resp| {
-            let proof_as_vecs = resp.account_proof.iter().map(|val| val.to_vec()).collect();
-            WithdrawalVaultData {
-                vault_address: address,
-                balance: resp.balance,
-                account_proof: proof_as_vecs,
-            }
-        }).map_err(RPCError::Error)
+        result
+            .map(|resp| Self::map_proof_to_withdrawal_vault_data(address, resp))
+            .map_err(RPCError::Error)
     }
 
     pub async fn get_withdrawal_vault_data(
