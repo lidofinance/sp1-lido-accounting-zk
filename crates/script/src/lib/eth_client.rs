@@ -191,11 +191,6 @@ struct RetryConfig {
     receipt_timeout_secs: u64,
 }
 
-struct NonceInfo {
-    pending: u64,
-    confirmed: u64,
-}
-
 impl RetryConfig {
     fn from_gas_config(gas_config: &GasConfig) -> Self {
         Self {
@@ -249,47 +244,27 @@ where
         self.contract.address()
     }
 
-    // Check nonces to detect pending transactions
-    async fn check_nonces(&self) -> Result<NonceInfo, ContractError> {
+    // Get confirmed nonce for transaction
+    async fn get_nonce(&self) -> Result<u64, ContractError> {
         let wallet_address = self.contract.provider().default_signer_address();
-        let pending = self.contract.provider()
-            .get_transaction_count(wallet_address)
-            .pending()
-            .await
-            .map_err(|e| ContractError::from(alloy::contract::Error::TransportError(e)))?;
-        
-        let confirmed = self.contract.provider()
+        let nonce = self.contract.provider()
             .get_transaction_count(wallet_address)
             .latest()
             .await
             .map_err(|e| ContractError::from(alloy::contract::Error::TransportError(e)))?;
         
-        if pending > confirmed {
-            tracing::warn!(
-                pending,
-                confirmed,
-                wallet = %wallet_address,
-                "Found {} pending transaction(s) - will replace with higher gas",
-                pending - confirmed
-            );
-        }
-        
-        Ok(NonceInfo { pending, confirmed })
+        Ok(nonce)
     }
     
     // Calculate gas markup for current attempt
+    // Since we always use confirmed nonce, we might be replacing pending transactions,
+    // so we use replacement_bump_percent for safety
     fn calculate_gas_markup(
-        nonce_info: &NonceInfo,
         attempt: u32,
         gas_config: &GasConfig,
     ) -> u128 {
         let retry_multiplier = 100 + (attempt * 20) as u128; // 100%, 120%, 140%, etc.
-        
-        if nonce_info.pending > nonce_info.confirmed {
-            (gas_config.replacement_bump_percent * retry_multiplier) / 100
-        } else {
-            (gas_config.gas_markup_percent * retry_multiplier) / 100
-        }
+        (gas_config.replacement_bump_percent * retry_multiplier) / 100
     }
     
     fn is_error_retryable(error: &ContractError) -> bool {
@@ -339,10 +314,10 @@ where
                     config.max_retries + 1
                 );
             }
-            let nonce_info = match self.check_nonces().await {
-                Ok(info) => info,
+            let nonce = match self.get_nonce().await {
+                Ok(n) => n,
                 Err(e) => {
-                    tracing::warn!("Failed to get nonce info: {:?}", e);
+                    tracing::warn!("Failed to get nonce: {:?}", e);
                     last_error = Some(e);
                     continue;
                 }
@@ -350,7 +325,6 @@ where
             
             // Calculate gas markup for this attempt
             let gas_markup_percent = Self::calculate_gas_markup(
-                &nonce_info,
                 attempt,
                 &self.gas_config,
             );
@@ -365,22 +339,12 @@ where
             
             let mut tx_builder_for_attempt = tx_builder.clone();
             
-            if nonce_info.pending > nonce_info.confirmed {
-                tracing::info!(
-                    nonce = nonce_info.confirmed,
-                    pending_count = nonce_info.pending - nonce_info.confirmed,
-                    "Using nonce {} to replace {} pending transaction(s)",
-                    nonce_info.confirmed,
-                    nonce_info.pending - nonce_info.confirmed
-                );
-            } else {
-                tracing::debug!(
-                    nonce = nonce_info.confirmed,
-                    "Using nonce {} for new transaction",
-                    nonce_info.confirmed
-                );
-            }
-            tx_builder_for_attempt = tx_builder_for_attempt.nonce(nonce_info.confirmed);
+            tx_builder_for_attempt = tx_builder_for_attempt.nonce(nonce);
+            tracing::debug!(
+                nonce,
+                "Using nonce {}",
+                nonce
+            );
             
             if let Some(gas_limit) = self.gas_config.gas_limit {
                 tracing::info!(gas_limit, "Using explicit gas limit");
