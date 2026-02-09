@@ -1,7 +1,7 @@
 use sp1_lido_accounting_scripts::beacon_state_reader::{BeaconStateReader, StateId};
 
 use sp1_lido_accounting_scripts::eth_client::{
-    ContractDeployParametersRust, Sp1LidoAccountingReportContractWrapper,
+    ContractDeployParametersRust, GasConfig, Sp1LidoAccountingReportContractWrapper,
 };
 use sp1_lido_accounting_scripts::scripts::prelude::ScriptRuntime;
 use sp1_lido_accounting_scripts::sp1_client_wrapper::SP1ClientWrapper;
@@ -147,6 +147,7 @@ pub async fn run(
     let deployed = Sp1LidoAccountingReportContractWrapper::deploy(
         Arc::clone(&runtime.eth_infra.provider),
         &deploy_params,
+        GasConfig::default(),
     )
     .await
     // .map_err(|e| anyhow::anyhow!("Failed to deploy {:?}", e))?;

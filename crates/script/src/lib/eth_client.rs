@@ -160,6 +160,31 @@ impl Debug for ContractDeployParametersRust {
     }
 }
 
+#[derive(Clone)]
+pub struct GasConfig {
+    pub max_fee_per_gas_wei: Option<u128>,
+    pub max_priority_fee_per_gas_wei: Option<u128>,
+    pub gas_limit: Option<u64>,
+    pub gas_markup_percent: u128,
+    pub replacement_bump_percent: u128,
+    pub max_retries: u32,
+    pub receipt_timeout_secs: u64,
+}
+
+impl Default for GasConfig {
+    fn default() -> Self {
+        Self {
+            max_fee_per_gas_wei: None,
+            max_priority_fee_per_gas_wei: None,
+            gas_limit: None,
+            gas_markup_percent: 120,
+            replacement_bump_percent: 150,
+            max_retries: 2,
+            receipt_timeout_secs: 300,
+        }
+    }
+}
+
 struct RetryConfig {
     max_retries: u32,
     base_gas_markup: u128,
@@ -169,24 +194,14 @@ struct RetryConfig {
 struct NonceInfo {
     pending: u64,
     confirmed: u64,
-    has_pending_tx: bool,
 }
 
 impl RetryConfig {
-    fn from_env() -> Self {
+    fn from_gas_config(gas_config: &GasConfig) -> Self {
         Self {
-            max_retries: std::env::var("TX_MAX_RETRIES")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(2),
-            base_gas_markup: std::env::var("TX_GAS_MARKUP_PERCENT")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(120),
-            receipt_timeout_secs: std::env::var("TX_RECEIPT_TIMEOUT_SECS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(300),
+            max_retries: gas_config.max_retries,
+            base_gas_markup: gas_config.gas_markup_percent,
+            receipt_timeout_secs: gas_config.receipt_timeout_secs,
         }
     }
 }
@@ -196,18 +211,20 @@ where
     P: alloy::providers::Provider<Ethereum> + alloy::providers::WalletProvider + std::clone::Clone,
 {
     contract: Sp1LidoAccountingReportContractInstance<Arc<P>>,
+    gas_config: GasConfig,
 }
 
 impl<P> Sp1LidoAccountingReportContractWrapper<P>
 where
     P: alloy::providers::Provider<Ethereum> + alloy::providers::WalletProvider + std::clone::Clone,
 {
-    pub fn new(provider: Arc<P>, contract_address: Address) -> Self {
+    pub fn new(provider: Arc<P>, contract_address: Address, gas_config: GasConfig) -> Self {
         let contract = Sp1LidoAccountingReportContract::new(contract_address, Arc::clone(&provider));
-        Sp1LidoAccountingReportContractWrapper { contract }
+        Sp1LidoAccountingReportContractWrapper { contract, gas_config }
     }
 
-    pub async fn deploy(provider: Arc<P>, constructor_args: &ContractDeployParametersRust) -> Result<Self> {
+    pub async fn deploy(provider: Arc<P>, constructor_args: &ContractDeployParametersRust, gas_config: impl Into<GasConfig>) -> Result<Self> {
+        let gas_config = gas_config.into();
         // Deploy the `Counter` contract.
         let validator_state_solidity: Sp1LidoAccountingReportContract::LidoValidatorState =
             Sp1LidoAccountingReportContract::LidoValidatorState {
@@ -225,7 +242,7 @@ where
             constructor_args.admin.into(),
         )
         .await?;
-        Ok(Sp1LidoAccountingReportContractWrapper { contract })
+        Ok(Sp1LidoAccountingReportContractWrapper { contract, gas_config })
     }
 
     pub fn address(&self) -> &Address {
@@ -247,9 +264,7 @@ where
             .await
             .map_err(|e| ContractError::from(alloy::contract::Error::TransportError(e)))?;
         
-        let has_pending_tx = pending > confirmed;
-        
-        if has_pending_tx {
+        if pending > confirmed {
             tracing::warn!(
                 pending,
                 confirmed,
@@ -259,35 +274,39 @@ where
             );
         }
         
-        Ok(NonceInfo { pending, confirmed, has_pending_tx })
+        Ok(NonceInfo { pending, confirmed })
     }
     
     // Calculate gas markup for current attempt
     fn calculate_gas_markup(
         nonce_info: &NonceInfo,
         attempt: u32,
-        base_gas_markup: u128,
+        gas_config: &GasConfig,
     ) -> u128 {
         let retry_multiplier = 100 + (attempt * 20) as u128; // 100%, 120%, 140%, etc.
         
-        if nonce_info.has_pending_tx {
-            let base_bump = std::env::var("TX_REPLACEMENT_BUMP_PERCENT")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(150);
-            (base_bump * retry_multiplier) / 100
+        if nonce_info.pending > nonce_info.confirmed {
+            (gas_config.replacement_bump_percent * retry_multiplier) / 100
         } else {
-            (base_gas_markup * retry_multiplier) / 100
+            (gas_config.gas_markup_percent * retry_multiplier) / 100
         }
     }
     
-    // Check if error is retryable
     fn is_error_retryable(error: &ContractError) -> bool {
-        let err_msg = format!("{:?}", error);
-        err_msg.contains("could not replace")
-            || err_msg.contains("nonce too low")
-            || err_msg.contains("timeout")
-            || err_msg.contains("connection")
+        match error {
+            ContractError::Rejection(_) => false,
+            ContractError::CustomRejection(_) => false,
+            ContractError::ReportNotFound(_) => false,
+            _ => {
+                let err_msg = format!("{:?}", error);
+                err_msg.contains("could not replace")
+                    || err_msg.contains("nonce too low")
+                    || err_msg.contains("timeout")
+                    || err_msg.contains("connection")
+                    || err_msg.contains("rate limit")
+                    || err_msg.contains("too many requests")
+            }
+        }
     }
     
     async fn submit_report_data_impl(
@@ -305,12 +324,12 @@ where
             }
         }
 
-        let config = RetryConfig::from_env();
+        let config = RetryConfig::from_gas_config(&self.gas_config);
         let mut last_error: Option<ContractError> = None;
         
+        tracing::info!("Submitting report transaction");
         // Retry loop
         for attempt in 0..=config.max_retries {
-            // Log retry attempt
             if attempt > 0 {
                 tracing::warn!(
                     attempt,
@@ -319,12 +338,7 @@ where
                     attempt + 1,
                     config.max_retries + 1
                 );
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-            } else {
-                tracing::info!("Submitting report transaction");
             }
-            
-            // Check for pending transactions
             let nonce_info = match self.check_nonces().await {
                 Ok(info) => info,
                 Err(e) => {
@@ -338,7 +352,7 @@ where
             let gas_markup_percent = Self::calculate_gas_markup(
                 &nonce_info,
                 attempt,
-                config.base_gas_markup,
+                &self.gas_config,
             );
             
             // Configure transaction with gas parameters
@@ -351,54 +365,47 @@ where
             
             let mut tx_builder_for_attempt = tx_builder.clone();
             
-            // Set nonce for replacement
-            if nonce_info.has_pending_tx {
-                tx_builder_for_attempt = tx_builder_for_attempt.nonce(nonce_info.confirmed);
+            if nonce_info.pending > nonce_info.confirmed {
                 tracing::info!(
                     nonce = nonce_info.confirmed,
-                    "Using confirmed nonce {} to replace pending transaction",
+                    pending_count = nonce_info.pending - nonce_info.confirmed,
+                    "Using nonce {} to replace {} pending transaction(s)",
+                    nonce_info.confirmed,
+                    nonce_info.pending - nonce_info.confirmed
+                );
+            } else {
+                tracing::debug!(
+                    nonce = nonce_info.confirmed,
+                    "Using nonce {} for new transaction",
                     nonce_info.confirmed
                 );
             }
+            tx_builder_for_attempt = tx_builder_for_attempt.nonce(nonce_info.confirmed);
             
-            // Configure gas limit
-            if let Ok(gas_limit_str) = std::env::var("TX_GAS_LIMIT") {
-                if let Ok(gas_limit) = gas_limit_str.parse::<u64>() {
-                    tracing::info!(gas_limit, "Using explicit gas limit");
-                    tx_builder_for_attempt = tx_builder_for_attempt.gas(gas_limit);
-                }
+            if let Some(gas_limit) = self.gas_config.gas_limit {
+                tracing::info!(gas_limit, "Using explicit gas limit");
+                tx_builder_for_attempt = tx_builder_for_attempt.gas(gas_limit);
             }
             
-            // Configure max fee per gas
-            if let Ok(max_fee_gwei_str) = std::env::var("TX_MAX_FEE_PER_GAS_GWEI") {
-                if let Ok(max_fee_gwei) = max_fee_gwei_str.parse::<u128>() {
-                    let bumped_max_fee_gwei = (max_fee_gwei * gas_markup_percent) / 100;
-                    let max_fee_wei = bumped_max_fee_gwei * 1_000_000_000;
-                    tracing::info!(
-                        attempt,
-                        base_max_fee_gwei = max_fee_gwei,
-                        bumped_max_fee_gwei,
-                        bump_percent = gas_markup_percent,
-                        "Setting max fee per gas"
-                    );
-                    tx_builder_for_attempt = tx_builder_for_attempt.max_fee_per_gas(max_fee_wei);
-                }
+            if let Some(max_fee_wei) = self.gas_config.max_fee_per_gas_wei {
+                tracing::info!(
+                    attempt,
+                    max_fee_wei,
+                    "Setting max fee per gas (cap)"
+                );
+                tx_builder_for_attempt = tx_builder_for_attempt.max_fee_per_gas(max_fee_wei);
             }
             
-            // Configure max priority fee per gas
-            if let Ok(priority_fee_gwei_str) = std::env::var("TX_MAX_PRIORITY_FEE_PER_GAS_GWEI") {
-                if let Ok(priority_fee_gwei) = priority_fee_gwei_str.parse::<u128>() {
-                    let bumped_priority_fee_gwei = (priority_fee_gwei * gas_markup_percent) / 100;
-                    let priority_fee_wei = bumped_priority_fee_gwei * 1_000_000_000;
-                    tracing::info!(
-                        attempt,
-                        base_priority_fee_gwei = priority_fee_gwei,
-                        bumped_priority_fee_gwei,
-                        bump_percent = gas_markup_percent,
-                        "Setting max priority fee per gas"
-                    );
-                    tx_builder_for_attempt = tx_builder_for_attempt.max_priority_fee_per_gas(priority_fee_wei);
-                }
+            if let Some(priority_fee_wei) = self.gas_config.max_priority_fee_per_gas_wei {
+                let bumped_priority_fee_wei = (priority_fee_wei * gas_markup_percent) / 100;
+                tracing::info!(
+                    attempt,
+                    base_priority_fee_wei = priority_fee_wei,
+                    bumped_priority_fee_wei,
+                    bump_percent = gas_markup_percent,
+                    "Setting max priority fee per gas (tip)"
+                );
+                tx_builder_for_attempt = tx_builder_for_attempt.max_priority_fee_per_gas(bumped_priority_fee_wei);
             }
             
             // Send transaction
@@ -426,8 +433,8 @@ where
                     let is_retryable = Self::is_error_retryable(&contract_err);
                     last_error = Some(contract_err);
                     
-                    if !is_retryable && attempt < config.max_retries {
-                        tracing::error!("Error is not retryable, aborting retries");
+                    if !is_retryable {
+                        tracing::error!("Error is not retryable, aborting retries immediately");
                         break;
                     }
                     continue;
@@ -480,8 +487,6 @@ where
                     continue;
                 }
             };
-            
-            // Check transaction result
             if tx_result.status() {
                 tracing::info!(
                     attempt,

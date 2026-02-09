@@ -2,7 +2,7 @@ use alloy::node_bindings::Anvil;
 use alloy::transports::http::reqwest::Url;
 use anyhow::{self, Context, Result};
 use sp1_lido_accounting_scripts::{
-    eth_client::{ProviderFactory, Sp1LidoAccountingReportContractWrapper},
+    eth_client::{GasConfig, ProviderFactory, Sp1LidoAccountingReportContractWrapper},
     scripts,
 };
 use sp1_lido_accounting_zk_shared::{eth_spec, io::eth_io::BeaconChainSlot};
@@ -48,7 +48,7 @@ mod integration_tests {
             let key = anvil.keys()[0].clone();
             let provider = ProviderFactory::create_provider(key, endpoint);
 
-            let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::new(provider), &deploy_params)
+            let contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::new(provider), &deploy_params, GasConfig::default())
                 .await
                 .map_err(eyre_to_anyhow)?;
             tracing::info!("Deployed contract at {}", contract.address());

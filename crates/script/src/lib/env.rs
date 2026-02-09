@@ -173,12 +173,12 @@ pub const TX_GAS_LIMIT: EnvVarSpec = EnvVarSpec {
     key: "TX_GAS_LIMIT",
     sensitive: false,
 };
-pub const TX_MAX_FEE_PER_GAS_GWEI: EnvVarSpec = EnvVarSpec {
-    key: "TX_MAX_FEE_PER_GAS_GWEI",
+pub const TX_MAX_FEE_PER_GAS_WEI: EnvVarSpec = EnvVarSpec {
+    key: "TX_MAX_FEE_PER_GAS_WEI",
     sensitive: false,
 };
-pub const TX_MAX_PRIORITY_FEE_PER_GAS_GWEI: EnvVarSpec = EnvVarSpec {
-    key: "TX_MAX_PRIORITY_FEE_PER_GAS_GWEI",
+pub const TX_MAX_PRIORITY_FEE_PER_GAS_WEI: EnvVarSpec = EnvVarSpec {
+    key: "TX_MAX_PRIORITY_FEE_PER_GAS_WEI",
     sensitive: false,
 };
 pub const TX_GAS_MARKUP_PERCENT: EnvVarSpec = EnvVarSpec {
@@ -187,5 +187,13 @@ pub const TX_GAS_MARKUP_PERCENT: EnvVarSpec = EnvVarSpec {
 };
 pub const TX_REPLACEMENT_BUMP_PERCENT: EnvVarSpec = EnvVarSpec {
     key: "TX_REPLACEMENT_BUMP_PERCENT",
+    sensitive: false,
+};
+pub const TX_MAX_RETRIES: EnvVarSpec = EnvVarSpec {
+    key: "TX_MAX_RETRIES",
+    sensitive: false,
+};
+pub const TX_RECEIPT_TIMEOUT_SECS: EnvVarSpec = EnvVarSpec {
+    key: "TX_RECEIPT_TIMEOUT_SECS",
     sensitive: false,
 };

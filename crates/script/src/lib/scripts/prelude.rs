@@ -167,6 +167,14 @@ pub struct EnvVars {
     pub beacon_state_rpc: EnvVarValue<Url>,
 
     pub prometheus_namespace: EnvVarValue<String>,
+
+    pub tx_max_fee_per_gas_wei: EnvVarValue<Option<u128>>,
+    pub tx_max_priority_fee_per_gas_wei: EnvVarValue<Option<u128>>,
+    pub tx_gas_limit: EnvVarValue<Option<u64>>,
+    pub tx_gas_markup_percent: EnvVarValue<u128>,
+    pub tx_replacement_bump_percent: EnvVarValue<u128>,
+    pub tx_max_retries: EnvVarValue<u32>,
+    pub tx_receipt_timeout_secs: EnvVarValue<u64>,
 }
 
 impl EnvVars {
@@ -198,6 +206,13 @@ impl EnvVars {
             consensus_layer_rpc: crate::env::CONSENSUS_LAYER_RPC.required(),
             beacon_state_rpc: crate::env::BEACON_STATE_RPC.required(),
             prometheus_namespace: crate::env::PROMETHEUS_NAMESPACE.default(DEFAULT_PROMETHEUS_NAMESPACE.to_owned()),
+            tx_max_fee_per_gas_wei: crate::env::TX_MAX_FEE_PER_GAS_WEI.optional(),
+            tx_max_priority_fee_per_gas_wei: crate::env::TX_MAX_PRIORITY_FEE_PER_GAS_WEI.optional(),
+            tx_gas_limit: crate::env::TX_GAS_LIMIT.optional(),
+            tx_gas_markup_percent: crate::env::TX_GAS_MARKUP_PERCENT.default(120),
+            tx_replacement_bump_percent: crate::env::TX_REPLACEMENT_BUMP_PERCENT.default(150),
+            tx_max_retries: crate::env::TX_MAX_RETRIES.default(2),
+            tx_receipt_timeout_secs: crate::env::TX_RECEIPT_TIMEOUT_SECS.default(300),
         }
     }
 
@@ -321,6 +336,16 @@ impl ScriptRuntime {
             Arc::clone(&metrics.services.sp1_client),
         ));
 
+        let gas_config = crate::eth_client::GasConfig {
+            max_fee_per_gas_wei: env_vars.tx_max_fee_per_gas_wei.value.or(Some(10_000_000_000)), // Default: 10 gwei
+            max_priority_fee_per_gas_wei: env_vars.tx_max_priority_fee_per_gas_wei.value,
+            gas_limit: env_vars.tx_gas_limit.value,
+            gas_markup_percent: env_vars.tx_gas_markup_percent.value,
+            replacement_bump_percent: env_vars.tx_replacement_bump_percent.value,
+            max_retries: env_vars.tx_max_retries.value,
+            receipt_timeout_secs: env_vars.tx_receipt_timeout_secs.value,
+        };
+
         let result = Self::new(
             EthInfrastructure {
                 network,
@@ -333,6 +358,7 @@ impl ScriptRuntime {
                 report_contract: Sp1LidoAccountingReportContractWrapper::new(
                     Arc::clone(&provider),
                     env_vars.contract_address.value,
+                    gas_config,
                 ),
                 hash_consensus_contract: HashConsensusContractWrapper::new(
                     Arc::clone(&provider),

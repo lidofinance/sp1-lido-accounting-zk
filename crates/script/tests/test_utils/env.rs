@@ -253,7 +253,7 @@ impl IntegrationTestEnvironment {
         );
 
         tracing::info!("Deploying contract with parameters {:?}", deploy_params);
-        let report_contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&provider), &deploy_params)
+        let report_contract = Sp1LidoAccountingReportContractWrapper::deploy(Arc::clone(&provider), &deploy_params, eth_client::GasConfig::default())
             .await
             .map_err(test_utils::eyre_to_anyhow)?;
 
