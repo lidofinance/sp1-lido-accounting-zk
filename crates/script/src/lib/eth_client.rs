@@ -353,6 +353,7 @@ where
     P: alloy::providers::Provider<Ethereum>,
 {
     provider: Arc<P>,
+    fallback_provider: Option<Arc<P>>,
     metric_reporter: Arc<prometheus_metrics::Service>,
 }
 
@@ -363,7 +364,29 @@ where
     pub fn new(provider: Arc<P>, metric_reporter: Arc<prometheus_metrics::Service>) -> Self {
         Self {
             provider,
+            fallback_provider: None,
             metric_reporter,
+        }
+    }
+
+    pub fn with_fallback(provider: Arc<P>, fallback_provider: Option<Arc<P>>, metric_reporter: Arc<prometheus_metrics::Service>) -> Self {
+        Self {
+            provider,
+            fallback_provider,
+            metric_reporter,
+        }
+    }
+
+    /// Convert a proof response to WithdrawalVaultData
+    fn map_proof_to_withdrawal_vault_data(
+        address: Address,
+        proof_response: alloy::rpc::types::EIP1186AccountProofResponse,
+    ) -> WithdrawalVaultData {
+        let proof_as_vecs = proof_response.account_proof.iter().map(|val| val.to_vec()).collect();
+        WithdrawalVaultData {
+            vault_address: address,
+            balance: proof_response.balance,
+            account_proof: proof_as_vecs,
         }
     }
 
@@ -378,21 +401,44 @@ where
         );
 
         let block_hash: RpcBlockHash = RpcBlockHash::from_hash(block_hash.0.into(), Some(true));
-        let response = self
+        
+        let result: Result<_, alloy::transports::RpcError<_>> = self
             .provider
             .get_proof(address, vec![])
             .block_id(BlockId::Hash(block_hash))
-            // .block_id(BlockId::Number(alloy::eips::BlockNumberOrTag::Latest))
-            .await
-            .map(|resp| {
-                let proof_as_vecs = resp.account_proof.iter().map(|val| val.to_vec()).collect();
-                WithdrawalVaultData {
-                    vault_address: address,
-                    balance: resp.balance,
-                    account_proof: proof_as_vecs,
-                }
-            })?;
-        Ok(response)
+            .await;
+
+        let should_retry_with_fallback = match &result {
+            Err(alloy::transports::RpcError::ErrorResp(error_payload)) => {
+                error_payload.message.contains("historical state") && error_payload.message.contains("not available")
+            }
+            _ => false,
+        };
+
+        if should_retry_with_fallback {
+            if let Some(ref fallback) = self.fallback_provider {
+                tracing::warn!(
+                    block_hash = ?block_hash,
+                    "Primary RPC failed with 'historical state not available', retrying with fallback provider"
+                );
+                let fallback_result: Result<_, alloy::transports::RpcError<_>> = fallback
+                    .get_proof(address, vec![])
+                    .block_id(BlockId::Hash(block_hash))
+                    .await;
+                
+                return fallback_result
+                    .map(|resp| Self::map_proof_to_withdrawal_vault_data(address, resp))
+                    .map_err(RPCError::Error);
+            } else {
+                tracing::warn!(
+                    "Primary RPC failed with 'historical state not available' but no fallback provider configured"
+                );
+            }
+        }
+
+        result
+            .map(|resp| Self::map_proof_to_withdrawal_vault_data(address, resp))
+            .map_err(RPCError::Error)
     }
 
     pub async fn get_withdrawal_vault_data(

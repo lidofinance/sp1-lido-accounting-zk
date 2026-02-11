@@ -163,6 +163,7 @@ pub struct EnvVars {
     pub lido_widthrawal_credentials: EnvVarValue<Hash256>,
 
     pub execution_layer_rpc: EnvVarValue<Url>,
+    pub execution_layer_rpc_fallback: EnvVarValue<Option<Url>>,
     pub consensus_layer_rpc: EnvVarValue<Url>,
     pub beacon_state_rpc: EnvVarValue<Url>,
 
@@ -195,6 +196,7 @@ impl EnvVars {
             withdrawal_vault_address: crate::env::WITHDRAWAL_VAULT_ADDRESS.required(),
             lido_widthrawal_credentials: crate::env::LIDO_WIDTHRAWAL_CREDENTIALS.required(),
             execution_layer_rpc: crate::env::EXECUTION_LAYER_RPC.required(),
+            execution_layer_rpc_fallback: crate::env::EXECUTION_LAYER_RPC_FALLBACK.optional(),
             consensus_layer_rpc: crate::env::CONSENSUS_LAYER_RPC.required(),
             beacon_state_rpc: crate::env::BEACON_STATE_RPC.required(),
             prometheus_namespace: crate::env::PROMETHEUS_NAMESPACE.default(DEFAULT_PROMETHEUS_NAMESPACE.to_owned()),
@@ -307,6 +309,16 @@ impl ScriptRuntime {
             env_vars.execution_layer_rpc.value.clone(),
         )?);
 
+        let fallback_provider = if let Some(ref fallback_rpc) = env_vars.execution_layer_rpc_fallback.value {
+            tracing::info!("Fallback RPC provider configured: {}", fallback_rpc);
+            Some(Arc::new(ProviderFactory::create_provider_decode_key(
+                env_vars.private_key.value.clone(),
+                fallback_rpc.clone(),
+            )?))
+        } else {
+            None
+        };
+
         let metrics = Arc::new(Metrics::new(&env_vars.prometheus_namespace.value));
 
         let network = env_vars.evm_chain.value.clone().parse::<WrappedNetwork>()?;
@@ -325,7 +337,11 @@ impl ScriptRuntime {
             EthInfrastructure {
                 network,
                 provider: Arc::clone(&provider),
-                eth_client: ExecutionLayerClient::new(Arc::clone(&provider), Arc::clone(&metrics.services.eth_client)),
+                eth_client: ExecutionLayerClient::with_fallback(
+                    Arc::clone(&provider),
+                    fallback_provider,
+                    Arc::clone(&metrics.services.eth_client),
+                ),
                 beacon_state_reader,
             },
             Sp1Infrastructure { sp1_client },
