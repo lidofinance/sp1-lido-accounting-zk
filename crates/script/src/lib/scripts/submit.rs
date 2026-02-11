@@ -251,6 +251,12 @@ async fn run_with_span(
                 .with_label_values(&[prometheus_metrics::outcome::SUCCESS])
                 .inc();
             runtime.metrics.execution.gas_cost.set(tx_receipt.gas_used);
+            runtime
+                .metrics
+                .report
+                .submission_success_total
+                .with_label_values(&[prometheus_metrics::outcome::SUCCESS])
+                .inc();
         })
         .inspect_err(|e| {
             tracing::error!("Failed to submit report: {e:?}");
