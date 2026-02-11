@@ -79,6 +79,7 @@ pub struct Report {
     pub withdrawal_vault_balance_gwei: UIntGauge,
     pub state_new_validators: UIntGauge,
     pub state_changed_validators: UIntGauge,
+    pub submission_success_total: UIntCounterVec,
 }
 
 pub struct Service {
@@ -140,6 +141,12 @@ impl Registar for Report {
             "report",
             "state_changed_validators",
             self.state_changed_validators
+        )?;
+        register_metric!(
+            registry,
+            "report",
+            "submission_success_total",
+            self.submission_success_total
         )?;
         Ok(())
     }
@@ -370,6 +377,12 @@ impl Metrics {
             ),
             state_new_validators: gauge(namespace, "report__state_new_validators", "New validators"),
             state_changed_validators: gauge(namespace, "report__state_changed_validators", "Changed validators"),
+            submission_success_total: counter_vec(
+                namespace,
+                "report__submission_success_total",
+                "Total number of successful report submissions",
+                &["status"],
+            ),
         };
 
         let service_duration_buckets = vec![0.1, 0.25, 0.5, 1.0, 3.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0];
