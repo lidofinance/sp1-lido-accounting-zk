@@ -255,7 +255,7 @@ async fn run_with_span(
                 .metrics
                 .report
                 .submission_success_total
-                .with_label_values(&["success"])
+                .with_label_values(&[prometheus_metrics::outcome::SUCCESS])
                 .inc();
         })
         .inspect_err(|e| {
