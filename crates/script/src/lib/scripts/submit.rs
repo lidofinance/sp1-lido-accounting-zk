@@ -15,7 +15,14 @@ use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch, Publ
 use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
 use sp1_lido_accounting_zk_shared::util::usize_to_u64;
 use sp1_sdk::ExecutionReport;
+use thiserror::Error;
 use tracing::Instrument;
+
+#[derive(Debug, Error, Clone)]
+#[error("Report already exists for refSlot {ref_slot}")]
+pub struct ReportAlreadyExistsError {
+    pub ref_slot: ReferenceSlot,
+}
 
 #[derive(Debug, Default)]
 pub struct Flags {
@@ -323,6 +330,7 @@ pub async fn run(
     flags: &Flags,
 ) -> anyhow::Result<TransactionReceipt> {
     let timer = runtime.metrics.execution.execution_time_seconds.start_timer();
+    
     let resolved_slot_values = resolve_slot_values(runtime, target_slot, prev_slot)
         .await
         .inspect(|val| tracing::info!(report_slot=?val.report_slot, target_slot=?val.target_slot, previous_slot=?val.previous_slot, "Resolved ref slot argument to values"))
@@ -333,6 +341,39 @@ pub async fn run(
                 "Failed to resolve arguments {e:?}"
             )
         })?;
+    
+    // Check if a report already exists for the resolved slot (before expensive proof generation)
+    match runtime.lido_infra.report_contract.get_report(resolved_slot_values.report_slot).await {
+        Ok(_existing_report) => {
+            tracing::info!(
+                ref_slot = ?resolved_slot_values.report_slot,
+                "Report already exists for refSlot {}, skipping submission",
+                resolved_slot_values.report_slot
+            );
+            return Err(ReportAlreadyExistsError {
+                ref_slot: resolved_slot_values.report_slot,
+            }
+            .into());
+        }
+        Err(crate::eth_client::ContractError::ReportNotFound(_)) => {
+            tracing::debug!(
+                ref_slot = ?resolved_slot_values.report_slot,
+                "No existing report found for refSlot {}, proceeding with submission",
+                resolved_slot_values.report_slot
+            );
+        }
+        Err(e) => {
+            // Network error during check - log but proceed anyway to avoid blocking on transient errors
+            // The contract will reject if report already exists, so this is safe
+            tracing::warn!(
+                ref_slot = ?resolved_slot_values.report_slot,
+                error = ?e,
+                "Failed to check if report exists for refSlot {}, proceeding anyway: {}",
+                resolved_slot_values.report_slot,
+                e
+            );
+        }
+    }
 
     let submit_span = tracing::info_span!(
         "submit",

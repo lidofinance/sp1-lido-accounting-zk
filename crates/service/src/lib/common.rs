@@ -45,10 +45,14 @@ impl AppState {
     }
 }
 
+use sp1_lido_accounting_scripts::scripts::submit::ReportAlreadyExistsError;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Already running submission script")]
     AlreadyRunning,
+    #[error(transparent)]
+    ReportAlreadyExists(#[from] ReportAlreadyExistsError),
     #[error(transparent)]
     SubmitError(#[from] anyhow::Error),
 }
@@ -88,6 +92,16 @@ pub async fn run_submit_impl(
         hex::encode(tx_receipt.transaction_hash)
     })
     .map_err(|e| {
+        // Check if this is a ReportAlreadyExistsError
+        if let Ok(report_error) = e.downcast::<ReportAlreadyExistsError>() {
+            let ref_slot = report_error.ref_slot;
+            tracing::info!(
+                ref_slot = ?ref_slot,
+                "Report already exists for refSlot {}, skipping submission",
+                ref_slot
+            );
+            return Error::ReportAlreadyExists(ReportAlreadyExistsError { ref_slot });
+        }
         tracing::error!("Failed to submit report {}", e);
         Error::from(e)
     })

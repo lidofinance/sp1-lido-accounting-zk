@@ -38,6 +38,13 @@ async fn submit_report(state: Arc<AppState>) {
         Ok(tx_hash) => tracing::info!("Successfully submitted report, txhash: {}", tx_hash),
         Err(e) => match e {
             Error::AlreadyRunning => tracing::warn!("Already running - skipping scheduled run"),
+            Error::ReportAlreadyExists(ref report_error) => {
+                tracing::info!(
+                    ref_slot = ?report_error.ref_slot,
+                    "Report already exists for refSlot {} - skipping submission",
+                    report_error.ref_slot
+                );
+            }
             Error::SubmitError(underlying) => tracing::error!("Failed to run: {underlying:?}"),
         },
     }
