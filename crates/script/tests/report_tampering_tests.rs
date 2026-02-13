@@ -223,7 +223,7 @@ async fn report_tampering_sanity_check_should_pass() -> Result<()> {
             tracing::info!("Sanity check succeeded - submitting valid report with no tampering succeeds");
             Ok(())
         }
-        Err(err) => Err(anyhow::anyhow!("Error: {:?}", err)),
+        Err(err) => Err(anyhow::anyhow!("Error: {err:?}")),
     }
 }
 

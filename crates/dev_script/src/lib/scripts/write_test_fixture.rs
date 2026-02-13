@@ -74,7 +74,9 @@ pub async fn run(
     tracing::info!("Generated proof");
 
     if skip_verification {
-        tracing::warn!("Skipping local proof verification (SP1_SKIP_LOCAL_PROOF_VERIFICATION=true)");
+        tracing::warn!(
+            "Skipping local proof verification (SP1_SKIP_LOCAL_PROOF_VERIFICATION=true)"
+        );
     } else {
         runtime
             .sp1_infra

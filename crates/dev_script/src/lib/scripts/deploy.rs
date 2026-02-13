@@ -103,8 +103,8 @@ pub async fn run(
     verification: Verification,
 ) -> anyhow::Result<()> {
     if let Verification::Verify {
-        contracts_path,
-        chain_id,
+        contracts_path: _,
+        chain_id: _,
     } = verification
     {
         panic!("Verification is not yet supported");

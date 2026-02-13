@@ -5,9 +5,14 @@ WORKDIR /usr/src/sp1-lido-zk
 # copying this file separately to avoid busting cache and rerunning bootstrap on every file change
 COPY docker/docker_build_bootstrap.sh ./docker_build_bootstrap.sh
 RUN ./docker_build_bootstrap.sh
+# Install git for submodule initialization
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 # See .dockerignore for list of copied files
 COPY . .
 ENV PATH="$PATH:/root/.sp1/bin:/root/.foundry/bin"
+# Initialize git submodules for contract dependencies
+RUN git config --global --add safe.directory /usr/src/sp1-lido-zk
+RUN git submodule update --init --recursive --depth 1
 ARG VERGEN_GIT_SHA
 ENV VERGEN_GIT_SHA=${VERGEN_GIT_SHA}
 RUN cargo build --release --locked

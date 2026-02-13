@@ -79,7 +79,9 @@ async fn main() {
         .unwrap_or(false);
 
     if skip_verification {
-        tracing::info!("Local proof verification will be skipped (SP1_SKIP_LOCAL_PROOF_VERIFICATION=true)");
+        tracing::info!(
+            "Local proof verification will be skipped (SP1_SKIP_LOCAL_PROOF_VERIFICATION=true)"
+        );
     }
 
     dev_scripts::write_test_fixture::run(
