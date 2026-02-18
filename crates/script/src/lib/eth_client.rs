@@ -374,7 +374,11 @@ where
         }
     }
 
-    pub fn with_fallback(provider: Arc<P>, fallback_provider: Option<Arc<P>>, metric_reporter: Arc<prometheus_metrics::Service>) -> Self {
+    pub fn with_fallback(
+        provider: Arc<P>,
+        fallback_provider: Option<Arc<P>>,
+        metric_reporter: Arc<prometheus_metrics::Service>,
+    ) -> Self {
         Self {
             provider,
             fallback_provider,
@@ -406,7 +410,7 @@ where
         );
 
         let block_hash: RpcBlockHash = RpcBlockHash::from_hash(block_hash.0.into(), Some(true));
-        
+
         let result: Result<_, alloy::transports::RpcError<_>> = self
             .provider
             .get_proof(address, vec![])
@@ -430,7 +434,7 @@ where
                     .get_proof(address, vec![])
                     .block_id(BlockId::Hash(block_hash))
                     .await;
-                
+
                 return fallback_result
                     .map(|resp| Self::map_proof_to_withdrawal_vault_data(address, resp))
                     .map_err(RPCError::Error);
