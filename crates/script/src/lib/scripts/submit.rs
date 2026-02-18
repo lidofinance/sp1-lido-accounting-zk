@@ -10,6 +10,7 @@ use alloy::rpc::types::TransactionReceipt;
 use alloy_primitives::Address;
 use anyhow::{self, Context};
 use chrono::Utc;
+use hex::encode as hex_encode;
 use sp1_lido_accounting_zk_shared::eth_consensus_layer::Hash256;
 use sp1_lido_accounting_zk_shared::io::eth_io::{BeaconChainSlot, HaveEpoch, PublicValuesRust, ReferenceSlot};
 use sp1_lido_accounting_zk_shared::io::program_io::ProgramInput;
@@ -139,6 +140,12 @@ async fn run_with_span(
         !InputChecks::is_relaxed(),
         "Input checks were relaxed - this must not happen during script run"
     );
+
+    // Log the SP1 vkey we are about to use so we can correlate on-chain reverts with the prover version.
+    match runtime.sp1_infra.sp1_client.vk_bytes() {
+        Ok(vk_bytes) => tracing::info!(sp1_vkey = %hex_encode(vk_bytes), "Using SP1 vkey for report submission"),
+        Err(err) => tracing::error!(error = ?err, "Failed to fetch SP1 vkey bytes; continuing without vkey log"),
+    }
 
     tracing::info!(
         "Submitting report for network {:?}, target: (ref={:?}, actual={:?}), previous: (ref={:?}, actual={:?})",
