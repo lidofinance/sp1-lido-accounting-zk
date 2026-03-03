@@ -1,11 +1,16 @@
 [profile.default]
 src = "src"
 out = "out"
-libs = ["lib"]
+libs = ["lib", "../contracts/lib"]
 solc = "0.8.27"
 fs_permissions = [
     { access = "read-write", path = "./" },
     { access = "read", path = "../data" }
+]
+
+# Remappings
+remappings = [
+    "@sp1-contracts/=../contracts/lib/sp1-contracts/contracts/src/"
 ]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

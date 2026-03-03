@@ -2,7 +2,22 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
-import {ISP1Verifier, ISP1VerifierWithHash} from "@sp1-contracts/ISP1Verifier.sol";
+/// @title SP1 Verifier Interface
+/// @notice This interface matches the ISP1Verifier interface from sp1-contracts
+interface ISP1Verifier {
+    /// @notice Verifies a proof with given public values and vkey.
+    function verifyProof(
+        bytes32 programVKey,
+        bytes calldata publicValues,
+        bytes calldata proofBytes
+    ) external view;
+}
+
+/// @title SP1 Verifier Interface With Hash
+interface ISP1VerifierWithHash is ISP1Verifier {
+    /// @notice Returns the hash of the verifier.
+    function VERIFIER_HASH() external pure returns (bytes32);
+}
 
 /// @notice Mock SP1 Verifier that always passes verification
 /// @dev NOT PART OF THE AUDIT SCOPE, ONLY USED FOR TESTING/DEVNET
@@ -19,9 +34,6 @@ contract SP1VerifierMock is ISP1VerifierWithHash {
     /// @notice Always succeeds - does not revert
     /// @dev This mock implementation accepts any proof, vkey, and public values
     ///      without performing actual verification. Use only for testing/devnet.
-    /// @param programVKey The verification key (ignored in mock)
-    /// @param publicValues The public values (ignored in mock)
-    /// @param proofBytes The proof bytes (ignored in mock)
     function verifyProof(
         bytes32 /* programVKey */,
         bytes calldata /* publicValues */,
