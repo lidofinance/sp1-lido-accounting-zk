@@ -226,9 +226,10 @@ update_meta:
 
 ### Docker (Production)
 docker_build *args:
-    docker build -t lido_sp1_oracle . --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) {{args}} --debug --load
+    docker build -t lido_sp1_oracle . --platform linux/amd64 --build-arg VERGEN_GIT_SHA=$(git rev-parse HEAD) {{args}} --load
 
-docker_build_print_elf_sha: (docker_build "--build-arg PRINT_ELF_SHA=$(date +%s) --progress plain")
+docker_build_print_elf_sha *args:
+    just docker_build --build-arg PRINT_ELF_SHA=$(date +%s) --progress plain {{args}}
 
 # network: host is to allow connecting to anvil when run locally
 # Practically just docker-compose for lazy

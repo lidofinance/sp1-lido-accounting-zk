@@ -1,15 +1,20 @@
 #!/bin/bash
 
+set -euo pipefail
+
+: "${SP1_VERSION:=5.2.3}"
+: "${FOUNDRY_VERSION:=1.4.4}"
+
 # Install SP1 to compile ZK program
-curl -L https://sp1.succinct.xyz > ./install_sp1up.sh
+curl -fsSL https://sp1.succinct.xyz -o ./install_sp1up.sh
 chmod u+x ./install_sp1up.sh
 ./install_sp1up.sh
 source /root/.bashrc
-sp1up
+sp1up --version "${SP1_VERSION}"
 
 # Install foundry to compile contracts
-curl -L https://foundry.paradigm.xyz > ./install_foundryup.sh
+curl -fsSL https://foundry.paradigm.xyz -o ./install_foundryup.sh
 chmod u+x ./install_foundryup.sh
 ./install_foundryup.sh
 source /root/.bashrc
-foundryup
+foundryup --install "${FOUNDRY_VERSION}"
