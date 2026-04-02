@@ -1,37 +1,34 @@
 # Dockerfile for reproducible integration testing and fixture generation
 # Forces linux/amd64 platform for consistent ELF binary builds
-FROM --platform=linux/amd64 rust:1.88
+FROM --platform=linux/amd64 rust:1.88.0
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    git \
-    jq \
-    openssl \
-    ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential=12.9* \
+    curl=7.88.1-10+deb12u* \
+    git=1:2.39.5-0+deb12u* \
+    jq=1.6* \
+    openssl=3.0.18-1~deb12u* \
+    ca-certificates=20230311+deb12u1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 
-# Install SP1 toolchain
+# SP1_VERSION derived from Cargo.toml - matches main Dockerfile approach
+COPY Cargo.toml ./Cargo.toml
 COPY docker/docker_build_bootstrap.sh ./docker_build_bootstrap.sh
-RUN ./docker_build_bootstrap.sh && \
-    echo 'source /root/.bashrc' >> /root/.profile && \
-    /root/.sp1/bin/sp1up
-
-# Install Foundry (forge, cast, anvil)
-RUN /root/.foundry/bin/foundryup
+RUN SP1_VERSION=$(sed -n 's/^sp1-zkvm = "=\([0-9.]*\)".*/\1/p' Cargo.toml) \
+    ./docker_build_bootstrap.sh
 
 # Add toolchains to PATH
 ENV PATH="$PATH:/root/.sp1/bin:/root/.foundry/bin"
 
 # Install just (task runner)
-RUN curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+RUN curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin --tag 1.37.0
 
 # Copy workspace files for dependency caching
 # See .dockerignore for what gets copied
-COPY Cargo.toml Cargo.lock rust-toolchain ./
+COPY Cargo.lock rust-toolchain ./
 COPY crates/program/rust-toolchain ./crates/program/
 COPY crates ./crates
 
@@ -64,4 +61,3 @@ RUN echo "ELF SHA256:" && \
 # Environment variables for testing
 ENV RUST_LOG=info
 ENV RUST_BACKTRACE=1
-

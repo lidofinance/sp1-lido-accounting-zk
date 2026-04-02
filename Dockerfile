@@ -2,13 +2,13 @@
 # platforms
 FROM --platform=linux/amd64 rust:1.88.0 AS builder
 WORKDIR /usr/src/sp1-lido-zk
-ARG SP1_VERSION=5.2.3
 ARG FOUNDRY_VERSION=1.4.4
-ENV SP1_VERSION=${SP1_VERSION}
 ENV FOUNDRY_VERSION=${FOUNDRY_VERSION}
-# copying this file separately to avoid busting cache and rerunning bootstrap on every file change
+# SP1_VERSION is derived from the sp1-zkvm version in Cargo.toml - bootstrap cache re-runs when it changes
+COPY Cargo.toml ./Cargo.toml
 COPY docker/docker_build_bootstrap.sh ./docker_build_bootstrap.sh
-RUN ./docker_build_bootstrap.sh
+RUN SP1_VERSION=$(sed -n 's/^sp1-zkvm = "=\([0-9.]*\)".*/\1/p' Cargo.toml) \
+    ./docker_build_bootstrap.sh
 # Install git for submodule initialization
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git=1:2.39.5-0+deb12u* \

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-: "${SP1_VERSION:=5.2.3}"
+: "${SP1_VERSION:?SP1_VERSION must be set (derived from sp1-zkvm version in Cargo.toml)}"
 : "${FOUNDRY_VERSION:=1.4.4}"
 
 # Install SP1 to compile ZK program
