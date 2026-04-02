@@ -25,21 +25,21 @@ jobs:
       
       - name: Install Rust toolchain
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.88.0 --profile default
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           source "$HOME/.cargo/env"
           rustup component add llvm-tools-preview
-      
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
-      
+          version: v1.4.4
+
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
           export PATH="$HOME/.sp1/bin:$PATH"
-          sp1up --version 5.2.1
+          sp1up --version 5.2.3
           rustup toolchain list
           echo "$HOME/.sp1/bin" >> $GITHUB_PATH
       
@@ -104,8 +104,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
-      
+          version: v1.4.4
+
       - name: Cache Forge dependencies
         uses: actions/cache@v4
         with:
